@@ -1,0 +1,17 @@
+@import "tailwindcss";
+
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(30px); /* start lower */
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0); /* move up into place */
+  }
+}
+
+.animate-slideUp {
+  animation: slideUp 0.6s ease-out;
+}
+

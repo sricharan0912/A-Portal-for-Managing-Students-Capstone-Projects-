@@ -1,0 +1,48 @@
+# ========================
+# 🔧 Node.js (backend + frontend)
+# ========================
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Ignore environment variables
+.env
+backend/.env
+frontend/.env
+
+# ========================
+# ⚙️ Build / Output files
+# ========================
+dist/
+build/
+frontend/dist/
+backend/dist/
+
+# ========================
+# 🧠 System / Editor Files
+# ========================
+.DS_Store
+*.log
+*.tmp
+*.swp
+
+# VSCode settings
+.vscode/
+.history/
+
+# ========================
+# ⚡ Vite / React specific
+# ========================
+frontend/.vite/
+frontend/.cache/
+frontend/.parcel-cache/
+
+# ========================
+# 🧱 Dependency Locks (optional)
+# ========================
+# Uncomment these if you don’t want to track them
+# package-lock.json
+# yarn.lock
+# pnpm-lock.yaml
+
