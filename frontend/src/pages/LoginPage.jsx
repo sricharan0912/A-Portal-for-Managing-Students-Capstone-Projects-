@@ -12,7 +12,7 @@ export default function LoginPage() {
     const endpoint =
       role === "Client"
         ? "http://localhost:5050/clients/login"
-        : "http://localhost:5050/students/login"; // future use
+        : "http://localhost:5050/students/login";
 
     try {
       const response = await fetch(endpoint, {
@@ -27,11 +27,16 @@ export default function LoginPage() {
 
       alert("✅ Login successful!");
 
-      // Save client info to localStorage
-      localStorage.setItem("client", JSON.stringify(data.client));
-
-      // Redirect to client dashboard
-      window.location.href = "/client-dashboard";
+      // Save user info to localStorage based on role
+      if (role === "Client") {
+        localStorage.setItem("client", JSON.stringify(data.client));
+        // Redirect to client dashboard
+        window.location.href = "/client-dashboard";
+      } else {
+        localStorage.setItem("student", JSON.stringify(data.student));
+        // Redirect to student dashboard
+        window.location.href = "/student-dashboard";
+      }
     } catch (err) {
       alert(err.message);
     }
@@ -85,14 +90,14 @@ export default function LoginPage() {
 
               <button
                 type="submit"
-                className="w-full bg-cyan-500 hover:bg-cyan-600 text-white py-3 rounded-md transition"
+                className="w-full bg-blue-600 hover:bg-blue-700 text-white py-3 rounded-md transition"
               >
                 Login
               </button>
             </form>
 
             <p className="text-center mt-6 text-gray-700">
-              Don’t have an account?{" "}
+              Don't have an account?{" "}
               <a href="/signup" className="text-blue-600 hover:underline">
                 Sign up
               </a>
