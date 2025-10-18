@@ -28,8 +28,18 @@ export default function SignupPage() {
     try {
       let url = "";
       let payload = {};
+      let redirectPath = "";
 
-      if (role === "Client") {
+      if (role === "Student") {
+        url = "http://localhost:5050/students/signup";
+        payload = {
+          first_name: formData.firstName,
+          last_name: formData.lastName,
+          email: formData.email,
+          password: formData.password,
+        };
+        redirectPath = "/student-dashboard";
+      } else if (role === "Client") {
         url = "http://localhost:5050/clients/signup";
         payload = {
           name: `${formData.firstName} ${formData.lastName}`,
@@ -38,9 +48,10 @@ export default function SignupPage() {
           organization_name: formData.organization_name,
           website: formData.website || null
         };
+        redirectPath = "/login";
       } else {
-        // For now, just mock students/instructors
-        alert(`${role} signup not yet implemented!`);
+        // Instructor
+        alert("Instructor signup not yet implemented!");
         return;
       }
 
@@ -53,7 +64,19 @@ export default function SignupPage() {
       const data = await response.json();
       if (response.ok) {
         alert("Account created successfully!");
-        window.location.href = "/login";
+        
+        // For students, auto-login and store info
+        if (role === "Student") {
+          const studentData = {
+            id: data.id,
+            first_name: formData.firstName,
+            last_name: formData.lastName,
+            email: formData.email,
+          };
+          localStorage.setItem("student", JSON.stringify(studentData));
+        }
+        
+        window.location.href = redirectPath;
       } else {
         alert(data.error || "Signup failed");
       }
@@ -75,7 +98,7 @@ export default function SignupPage() {
         <div className="w-full max-w-2xl animate-slideUp">
           <div className="bg-white shadow-md rounded-xl p-10">
             <h2 className="text-3xl font-bold text-center mb-8">
-              Let’s create your account.
+              Let's create your account.
             </h2>
 
             <form className="space-y-5" onSubmit={handleSubmit}>
