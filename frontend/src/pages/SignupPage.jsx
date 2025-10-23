@@ -1,8 +1,13 @@
 import { useState } from "react";
+import { createUserWithEmailAndPassword, getIdToken, deleteUser } from "firebase/auth";
+import { auth } from "../firebaseConfig";
 import Navbar from "../components/Navbar";
+
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:5050";
 
 export default function SignupPage() {
   const [role, setRole] = useState("Student");
+  const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({
     firstName: "",
     lastName: "",
@@ -19,42 +24,77 @@ export default function SignupPage() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-
-    if (formData.password !== formData.confirmPassword) {
-      alert("Passwords do not match!");
-      return;
-    }
+    setLoading(true);
 
     try {
+      // ✅ STEP 1: Validate form data
+      if (formData.password !== formData.confirmPassword) {
+        alert("Passwords do not match!");
+        setLoading(false);
+        return;
+      }
+
+      // ✅ STEP 2: Check if email already exists in database BEFORE creating Firebase user
+      const checkEmailResponse = await fetch(
+        `${API_BASE_URL}/check-email?email=${encodeURIComponent(formData.email)}`
+      );
+      
+      if (!checkEmailResponse.ok) {
+        const errorData = await checkEmailResponse.json();
+        alert(errorData.error || "Email already registered");
+        setLoading(false);
+        return;
+      }
+
+      // ✅ STEP 3: Email is available, create Firebase user
+      const userCredential = await createUserWithEmailAndPassword(
+        auth,
+        formData.email,
+        formData.password
+      );
+      
+      // ✅ STEP 4: Get Firebase ID token
+      const idToken = await getIdToken(userCredential.user);
+
       let url = "";
       let payload = {};
       let redirectPath = "";
 
       if (role === "Student") {
-        url = "http://localhost:5050/students/signup";
+        url = `${API_BASE_URL}/students/signup`;
         payload = {
           first_name: formData.firstName,
           last_name: formData.lastName,
           email: formData.email,
-          password: formData.password,
+          idToken: idToken,
         };
         redirectPath = "/student-dashboard";
       } else if (role === "Client") {
-        url = "http://localhost:5050/clients/signup";
+        url = `${API_BASE_URL}/clients/signup`;
         payload = {
           name: `${formData.firstName} ${formData.lastName}`,
           email: formData.email,
-          password: formData.password,
           organization_name: formData.organization_name,
-          website: formData.website || null
+          website: formData.website || null,
+          idToken: idToken,
+        };
+        redirectPath = "/login";
+      } else if (role === "Instructor") {
+        url = `${API_BASE_URL}/instructors/signup`;
+        payload = {
+          first_name: formData.firstName,
+          last_name: formData.lastName,
+          email: formData.email,
+          idToken: idToken,
         };
         redirectPath = "/login";
       } else {
-        // Instructor
-        alert("Instructor signup not yet implemented!");
+        alert("Invalid role selected!");
+        setLoading(false);
         return;
       }
 
+      // ✅ STEP 5: Send data to backend
       const response = await fetch(url, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -62,27 +102,68 @@ export default function SignupPage() {
       });
 
       const data = await response.json();
+      
       if (response.ok) {
         alert("Account created successfully!");
         
-        // For students, auto-login and store info
+        // Store token and user info
         if (role === "Student") {
           const studentData = {
-            id: data.id,
+            id: data.student.id,
             first_name: formData.firstName,
             last_name: formData.lastName,
             email: formData.email,
+            token: data.token,
           };
           localStorage.setItem("student", JSON.stringify(studentData));
+          localStorage.setItem("authToken", data.token);
+        } else if (role === "Client") {
+          localStorage.setItem("authToken", data.token);
+        } else if (role === "Instructor") {
+          localStorage.setItem("authToken", data.token);
         }
         
         window.location.href = redirectPath;
       } else {
+        // Delete Firebase user if backend signup fails
+        try {
+          if (userCredential?.user) {
+            await deleteUser(userCredential.user);
+            console.log("Firebase user deleted due to backend error");
+          }
+        } catch (deleteErr) {
+          console.error("Error deleting Firebase user:", deleteErr);
+        }
+
         alert(data.error || "Signup failed");
       }
     } catch (err) {
-      console.error(err);
-      alert("Something went wrong. Please try again.");
+      console.error("Signup error:", err);
+      
+      // Delete Firebase user if backend signup fails
+      try {
+        if (err.code && !err.code.startsWith("auth/")) {
+          // Only delete if error is not from Firebase auth
+          const user = auth.currentUser;
+          if (user) {
+            await deleteUser(user);
+            console.log("Firebase user deleted due to error");
+          }
+        }
+      } catch (deleteErr) {
+        console.error("Error deleting Firebase user:", deleteErr);
+      }
+      
+      // Handle Firebase specific errors
+      if (err.code === "auth/email-already-in-use") {
+        alert("This email is already registered. Please login or use a different email.");
+      } else if (err.code === "auth/weak-password") {
+        alert("Password should be at least 6 characters");
+      } else {
+        alert(err.message || "Something went wrong. Please try again.");
+      }
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -194,9 +275,10 @@ export default function SignupPage() {
               {/* Submit */}
               <button
                 type="submit"
-                className="w-full bg-cyan-500 hover:bg-cyan-600 text-white py-3 rounded-md transition"
+                disabled={loading}
+                className="w-full bg-cyan-500 hover:bg-cyan-600 text-white py-3 rounded-md transition disabled:opacity-50"
               >
-                Create account
+                {loading ? "Creating account..." : "Create account"}
               </button>
             </form>
 

@@ -28,7 +28,7 @@ ReactDOM.createRoot(document.getElementById('root')).render(
 
         {/* Dashboards */}
         <Route path="/student-dashboard" element={<StudentDashboard />} />
-        <Route path="/instructor-dashboard" element={<InstructorDashboard />} />
+        <Route path="/instructor-dashboard/*" element={<InstructorDashboard />} />
         <Route path="/client-dashboard" element={<ClientDashboard />} />
       </Routes>
     </BrowserRouter>

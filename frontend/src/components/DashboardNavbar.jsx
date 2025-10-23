@@ -30,9 +30,9 @@ export default function DashboardNavbar({
       ring: "focus:ring-blue-300",
     },
     instructor: {
-      bg: "bg-green-800",
-      badge: "bg-green-700 text-green-100",
-      ring: "focus:ring-green-300",
+      bg: "bg-blue-900",
+      badge: "bg-blue-800 text-blue-100",
+      ring: "focus:ring-blue-300",
     },
   }[role] || {
     bg: "bg-gray-900",

@@ -1,44 +1,89 @@
 import { useState } from "react";
+import { signInWithEmailAndPassword, getIdToken } from "firebase/auth";
+import { auth } from "../firebaseConfig";
 import Navbar from "../components/Navbar";
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [role, setRole] = useState("Client");
+  const [loading, setLoading] = useState(false);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    setLoading(true);
 
-    const endpoint =
-      role === "Client"
-        ? "http://localhost:5050/clients/login"
-        : "http://localhost:5050/students/login";
+    if (!email || !password) {
+      alert("Email and password are required");
+      setLoading(false);
+      return;
+    }
 
     try {
+      // Step 1: Sign in with Firebase
+      console.log("Signing in with Firebase...");
+      const userCredential = await signInWithEmailAndPassword(auth, email, password);
+      console.log("Firebase sign in successful");
+      
+      // Step 2: Get Firebase ID token
+      const idToken = await getIdToken(userCredential.user);
+      console.log("ID token obtained");
+
+      const endpoint =
+        role === "Client"
+          ? "http://localhost:5050/clients/login"
+          : role === "Student"
+          ? "http://localhost:5050/students/login"
+          : "http://localhost:5050/instructors/login";
+
+      console.log("Sending login request to:", endpoint);
+
+      // Step 3: Send token to backend
       const response = await fetch(endpoint, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password }),
+        body: JSON.stringify({ email, idToken }),
       });
 
       const data = await response.json();
+      console.log("Backend response:", data);
 
       if (!response.ok) throw new Error(data.error || "Login failed");
 
       alert("✅ Login successful!");
 
-      // Save user info to localStorage based on role
+      // Verify the response contains the correct data
+      console.log("Client data from backend:", data.client);
+
+      // Save user info and token to localStorage
       if (role === "Client") {
         localStorage.setItem("client", JSON.stringify(data.client));
-        // Redirect to client dashboard
+        localStorage.setItem("authToken", data.token);
         window.location.href = "/client-dashboard";
-      } else {
+      } else if (role === "Student") {
         localStorage.setItem("student", JSON.stringify(data.student));
-        // Redirect to student dashboard
+        localStorage.setItem("authToken", data.token);
         window.location.href = "/student-dashboard";
+      } else {
+        localStorage.setItem("instructor", JSON.stringify(data.instructor));
+        localStorage.setItem("authToken", data.token);
+        window.location.href = "/instructor-dashboard";
       }
     } catch (err) {
-      alert(err.message);
+      console.error("Login error:", err);
+      
+      // Handle Firebase specific errors
+      if (err.code === "auth/user-not-found") {
+        alert("User not found. Please sign up first.");
+      } else if (err.code === "auth/wrong-password") {
+        alert("Incorrect password.");
+      } else if (err.code === "auth/invalid-credential") {
+        alert("Invalid email or password.");
+      } else {
+        alert(err.message || "Login failed. Please try again.");
+      }
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -61,6 +106,7 @@ export default function LoginPage() {
               >
                 <option>Client</option>
                 <option>Student</option>
+                <option>Instructor</option>
               </select>
 
               <input
@@ -69,6 +115,7 @@ export default function LoginPage() {
                 className="border rounded-md p-3 w-full"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
+                required
               />
               <input
                 type="password"
@@ -76,6 +123,7 @@ export default function LoginPage() {
                 className="border rounded-md p-3 w-full"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
+                required
               />
 
               <div className="flex justify-between items-center text-sm">
@@ -90,9 +138,10 @@ export default function LoginPage() {
 
               <button
                 type="submit"
-                className="w-full bg-blue-600 hover:bg-blue-700 text-white py-3 rounded-md transition"
+                disabled={loading}
+                className="w-full bg-blue-600 hover:bg-blue-700 text-white py-3 rounded-md transition disabled:opacity-50"
               >
-                Login
+                {loading ? "Logging in..." : "Login"}
               </button>
             </form>
 
