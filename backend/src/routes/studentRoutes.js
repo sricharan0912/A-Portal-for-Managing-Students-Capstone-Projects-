@@ -2,7 +2,7 @@ import express from "express";
 import jwt from "jsonwebtoken";
 import db from "../../db.js";
 import { auth } from "../../firebaseAdmin.js";
-import { verifyToken } from "../middleware/authMiddleware.js";
+import { verifyToken, verifyRole } from "../middleware/authMiddleware.js";
 import { validateStudentSignup, validateStudentLogin } from "../middleware/validateRequest.js";
 
 const router = express.Router();
@@ -143,6 +143,27 @@ router.post("/login", validateStudentLogin, async (req, res) => {
 
 // ==================== STATIC ROUTES (MUST BE BEFORE PARAMETERIZED ROUTES) ====================
 
+// ✅ NEW: Get all students (for instructor/admin to view all students)
+// IMPORTANT: This MUST come before /:student_id routes
+router.get("/", verifyToken, verifyRole(["instructor", "admin"]), async (req, res) => {
+  try {
+    const [students] = await db.query(
+      "SELECT id, first_name, last_name, email, created_at FROM students ORDER BY created_at DESC"
+    );
+
+    res.json({
+      success: true,
+      data: students,
+    });
+  } catch (err) {
+    console.error("Error fetching all students:", err);
+    res.status(500).json({
+      success: false,
+      error: "Failed to fetch students",
+    });
+  }
+});
+
 // Get all available projects for students to browse (PUBLIC)
 // IMPORTANT: This MUST come before /:student_id routes
 router.get("/projects", async (req, res) => {
@@ -185,7 +206,12 @@ router.get("/:student_id", verifyToken, async (req, res) => {
       });
     }
 
-    if (parseInt(student_id) !== req.user.studentId && req.user.role !== "admin") {
+    // Allow students to view their own profile, or instructors/admins to view any profile
+    if (
+      parseInt(student_id) !== req.user.studentId && 
+      req.user.role !== "instructor" && 
+      req.user.role !== "admin"
+    ) {
       return res.status(403).json({
         success: false,
         error: "Unauthorized access",
@@ -230,6 +256,7 @@ router.put("/:student_id", verifyToken, async (req, res) => {
       });
     }
 
+    // Only students can update their own profile, or admins
     if (parseInt(student_id) !== req.user.studentId && req.user.role !== "admin") {
       return res.status(403).json({
         success: false,
@@ -293,6 +320,7 @@ router.delete("/:student_id", verifyToken, async (req, res) => {
       });
     }
 
+    // Only students can delete their own profile, or admins
     if (parseInt(student_id) !== req.user.studentId && req.user.role !== "admin") {
       return res.status(403).json({
         success: false,
@@ -304,21 +332,19 @@ router.delete("/:student_id", verifyToken, async (req, res) => {
     const connection = await db.getConnection();
 
     try {
-      // Delete in correct order (respecting foreign key constraints)
-      
-      // 1. Delete student preferences for this student
+      // Delete student preferences first (foreign key constraint)
       await connection.query(
         "DELETE FROM student_preferences WHERE student_id = ?",
         [parseInt(student_id)]
       );
 
-      // 2. Delete group members for this student
+      // Delete student from groups
       await connection.query(
         "DELETE FROM group_members WHERE student_id = ?",
         [parseInt(student_id)]
       );
 
-      // 3. Delete the student
+      // Delete student
       const [result] = await connection.query(
         "DELETE FROM students WHERE id = ?",
         [parseInt(student_id)]
@@ -364,7 +390,12 @@ router.get("/:student_id/preferences", verifyToken, async (req, res) => {
       });
     }
 
-    if (parseInt(student_id) !== req.user.studentId && req.user.role !== "admin") {
+    // Allow students to view their own preferences, or instructors/admins
+    if (
+      parseInt(student_id) !== req.user.studentId && 
+      req.user.role !== "instructor" && 
+      req.user.role !== "admin"
+    ) {
       return res.status(403).json({
         success: false,
         error: "Unauthorized access",
@@ -409,6 +440,7 @@ router.post("/:student_id/preferences", verifyToken, async (req, res) => {
       });
     }
 
+    // Only students can submit their own preferences
     if (parseInt(student_id) !== req.user.studentId && req.user.role !== "admin") {
       return res.status(403).json({
         success: false,
@@ -503,6 +535,7 @@ router.delete("/:student_id/preferences", verifyToken, async (req, res) => {
       });
     }
 
+    // Only students can clear their own preferences
     if (parseInt(student_id) !== req.user.studentId && req.user.role !== "admin") {
       return res.status(403).json({
         success: false,
@@ -545,7 +578,12 @@ router.get("/:student_id/group", verifyToken, async (req, res) => {
       });
     }
 
-    if (parseInt(student_id) !== req.user.studentId && req.user.role !== "admin") {
+    // Allow students to view their own group, or instructors/admins
+    if (
+      parseInt(student_id) !== req.user.studentId && 
+      req.user.role !== "instructor" && 
+      req.user.role !== "admin"
+    ) {
       return res.status(403).json({
         success: false,
         error: "Unauthorized access",
@@ -598,7 +636,12 @@ router.get("/:student_id/group/members", verifyToken, async (req, res) => {
       });
     }
 
-    if (parseInt(student_id) !== req.user.studentId && req.user.role !== "admin") {
+    // Allow students to view their own group members, or instructors/admins
+    if (
+      parseInt(student_id) !== req.user.studentId && 
+      req.user.role !== "instructor" && 
+      req.user.role !== "admin"
+    ) {
       return res.status(403).json({
         success: false,
         error: "Unauthorized access",
