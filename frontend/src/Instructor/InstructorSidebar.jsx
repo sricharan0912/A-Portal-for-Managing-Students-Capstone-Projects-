@@ -3,12 +3,8 @@ const DRAWER_WIDTH = 280;
 
 /**
  * InstructorSidebar Component
- * Navigation sidebar for instructor dashboard with collapsible menu
- *
- * @param {string} active - Currently active section ID
- * @param {function} setActive - Function to change active section
- * @param {boolean} sidebarOpen - Whether sidebar is open on mobile
- * @param {function} setSidebarOpen - Function to toggle sidebar
+ * Extended navigation sidebar (Dashboard, Students, Projects, Groups, Evaluations, Profile)
+ * Retains your existing blue design & layout
  */
 export default function InstructorSidebar({
   active,
@@ -77,14 +73,15 @@ export default function InstructorSidebar({
                   <path
                     strokeLinecap="round"
                     strokeLinejoin="round"
-                    d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"
+                    d="M3 12l2-2m0 0l7-7 7 7m-9 2v8m-4 0h8a2 2 0 002-2v-6"
                   />
                 </svg>
               }
             />
+
             <NavItem
-              id="project-approvals"
-              label="Project Approvals"
+              id="students"
+              label="Students"
               icon={
                 <svg
                   viewBox="0 0 24 24"
@@ -96,14 +93,15 @@ export default function InstructorSidebar({
                   <path
                     strokeLinecap="round"
                     strokeLinejoin="round"
-                    d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2"
+                    d="M17 20h5V8H2v12h5m10 0v-6m0 6H9m0 0v-6"
                   />
                 </svg>
               }
             />
+
             <NavItem
-              id="assign-groups"
-              label="Assign Groups"
+              id="projects"
+              label="Projects"
               icon={
                 <svg
                   viewBox="0 0 24 24"
@@ -115,15 +113,104 @@ export default function InstructorSidebar({
                   <path
                     strokeLinecap="round"
                     strokeLinejoin="round"
-                    d="M15 7a3 3 0 11-6 0 3 3 0 016 0zM5 21v-2a4 4 0 014-4h6a4 4 0 014 4v2"
+                    d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8l6 6v4a2 2 0 01-2 2h-2"
+                  />
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    d="M8 16v4h8v-4m-8 0h8"
                   />
                 </svg>
               }
             />
+
+            <NavItem
+              id="groups"
+              label="Groups"
+              icon={
+                <svg
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  className="h-5 w-5"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    d="M17 20h5V8H2v12h5m10 0v-6m0 6H9m0 0v-6"
+                  />
+                </svg>
+              }
+            />
+
+            <NavItem
+              id="evaluations"
+              label="Evaluations"
+              icon={
+                <svg
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  className="h-5 w-5"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    d="M8 7V3m8 4V3m-9 8h10m-5 4h5M4 21h16a2 2 0 002-2V7a2 2 0 00-2-2H4a2 2 0 00-2 2v12a2 2 0 002 2z"
+                  />
+                </svg>
+              }
+            />
+
+            <NavItem
+              id="profile"
+              label="Profile Settings"
+              icon={
+                <svg
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  className="h-5 w-5"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4S8 5.79 8 8s1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"
+                  />
+                </svg>
+              }
+            />
+
+            {/* Logout Button */}
+            <div className="mt-6 border-t border-white/10 pt-4">
+              <NavItem
+                id="logout"
+                label="Logout"
+                icon={
+                  <svg
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    className="h-5 w-5"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a2 2 0 01-2 2H7a2 2 0 01-2-2V7a2 2 0 012-2h4a2 2 0 012 2v1"
+                    />
+                  </svg>
+                }
+              />
+            </div>
           </nav>
         </div>
       </aside>
 
+      {/* Overlay for mobile */}
       {sidebarOpen && (
         <div
           className="fixed inset-0 z-30 bg-black/40 lg:hidden"

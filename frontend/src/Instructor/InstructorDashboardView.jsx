@@ -3,25 +3,44 @@ import { getInstructorStats } from "../utils/apiHelper";
 
 /**
  * InstructorDashboardView Component
- * Displays statistics and overview for instructors
+ * Expanded layout matching reference screenshots (Dashboard Overview)
  */
-export default function InstructorDashboardView() {
-  const [projects, setProjects] = useState([]);
+export default function InstructorDashboardView({ instructorId }) {
+  const [stats, setStats] = useState({
+    totalStudents: 0,
+    activeProjects: 0,
+    pendingEvaluations: 0,
+    totalGroups: 0,
+  });
+  const [recentStudents, setRecentStudents] = useState([]);
+  const [upcomingEvaluations, setUpcomingEvaluations] = useState([]);
+  const [announcements, setAnnouncements] = useState([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const fetchStats = async () => {
+      if (!instructorId) {
+        console.error("No instructor ID provided");
+        setLoading(false);
+        return;
+      }
+
       try {
-        const res = await getInstructorStats();
-        const { approvedProjects = [], closedProjects = [], pendingProjects = [] } = res.data || {};
+        const res = await getInstructorStats(instructorId);
+        const data = res.data || {};
 
-        const allProjects = [
-          ...approvedProjects.map((p) => ({ ...p, status: "approved" })),
-          ...closedProjects.map((p) => ({ ...p, status: "closed" })),
-          ...pendingProjects.map((p) => ({ ...p, status: "open" })),
-        ];
+        // Map backend response structure to frontend expectations
+        setStats({
+          totalStudents: data.students?.total_students || 0,
+          activeProjects: data.projects?.open_projects || 0,
+          pendingEvaluations: 0, // TODO: Add evaluations to backend
+          totalGroups: data.groups?.total_groups || 0,
+        });
 
-        setProjects(allProjects);
+        // These would need separate API endpoints or backend enhancement
+        setRecentStudents(data.recentStudents || []);
+        setUpcomingEvaluations(data.upcomingEvaluations || []);
+        setAnnouncements(data.announcements || []);
       } catch (err) {
         console.error("Failed to load instructor stats:", err);
       } finally {
@@ -30,105 +49,138 @@ export default function InstructorDashboardView() {
     };
 
     fetchStats();
-  }, []);
+  }, [instructorId]);
 
-  const projectCount = projects.length;
-  const pendingCount = projects.filter(p => p.status === "open").length;
-  const approvedCount = projects.filter(p => p.status === "approved").length;
-  const closedCount = projects.filter(p => p.status === "closed").length;
+  if (loading) {
+    return (
+      <div className="flex justify-center items-center h-64">
+        <div className="text-slate-600">Loading dashboard...</div>
+      </div>
+    );
+  }
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div>
-        <h2 className="text-3xl font-bold text-slate-800">Welcome, Instructor 👩‍🏫</h2>
-        <p className="mt-1 text-slate-600">
-          Manage client project approvals and assign students to groups
+    <div className="space-y-8">
+      {/* Welcome Header */}
+      <div className="bg-gradient-to-r from-blue-700 to-blue-800 text-white rounded-xl p-6 shadow-md">
+        <h2 className="text-3xl font-bold">Welcome back, Instructor 👩‍🏫</h2>
+        <p className="mt-2 text-blue-100 text-sm">
+          Manage students, review projects, and monitor ongoing evaluations all in one place.
         </p>
       </div>
 
       {/* Quick Stats */}
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
-        <StatCard label="Total Projects" count={projectCount} color="blue" />
-        <StatCard label="Pending Approval" count={pendingCount} color="yellow" />
-        <StatCard label="Approved Projects" count={approvedCount} color="green" />
-        <StatCard label="Closed Projects" count={closedCount} color="slate" />
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <StatCard label="Total Students" count={stats.totalStudents} color="blue" />
+        <StatCard label="Active Projects" count={stats.activeProjects} color="green" />
+        <StatCard label="Pending Evaluations" count={stats.pendingEvaluations} color="yellow" />
+        <StatCard label="Total Groups" count={stats.totalGroups} color="indigo" />
       </div>
 
-      {/* Recent Projects Section */}
-      {!loading && projects.length > 0 && (
-        <section className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
-          <h3 className="mb-4 text-lg font-semibold text-slate-800">Recent Projects</h3>
-          <div className="space-y-3">
-            {projects.slice(0, 3).map((project) => (
-              <div
-                key={project.id}
-                className="flex items-start justify-between rounded-lg border border-slate-100 p-4 hover:bg-slate-50 transition"
-              >
-                <div className="flex-1 min-w-0">
-                  <h4 className="font-semibold text-slate-800 truncate">{project.title}</h4>
-                  <p className="text-sm text-slate-600 line-clamp-1 mt-1">{project.description}</p>
-                  <div className="flex gap-2 mt-2 flex-wrap">
-                    <span className="inline-block text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded">
-                      {project.category || "Uncategorized"}
-                    </span>
-                    <span className={`inline-block text-xs px-2 py-1 rounded font-medium ${
-                      project.status === "open"
-                        ? "bg-yellow-100 text-yellow-700"
-                        : project.status === "approved"
-                        ? "bg-green-100 text-green-700"
-                        : "bg-slate-200 text-slate-700"
-                    }`}>
-                      {project.status}
-                    </span>
+      {/* Dashboard Sections */}
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+        {/* Recent Students */}
+        <section className="lg:col-span-1 rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+          <h3 className="mb-4 text-lg font-semibold text-slate-800">Recent Students</h3>
+          {recentStudents.length > 0 ? (
+            <ul className="space-y-3">
+              {recentStudents.slice(0, 5).map((student) => (
+                <li
+                  key={student.id}
+                  className="flex items-center justify-between border border-slate-100 rounded-lg p-3 hover:bg-slate-50 transition"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="h-9 w-9 rounded-full bg-blue-100 flex items-center justify-center text-blue-700 font-semibold">
+                      {student.name?.[0]?.toUpperCase() || "S"}
+                    </div>
+                    <div>
+                      <p className="text-sm font-semibold text-slate-800">
+                        {student.name}
+                      </p>
+                      <p className="text-xs text-slate-500">{student.email}</p>
+                    </div>
                   </div>
-                </div>
-                <button className="ml-4 text-blue-600 hover:text-blue-700 font-medium text-sm whitespace-nowrap">
-                  View
-                </button>
-              </div>
-            ))}
-          </div>
+                  <span className="text-xs bg-green-100 text-green-700 px-2 py-1 rounded">
+                    Active
+                  </span>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="text-slate-500 text-sm">No recent students.</p>
+          )}
         </section>
-      )}
 
-      {/* Empty State */}
-      {!loading && projects.length === 0 && (
-        <section className="rounded-xl border border-dashed border-slate-300 bg-slate-50 p-12 text-center">
-          <svg
-            className="mx-auto h-12 w-12 text-slate-400 mb-4"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2"
-            />
-          </svg>
-          <h4 className="text-lg font-semibold text-slate-700 mb-2">No projects available</h4>
-          <p className="text-slate-600 max-w-sm mx-auto">
-            Once clients submit projects, you can approve or reject them here.
-          </p>
+        {/* Upcoming Evaluations */}
+        <section className="lg:col-span-1 rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+          <h3 className="mb-4 text-lg font-semibold text-slate-800">
+            Upcoming Evaluations
+          </h3>
+          {upcomingEvaluations.length > 0 ? (
+            <ul className="space-y-3">
+              {upcomingEvaluations.slice(0, 4).map((evalItem) => (
+                <li
+                  key={evalItem.id}
+                  className="flex justify-between items-start border border-slate-100 rounded-lg p-3 hover:bg-slate-50 transition"
+                >
+                  <div>
+                    <p className="font-medium text-slate-800">
+                      {evalItem.teamName || "Team"}
+                    </p>
+                    <p className="text-xs text-slate-500 mt-1">
+                      {new Date(evalItem.date).toLocaleDateString()} at{" "}
+                      {evalItem.time || "TBD"}
+                    </p>
+                  </div>
+                  <span className="text-xs bg-yellow-100 text-yellow-700 px-2 py-1 rounded">
+                    {evalItem.status || "Scheduled"}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="text-slate-500 text-sm">No upcoming evaluations.</p>
+          )}
         </section>
-      )}
+
+        {/* Announcements */}
+        <section className="lg:col-span-1 rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+          <h3 className="mb-4 text-lg font-semibold text-slate-800">
+            Announcements
+          </h3>
+          {announcements.length > 0 ? (
+            <ul className="space-y-3">
+              {announcements.slice(0, 4).map((note, index) => (
+                <li
+                  key={index}
+                  className="border border-slate-100 rounded-lg p-3 bg-blue-50/40"
+                >
+                  <p className="text-sm font-medium text-slate-800">{note.title}</p>
+                  <p className="text-xs text-slate-600 mt-1">{note.message}</p>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="text-slate-500 text-sm">No new announcements.</p>
+          )}
+        </section>
+      </div>
     </div>
   );
 }
 
+/** Quick Stats Card */
 function StatCard({ label, count, color }) {
   const colorClasses = {
     blue: "bg-blue-100 text-blue-700",
-    yellow: "bg-yellow-100 text-yellow-700",
     green: "bg-green-100 text-green-700",
-    slate: "bg-slate-200 text-slate-700",
+    yellow: "bg-yellow-100 text-yellow-700",
+    indigo: "bg-indigo-100 text-indigo-700",
   };
 
   return (
     <div className="rounded-xl border border-slate-200 p-6 bg-white shadow-sm hover:shadow-md transition">
-      <div className="flex items-end justify-between">
+      <div className="flex items-center justify-between">
         <div>
           <p className="text-sm font-medium text-slate-600 mb-1">{label}</p>
           <p className="text-4xl font-bold text-slate-900">{count}</p>
@@ -141,7 +193,11 @@ function StatCard({ label, count, color }) {
             stroke="currentColor"
             strokeWidth="2"
           >
-            <path strokeLinecap="round" strokeLinejoin="round" d="M3 10h11M9 21V3" />
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              d="M3 10h11M9 21V3"
+            />
           </svg>
         </div>
       </div>

@@ -1,9 +1,24 @@
-import { useState } from "react";
+// src/instructor/InstructorDashboard.jsx
+import { useState, useEffect } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
 import DashboardNavbar from "../components/DashboardNavbar";
 import InstructorSidebar from "./InstructorSidebar";
 import InstructorDashboardView from "./InstructorDashboardView";
 import ProjectApprovalView from "./ProjectApprovalView";
 import AssignGroupsView from "./AssignGroupsView";
+
+// Newly added imports for the new instructor sections
+import StudentsView from "./StudentsView";
+import AddStudentForm from "./AddStudentForm";
+import ProjectsView from "./ProjectsView";
+import ProjectDetailsView from "./ProjectDetailsView";
+import CreateProjectForm from "./CreateProjectForm";
+import GroupsView from "./GroupsView";
+import AutoGroupFormationView from "./AutoGroupFormationView";
+import CreateGroupForm from "./CreateGroupForm";
+import EvaluationsView from "./EvaluationsView";
+import ScheduleEvaluationForm from "./ScheduleEvaluationForm";
+import ProfileSettingsView from "./ProfileSettingsView";
 
 const NAVBAR_HEIGHT = 64;
 const DRAWER_WIDTH = 280;
@@ -12,11 +27,56 @@ export default function InstructorDashboard() {
   const instructorData = localStorage.getItem("instructor");
   const instructor = instructorData ? JSON.parse(instructorData) : null;
 
+  // Extract instructor ID (numeric database ID)
+  const instructorId = instructor?.id || null;
+  
+  // Combine first_name and last_name for display
+  const instructorName = instructor?.first_name && instructor?.last_name
+    ? `${instructor.first_name} ${instructor.last_name}`
+    : instructor?.name || "Instructor";
+
+  const location = useLocation();
+  const navigate = useNavigate();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [active, setActive] = useState("dashboard");
 
+  // ✅ Sync active state with URL route
+  useEffect(() => {
+    const path = location.pathname;
+    
+    if (path.includes("/add-student")) {
+      setActive("add-student");
+    } else if (path.includes("/students")) {
+      setActive("students");
+    } else if (path.includes("/create-project")) {
+      setActive("create-project");
+    } else if (path.includes("/projects/")) {
+      setActive("project-details");
+    } else if (path.includes("/projects")) {
+      setActive("projects");
+    } else if (path.includes("/approval")) {
+      setActive("approval");
+    } else if (path.includes("/auto-groups")) {
+      setActive("auto-groups");
+    } else if (path.includes("/create-group")) {
+      setActive("create-group");
+    } else if (path.includes("/manage-groups")) {
+      setActive("manage-groups");
+    } else if (path.includes("/groups")) {
+      setActive("groups");
+    } else if (path.includes("/schedule-evaluation")) {
+      setActive("schedule-evaluation");
+    } else if (path.includes("/evaluations")) {
+      setActive("evaluations");
+    } else if (path.includes("/profile")) {
+      setActive("profile");
+    } else {
+      setActive("dashboard");
+    }
+  }, [location.pathname]);
+
   // Redirect to login if not logged in
-  if (!instructor) {
+  if (!instructor || !instructorId) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-slate-50">
         <div className="text-center">
@@ -40,7 +100,8 @@ export default function InstructorDashboard() {
   // Handle logout
   const handleLogout = () => {
     localStorage.removeItem("instructor");
-    window.location.href = "/login";
+    localStorage.removeItem("authToken");
+    navigate("/login");
   };
 
   return (
@@ -49,7 +110,7 @@ export default function InstructorDashboard() {
       <DashboardNavbar
         role="instructor"
         title="Instructor Dashboard"
-        userName={instructor?.name}
+        userName={instructorName}
         onMenuClick={() => setSidebarOpen((s) => !s)}
         onLogout={handleLogout}
       />
@@ -73,9 +134,23 @@ export default function InstructorDashboard() {
         }}
       >
         <main className="mx-auto max-w-7xl pb-8">
-          {active === "dashboard" && <InstructorDashboardView />}
-          {active === "approval" && <ProjectApprovalView />}
-          {active === "groups" && <AssignGroupsView />}
+          {/* Existing sections - now with instructorId prop */}
+          {active === "dashboard" && <InstructorDashboardView instructorId={instructorId} />}
+          {active === "approval" && <ProjectApprovalView instructorId={instructorId} />}
+          {active === "groups" && <AssignGroupsView instructorId={instructorId} />}
+
+          {/* New sections - now with instructorId prop */}
+          {active === "students" && <StudentsView instructorId={instructorId} />}
+          {active === "add-student" && <AddStudentForm instructorId={instructorId} />}
+          {active === "projects" && <ProjectsView instructorId={instructorId} />}
+          {active === "project-details" && <ProjectDetailsView instructorId={instructorId} />}
+          {active === "create-project" && <CreateProjectForm instructorId={instructorId} />}
+          {active === "manage-groups" && <GroupsView instructorId={instructorId} />}
+          {active === "auto-groups" && <AutoGroupFormationView instructorId={instructorId} />}
+          {active === "create-group" && <CreateGroupForm instructorId={instructorId} />}
+          {active === "evaluations" && <EvaluationsView instructorId={instructorId} />}
+          {active === "schedule-evaluation" && <ScheduleEvaluationForm instructorId={instructorId} />}
+          {active === "profile" && <ProfileSettingsView instructorId={instructorId} />}
         </main>
       </div>
 
