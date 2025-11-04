@@ -6,17 +6,50 @@ const router = express.Router();
 
 // ==================== PROJECT LISTING ====================
 
-// Get all available projects (PUBLIC - for students to browse)
+// Get all available projects
+// - PUBLIC/NO AUTH: Returns only 'open' projects (for students to browse)
+// - INSTRUCTOR/ADMIN: Returns ALL projects regardless of status
 router.get("/", async (req, res) => {
   try {
-    const [projects] = await db.query(
-      `SELECT id, client_id, title, description, skills_required, category, 
+    // Check if user is authenticated and their role
+    const authHeader = req.headers.authorization;
+    let userRole = null;
+
+    if (authHeader && authHeader.startsWith("Bearer ")) {
+      try {
+        const token = authHeader.split(" ")[1];
+        const jwt = await import("jsonwebtoken");
+        const decoded = jwt.default.verify(
+          token,
+          process.env.JWT_SECRET || "your-secret-key"
+        );
+        userRole = decoded.role;
+      } catch (err) {
+        // Token invalid or expired, treat as public
+        userRole = null;
+      }
+    }
+
+    // Build query based on user role
+    let query;
+    if (userRole === "instructor" || userRole === "admin") {
+      // Instructors and admins see ALL projects
+      query = `SELECT id, client_id, title, description, skills_required, category, 
+              team_size, start_date, end_date, complexity_level, deliverables, 
+              project_location, industry, status, created_at
+       FROM projects 
+       ORDER BY created_at DESC`;
+    } else {
+      // Students and public see only open projects
+      query = `SELECT id, client_id, title, description, skills_required, category, 
               team_size, start_date, end_date, complexity_level, deliverables, 
               project_location, industry, status, created_at
        FROM projects 
        WHERE status = 'open' 
-       ORDER BY created_at DESC`
-    );
+       ORDER BY created_at DESC`;
+    }
+
+    const [projects] = await db.query(query);
 
     res.json({
       success: true,
@@ -297,15 +330,15 @@ router.post("/", verifyToken, async (req, res) => {
   }
 });
 
-// ==================== PROJECT UPDATE (CLIENT ONLY) ====================
+// ==================== PROJECT UPDATE (CLIENT + INSTRUCTOR) ====================
 
-// Update project (PROTECTED - client only, must own project)
+// Update project (PROTECTED - client who owns it OR instructor)
 router.put("/:project_id", verifyToken, async (req, res) => {
   try {
     const { project_id } = req.params;
-    const { title, description, skills_required, category, team_size,
-            start_date, end_date, complexity_level, deliverables,
-            project_location, industry, status } = req.body;
+    const { title, description, skills_required, category, team_size, 
+            start_date, end_date, complexity_level, deliverables, 
+            project_location, industry, status, feedback } = req.body;
 
     // Validate project_id
     if (isNaN(project_id)) {
@@ -315,17 +348,9 @@ router.put("/:project_id", verifyToken, async (req, res) => {
       });
     }
 
-    // Check if user is a client
-    if (req.user.role !== "client") {
-      return res.status(403).json({
-        success: false,
-        error: "Only clients can update projects",
-      });
-    }
-
-    // Verify project exists and belongs to this client
+    // Get project to check ownership
     const [projectCheck] = await db.query(
-      "SELECT client_id FROM projects WHERE id = ?",
+      "SELECT client_id, status FROM projects WHERE id = ?",
       [parseInt(project_id)]
     );
 
@@ -336,35 +361,63 @@ router.put("/:project_id", verifyToken, async (req, res) => {
       });
     }
 
-    if (projectCheck[0].client_id !== req.user.clientId) {
+    const project = projectCheck[0];
+
+    // Authorization logic:
+    // - Clients can only update their own projects
+    // - Instructors can update any project (for approval/rejection)
+    if (req.user.role === "client") {
+      if (project.client_id !== req.user.clientId) {
+        return res.status(403).json({
+          success: false,
+          error: "You can only update your own projects",
+        });
+      }
+
+      // Clients cannot change status (only instructors can approve/reject)
+      if (status && status !== project.status) {
+        return res.status(403).json({
+          success: false,
+          error: "Only instructors can change project status",
+        });
+      }
+    } else if (req.user.role !== "instructor" && req.user.role !== "admin") {
       return res.status(403).json({
         success: false,
-        error: "You can only update your own projects",
+        error: "Unauthorized to update projects",
       });
     }
 
-    // Update project
+    // Build update query dynamically based on provided fields
+    const updates = [];
+    const values = [];
+
+    if (title !== undefined) { updates.push("title = ?"); values.push(title); }
+    if (description !== undefined) { updates.push("description = ?"); values.push(description); }
+    if (skills_required !== undefined) { updates.push("skills_required = ?"); values.push(skills_required); }
+    if (category !== undefined) { updates.push("category = ?"); values.push(category || null); }
+    if (team_size !== undefined) { updates.push("team_size = ?"); values.push(team_size ? parseInt(team_size) : null); }
+    if (start_date !== undefined) { updates.push("start_date = ?"); values.push(start_date || null); }
+    if (end_date !== undefined) { updates.push("end_date = ?"); values.push(end_date || null); }
+    if (complexity_level !== undefined) { updates.push("complexity_level = ?"); values.push(complexity_level || null); }
+    if (deliverables !== undefined) { updates.push("deliverables = ?"); values.push(deliverables || null); }
+    if (project_location !== undefined) { updates.push("project_location = ?"); values.push(project_location || null); }
+    if (industry !== undefined) { updates.push("industry = ?"); values.push(industry || null); }
+    if (status !== undefined) { updates.push("status = ?"); values.push(status); }
+    if (feedback !== undefined) { updates.push("feedback = ?"); values.push(feedback || null); }
+
+    if (updates.length === 0) {
+      return res.status(400).json({
+        success: false,
+        error: "No fields to update",
+      });
+    }
+
+    values.push(parseInt(project_id));
+
     const [result] = await db.query(
-      `UPDATE projects 
-       SET title = ?, description = ?, skills_required = ?, category = ?, 
-           team_size = ?, start_date = ?, end_date = ?, complexity_level = ?, 
-           deliverables = ?, project_location = ?, industry = ?, status = ?
-       WHERE id = ?`,
-      [
-        title,
-        description,
-        skills_required,
-        category || null,
-        team_size ? parseInt(team_size) : null,
-        start_date || null,
-        end_date || null,
-        complexity_level || null,
-        deliverables || null,
-        project_location || null,
-        industry || null,
-        status || "open",
-        parseInt(project_id)
-      ]
+      `UPDATE projects SET ${updates.join(", ")} WHERE id = ?`,
+      values
     );
 
     if (result.affectedRows === 0) {

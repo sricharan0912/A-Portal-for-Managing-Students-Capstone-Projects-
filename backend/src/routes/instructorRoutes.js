@@ -377,4 +377,8 @@ router.get("/:instructor_id/stats", verifyToken, async (req, res) => {
   }
 });
 
+import { getProjectById } from "../controllers/instructorController.js";
+
+router.get("/projects/:id", getProjectById);
+
 export default router;
