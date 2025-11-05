@@ -162,10 +162,50 @@ export const getInstructorStats = async (req, res) => {
   }
 };
 
+// ==================== INSTRUCTOR PROJECT DETAILS ====================
+
+// Get a single project by ID (for instructor "View Details")
+export const getProjectById = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    if (isNaN(id)) {
+      return res.status(400).json({ error: "Invalid project ID format" });
+    }
+
+    const [projects] = await db.query(
+      `SELECT 
+         p.id,
+         p.title,
+         p.description,
+         p.status,
+         p.created_at,
+         c.first_name AS client_first_name,
+         c.last_name AS client_last_name,
+         c.email AS client_email
+       FROM projects p
+       LEFT JOIN clients c ON p.client_id = c.id
+       WHERE p.id = ?`,
+      [parseInt(id)]
+    );
+
+    if (projects.length === 0) {
+      return res.status(404).json({ error: "Project not found" });
+    }
+
+    res.status(200).json(projects[0]);
+  } catch (err) {
+    console.error("Error fetching project:", err);
+    res.status(500).json({ error: "Server error" });
+  }
+};
+
+
 export default {
   getAllInstructors,
   getInstructorById,
   updateInstructor,
   deleteInstructor,
   getInstructorStats,
+  getProjectById,
 };

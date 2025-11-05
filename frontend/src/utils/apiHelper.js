@@ -2,7 +2,7 @@
 const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:5050";
 
 function buildUrl(url) {
-  if (/^https?:\/\//i.test(url)) return url; // allow absolute URLs without prefixing
+  if (/^https?:\/\//i.test(url)) return url; // allow absolute URLs
   return `${API_BASE_URL}${url.startsWith("/") ? url : `/${url}`}`;
 }
 
@@ -70,20 +70,116 @@ export const fetchStudentGroup = async (studentId) =>
 
 /* ===================== INSTRUCTOR ===================== */
 
+// ✅ FIXED: Changed from /instructor/ to /instructors/ (plural) to match backend
 export const getInstructorStats = async (instructorId) =>
-  apiCall(`/instructor/${instructorId}/stats`, { method: "GET" });
+  apiCall(`/instructors/${instructorId}/stats`, { method: "GET" });
 
+// Get pending projects for approval
 export const getPendingProjects = async () =>
-  apiCall("/instructor/pending-projects", { method: "GET" });
+  apiCall("/projects?status=open", { method: "GET" });
 
+// Approve project
 export const approveProject = async (projectId) =>
-  apiCall(`/instructor/projects/${projectId}/approve`, { method: "PUT" });
+  apiCall(`/projects/${projectId}`, {
+    method: "PUT",
+    body: JSON.stringify({ status: "approved" }),
+  });
 
+// Reject project
 export const rejectProject = async (projectId) =>
-  apiCall(`/instructor/projects/${projectId}/reject`, { method: "PUT" });
+  apiCall(`/projects/${projectId}`, {
+    method: "PUT",
+    body: JSON.stringify({ status: "rejected" }),
+  });
 
+// Run grouping algorithm
 export const runGroupingAlgorithm = async () =>
   apiCall("/instructor/assign-groups", { method: "POST" });
+
+// ✅ FIXED: Get all students (instructors can see all students in the system)
+export const getInstructorStudents = async (instructorId) =>
+  apiCall("/students", { method: "GET" });
+
+export const addNewStudent = async (studentData) =>
+  apiCall("/students/signup", {
+    method: "POST",
+    body: JSON.stringify(studentData),
+  });
+
+
+// ✅ FIXED: Get all projects (instructors can see all projects in the system)
+export const getInstructorProjects = async (instructorId) =>
+  apiCall("/projects", { method: "GET" });
+
+// Get project details by ID
+export const getProjectById = async (projectId) =>
+  apiCall(`/projects/${projectId}`, { method: "GET" });
+
+export const getInstructorProjectById = async (projectId) =>
+  apiCall(`/instructor/projects/${projectId}`, { method: "GET" });
+
+// Update project status (approve, reject, or other updates)
+export const updateProjectStatus = async (projectId, status, feedback = "") =>
+  apiCall(`/projects/${projectId}`, {
+    method: "PUT",
+    body: JSON.stringify({ status, feedback }),
+  });
+
+// Create a new project (Instructor can create projects on behalf of clients)
+export const createNewProject = async (projectData) =>
+  apiCall("/projects", {
+    method: "POST",
+    body: JSON.stringify(projectData),
+  });
+
+// Get list of all groups
+export const getInstructorGroups = async () =>
+  apiCall("/instructor/groups", { method: "GET" });
+
+// Auto assign students to groups (run algorithm)
+export const autoAssignGroups = async () =>
+  apiCall("/instructor/auto-assign-groups", { method: "POST" });
+
+// Confirm or finalize auto-generated groups
+export const confirmAutoGroups = async () =>
+  apiCall("/instructor/confirm-auto-groups", { method: "POST" });
+
+// Get auto group formation statistics
+export const getAutoGroupStats = async () =>
+  apiCall("/instructor/auto-group-stats", { method: "GET" });
+
+// Rerun the auto grouping algorithm again
+export const rerunAutoGrouping = async () =>
+  apiCall("/instructor/rerun-auto-grouping", { method: "POST" });
+
+// Create a new group manually
+export const createNewGroup = async (groupData) =>
+  apiCall("/instructor/groups", {
+    method: "POST",
+    body: JSON.stringify(groupData),
+  });
+
+// Get all evaluations
+export const getInstructorEvaluations = async () =>
+  apiCall("/instructor/evaluations", { method: "GET" });
+
+// Schedule a new evaluation
+export const scheduleEvaluation = async (payload) =>
+  apiCall("/instructor/evaluations", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+
+// Fetch instructor profile
+export const getInstructorProfile = async (instructorId) =>
+  apiCall(`/instructors/${instructorId}`, { method: "GET" });
+
+// Update instructor profile
+export const updateInstructorProfile = async (instructorId, profileData) =>
+  apiCall(`/instructors/${instructorId}`, {
+    method: "PUT",
+    body: JSON.stringify(profileData),
+  });
 
 /* ===================== FALLBACK FETCH ===================== */
 
@@ -96,10 +192,10 @@ export const fetchProjectsWithFallback = async (clientId) => {
   for (const endpoint of endpoints) {
     try {
       const result = await apiCall(endpoint, { method: "GET" });
-
       if (Array.isArray(result)) return result;
       if (result?.data && Array.isArray(result.data)) return result.data;
-      if (result?.projects && Array.isArray(result.projects)) return result.projects;
+      if (result?.projects && Array.isArray(result.projects))
+        return result.projects;
     } catch {
       // try next endpoint
     }
