@@ -5,10 +5,28 @@ import db from "../../db.js";
 // Get all clients (for admin/instructor purposes)
 export const getAllClients = async (req, res) => {
   try {
+    // ✅ NEW SCHEMA: Query users + user_profiles where role='client'
     const [clients] = await db.query(
-      "SELECT id, name, email, organization_name, website, created_at FROM clients ORDER BY created_at DESC"
+      `SELECT u.id, u.email, u.created_at,
+              p.first_name, p.last_name, p.full_name, 
+              p.organization_name, p.website
+       FROM users u
+       LEFT JOIN user_profiles p ON u.id = p.user_id
+       WHERE u.role = 'client' AND u.deleted_at IS NULL
+       ORDER BY u.created_at DESC`
     );
-    res.status(200).json(clients);
+
+    // Format for backwards compatibility
+    const formattedClients = clients.map(client => ({
+      id: client.id,
+      name: client.full_name || `${client.first_name || ''} ${client.last_name || ''}`.trim(),
+      email: client.email,
+      organization_name: client.organization_name,
+      website: client.website,
+      created_at: client.created_at,
+    }));
+
+    res.status(200).json(formattedClients);
   } catch (err) {
     console.error("Error fetching clients:", err);
     res.status(500).json({ error: "Server error" });
@@ -20,13 +38,18 @@ export const getClientById = async (req, res) => {
   try {
     const { id } = req.params;
 
-    // Verify id is numeric
     if (isNaN(id)) {
       return res.status(400).json({ error: "Invalid client ID format" });
     }
 
+    // ✅ NEW SCHEMA: Query users + user_profiles
     const [clients] = await db.query(
-      "SELECT id, name, email, organization_name, website FROM clients WHERE id = ?",
+      `SELECT u.id, u.email, u.created_at,
+              p.first_name, p.last_name, p.full_name,
+              p.organization_name, p.website
+       FROM users u
+       LEFT JOIN user_profiles p ON u.id = p.user_id
+       WHERE u.id = ? AND u.role = 'client' AND u.deleted_at IS NULL`,
       [parseInt(id)]
     );
 
@@ -34,7 +57,15 @@ export const getClientById = async (req, res) => {
       return res.status(404).json({ error: "Client not found" });
     }
 
-    res.status(200).json(clients[0]);
+    const client = clients[0];
+
+    res.status(200).json({
+      id: client.id,
+      name: client.full_name || `${client.first_name || ''} ${client.last_name || ''}`.trim(),
+      email: client.email,
+      organization_name: client.organization_name,
+      website: client.website,
+    });
   } catch (err) {
     console.error("Error fetching client:", err);
     res.status(500).json({ error: "Server error" });
@@ -45,23 +76,44 @@ export const getClientById = async (req, res) => {
 export const updateClient = async (req, res) => {
   try {
     const { id } = req.params;
-    const { name, organization_name, website } = req.body;
+    const { name, first_name, last_name, organization_name, website } = req.body;
 
-    // Verify id is numeric
     if (isNaN(id)) {
       return res.status(400).json({ error: "Invalid client ID format" });
     }
 
-    // Validate required fields
-    if (!name || !organization_name) {
+    // Handle both old (name) and new (first_name, last_name) formats
+    let finalFirstName, finalLastName, finalFullName;
+    
+    if (first_name && last_name) {
+      finalFirstName = first_name;
+      finalLastName = last_name;
+      finalFullName = `${first_name} ${last_name}`;
+    } else if (name) {
+      const nameParts = name.trim().split(/\s+/);
+      finalFirstName = nameParts[0] || "";
+      finalLastName = nameParts.slice(1).join(" ") || nameParts[0];
+      finalFullName = name;
+    } else {
       return res.status(400).json({
-        error: "name and organization_name are required",
+        error: "name or (first_name and last_name) are required",
       });
     }
 
+    // Validate required fields
+    if (!organization_name) {
+      return res.status(400).json({
+        error: "organization_name is required",
+      });
+    }
+
+    // ✅ NEW SCHEMA: Update user_profiles table
     const [result] = await db.query(
-      "UPDATE clients SET name = ?, organization_name = ?, website = ? WHERE id = ?",
-      [name, organization_name, website || null, parseInt(id)]
+      `UPDATE user_profiles 
+       SET first_name = ?, last_name = ?, full_name = ?, 
+           organization_name = ?, website = ? 
+       WHERE user_id = ?`,
+      [finalFirstName, finalLastName, finalFullName, organization_name, website || null, parseInt(id)]
     );
 
     if (result.affectedRows === 0) {
@@ -80,39 +132,67 @@ export const deleteClient = async (req, res) => {
   try {
     const { id } = req.params;
 
-    // Verify id is numeric
     if (isNaN(id)) {
       return res.status(400).json({ error: "Invalid client ID format" });
     }
 
-    // Get all projects for this client
-    const [projects] = await db.query(
-      "SELECT id FROM projects WHERE client_id = ?",
-      [parseInt(id)]
-    );
+    const connection = await db.getConnection();
 
-    // Delete all student preferences for these projects
-    for (const project of projects) {
-      await db.query(
-        "DELETE FROM student_preferences WHERE project_id = ?",
-        [project.id]
+    try {
+      // Get all projects for this client
+      const [projects] = await connection.query(
+        "SELECT id FROM projects WHERE owner_id = ?",
+        [parseInt(id)]
       );
+
+      // Delete all student preferences for these projects
+      for (const project of projects) {
+        await connection.query(
+          "DELETE FROM student_preferences WHERE project_id = ?",
+          [project.id]
+        );
+      }
+
+      // Delete group members for groups of this client's projects
+      await connection.query(
+        `DELETE FROM group_members 
+         WHERE group_id IN (
+           SELECT sg.id FROM student_groups sg 
+           WHERE sg.project_id IN (SELECT id FROM projects WHERE owner_id = ?)
+         )`,
+        [parseInt(id)]
+      );
+
+      // Delete student groups for this client's projects
+      await connection.query(
+        `DELETE FROM student_groups 
+         WHERE project_id IN (SELECT id FROM projects WHERE owner_id = ?)`,
+        [parseInt(id)]
+      );
+
+      // Delete all projects for this client
+      await connection.query(
+        "DELETE FROM projects WHERE owner_id = ?",
+        [parseInt(id)]
+      );
+
+      // ✅ NEW SCHEMA: Soft delete client (mark as deleted)
+      const [result] = await connection.query(
+        "UPDATE users SET deleted_at = NOW(), status = 'inactive' WHERE id = ? AND role = 'client'",
+        [parseInt(id)]
+      );
+
+      connection.release();
+
+      if (result.affectedRows === 0) {
+        return res.status(404).json({ error: "Client not found" });
+      }
+
+      res.status(200).json({ message: "Client deleted successfully" });
+    } catch (err) {
+      connection.release();
+      throw err;
     }
-
-    // Delete all projects for this client
-    await db.query("DELETE FROM projects WHERE client_id = ?", [parseInt(id)]);
-
-    // Delete client
-    const [result] = await db.query(
-      "DELETE FROM clients WHERE id = ?",
-      [parseInt(id)]
-    );
-
-    if (result.affectedRows === 0) {
-      return res.status(404).json({ error: "Client not found" });
-    }
-
-    res.status(200).json({ message: "Client deleted successfully" });
   } catch (err) {
     console.error("Error deleting client:", err);
     res.status(500).json({ error: "Server error" });
@@ -126,18 +206,31 @@ export const getClientProjects = async (req, res) => {
   try {
     const { client_id } = req.params;
 
-    // Verify client_id is numeric
     if (isNaN(client_id)) {
       return res.status(400).json({ error: "Invalid client ID format" });
     }
 
+    // ✅ NEW SCHEMA: Column aliases for backwards compatibility
     const [projects] = await db.query(
-      `SELECT id, client_id, title, description, skills_required, category, 
-              team_size, start_date, end_date, complexity_level, deliverables, 
-              project_location, industry, status, created_at
+      `SELECT 
+         id, 
+         owner_id as client_id,
+         title, 
+         description, 
+         required_skills as skills_required, 
+         category, 
+         max_team_size as team_size, 
+         start_date, 
+         end_date, 
+         difficulty_level as complexity_level, 
+         deliverables, 
+         location as project_location, 
+         industry_category as industry, 
+         status, 
+         posted_date as created_at
        FROM projects 
-       WHERE client_id = ? 
-       ORDER BY created_at DESC`,
+       WHERE owner_id = ? 
+       ORDER BY posted_date DESC`,
       [parseInt(client_id)]
     );
 
@@ -153,11 +246,11 @@ export const getClientProjectCount = async (req, res) => {
   try {
     const { client_id } = req.params;
 
-    // Verify client_id is numeric
     if (isNaN(client_id)) {
       return res.status(400).json({ error: "Invalid client ID format" });
     }
 
+    // ✅ NEW SCHEMA: Query with owner_id
     const [result] = await db.query(
       `SELECT 
         COUNT(*) as total,
@@ -166,7 +259,7 @@ export const getClientProjectCount = async (req, res) => {
         SUM(CASE WHEN status = 'rejected' THEN 1 ELSE 0 END) as rejected,
         SUM(CASE WHEN status = 'closed' THEN 1 ELSE 0 END) as closed
        FROM projects 
-       WHERE client_id = ?`,
+       WHERE owner_id = ?`,
       [parseInt(client_id)]
     );
 
@@ -188,7 +281,6 @@ export const getClientProjectsByStatus = async (req, res) => {
   try {
     const { client_id, status } = req.params;
 
-    // Verify client_id is numeric
     if (isNaN(client_id)) {
       return res.status(400).json({ error: "Invalid client ID format" });
     }
@@ -199,13 +291,27 @@ export const getClientProjectsByStatus = async (req, res) => {
       return res.status(400).json({ error: "Invalid status" });
     }
 
+    // ✅ NEW SCHEMA: Column aliases for backwards compatibility
     const [projects] = await db.query(
-      `SELECT id, client_id, title, description, skills_required, category, 
-              team_size, start_date, end_date, complexity_level, deliverables, 
-              project_location, industry, status, created_at
+      `SELECT 
+         id, 
+         owner_id as client_id,
+         title, 
+         description, 
+         required_skills as skills_required, 
+         category, 
+         max_team_size as team_size, 
+         start_date, 
+         end_date, 
+         difficulty_level as complexity_level, 
+         deliverables, 
+         location as project_location, 
+         industry_category as industry, 
+         status, 
+         posted_date as created_at
        FROM projects 
-       WHERE client_id = ? AND status = ?
-       ORDER BY created_at DESC`,
+       WHERE owner_id = ? AND status = ?
+       ORDER BY posted_date DESC`,
       [parseInt(client_id), status.toLowerCase()]
     );
 
@@ -223,18 +329,30 @@ export const getClientProjectDetails = async (req, res) => {
   try {
     const { client_id, project_id } = req.params;
 
-    // Verify IDs are numeric
     if (isNaN(client_id) || isNaN(project_id)) {
       return res.status(400).json({ error: "Invalid ID format" });
     }
 
-    // Get project
+    // ✅ NEW SCHEMA: Get project with column aliases
     const [projects] = await db.query(
-      `SELECT id, client_id, title, description, skills_required, category, 
-              team_size, start_date, end_date, complexity_level, deliverables, 
-              project_location, industry, status, created_at
+      `SELECT 
+         id, 
+         owner_id as client_id,
+         title, 
+         description, 
+         required_skills as skills_required, 
+         category, 
+         max_team_size as team_size, 
+         start_date, 
+         end_date, 
+         difficulty_level as complexity_level, 
+         deliverables, 
+         location as project_location, 
+         industry_category as industry, 
+         status, 
+         posted_date as created_at
        FROM projects 
-       WHERE id = ? AND client_id = ?`,
+       WHERE id = ? AND owner_id = ?`,
       [parseInt(project_id), parseInt(client_id)]
     );
 
@@ -244,13 +362,19 @@ export const getClientProjectDetails = async (req, res) => {
 
     const project = projects[0];
 
-    // Get preferences for this project
+    // ✅ NEW SCHEMA: Get preferences with user_profiles join
     const [preferences] = await db.query(
-      `SELECT sp.id, sp.student_id, sp.preference_rank, s.first_name, s.last_name, s.email
+      `SELECT 
+         sp.student_id, 
+         sp.rank as preference_rank,
+         p.first_name, 
+         p.last_name, 
+         u.email
        FROM student_preferences sp
-       JOIN students s ON sp.student_id = s.id
+       JOIN users u ON sp.student_id = u.id
+       LEFT JOIN user_profiles p ON u.id = p.user_id
        WHERE sp.project_id = ?
-       ORDER BY sp.preference_rank ASC`,
+       ORDER BY sp.rank ASC`,
       [parseInt(project_id)]
     );
 
@@ -284,14 +408,13 @@ export const getProjectPreferences = async (req, res) => {
   try {
     const { client_id, project_id } = req.params;
 
-    // Verify IDs are numeric
     if (isNaN(client_id) || isNaN(project_id)) {
       return res.status(400).json({ error: "Invalid ID format" });
     }
 
     // Verify project belongs to client
     const [projectCheck] = await db.query(
-      "SELECT id FROM projects WHERE id = ? AND client_id = ?",
+      "SELECT id FROM projects WHERE id = ? AND owner_id = ?",
       [parseInt(project_id), parseInt(client_id)]
     );
 
@@ -299,13 +422,19 @@ export const getProjectPreferences = async (req, res) => {
       return res.status(404).json({ error: "Project not found" });
     }
 
-    // Get preferences
+    // ✅ NEW SCHEMA: Get preferences with user_profiles join
     const [preferences] = await db.query(
-      `SELECT sp.id, sp.student_id, sp.preference_rank, s.first_name, s.last_name, s.email
+      `SELECT 
+         sp.student_id, 
+         sp.rank as preference_rank,
+         p.first_name, 
+         p.last_name, 
+         u.email
        FROM student_preferences sp
-       JOIN students s ON sp.student_id = s.id
+       JOIN users u ON sp.student_id = u.id
+       LEFT JOIN user_profiles p ON u.id = p.user_id
        WHERE sp.project_id = ?
-       ORDER BY sp.preference_rank ASC`,
+       ORDER BY sp.rank ASC`,
       [parseInt(project_id)]
     );
 
@@ -323,12 +452,11 @@ export const getClientStats = async (req, res) => {
   try {
     const { client_id } = req.params;
 
-    // Verify client_id is numeric
     if (isNaN(client_id)) {
       return res.status(400).json({ error: "Invalid client ID format" });
     }
 
-    // Get project stats
+    // ✅ NEW SCHEMA: Get project stats with owner_id
     const [projectStats] = await db.query(
       `SELECT 
         COUNT(*) as total_projects,
@@ -336,7 +464,7 @@ export const getClientStats = async (req, res) => {
         SUM(CASE WHEN status = 'approved' THEN 1 ELSE 0 END) as approved_projects,
         SUM(CASE WHEN status = 'closed' THEN 1 ELSE 0 END) as closed_projects
        FROM projects 
-       WHERE client_id = ?`,
+       WHERE owner_id = ?`,
       [parseInt(client_id)]
     );
 
@@ -346,7 +474,7 @@ export const getClientStats = async (req, res) => {
               COUNT(*) as total_preferences
        FROM student_preferences sp
        JOIN projects p ON sp.project_id = p.id
-       WHERE p.client_id = ?`,
+       WHERE p.owner_id = ?`,
       [parseInt(client_id)]
     );
 
@@ -357,7 +485,7 @@ export const getClientStats = async (req, res) => {
        FROM student_groups sg
        LEFT JOIN group_members gm ON sg.id = gm.group_id
        JOIN projects p ON sg.project_id = p.id
-       WHERE p.client_id = ?`,
+       WHERE p.owner_id = ?`,
       [parseInt(client_id)]
     );
 

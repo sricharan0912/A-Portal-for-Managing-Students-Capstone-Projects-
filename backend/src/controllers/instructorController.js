@@ -5,10 +5,27 @@ import db from "../../db.js";
 // Get all instructors (for admin purposes)
 export const getAllInstructors = async (req, res) => {
   try {
+    // ✅ NEW SCHEMA: Query users + user_profiles where role='instructor'
     const [instructors] = await db.query(
-      "SELECT id, first_name, last_name, email, created_at FROM instructors ORDER BY created_at DESC"
+      `SELECT u.id, u.email, u.created_at,
+              p.first_name, p.last_name, p.full_name, p.department
+       FROM users u
+       LEFT JOIN user_profiles p ON u.id = p.user_id
+       WHERE u.role = 'instructor' AND u.deleted_at IS NULL
+       ORDER BY u.created_at DESC`
     );
-    res.status(200).json(instructors);
+
+    // Format for backwards compatibility
+    const formattedInstructors = instructors.map(instructor => ({
+      id: instructor.id,
+      first_name: instructor.first_name,
+      last_name: instructor.last_name,
+      email: instructor.email,
+      department: instructor.department,
+      created_at: instructor.created_at,
+    }));
+
+    res.status(200).json(formattedInstructors);
   } catch (err) {
     console.error("Error fetching instructors:", err);
     res.status(500).json({ error: "Server error" });
@@ -20,13 +37,17 @@ export const getInstructorById = async (req, res) => {
   try {
     const { id } = req.params;
 
-    // Verify id is numeric
     if (isNaN(id)) {
       return res.status(400).json({ error: "Invalid instructor ID format" });
     }
 
+    // ✅ NEW SCHEMA: Query users + user_profiles
     const [instructors] = await db.query(
-      "SELECT id, first_name, last_name, email, created_at FROM instructors WHERE id = ?",
+      `SELECT u.id, u.email, u.created_at,
+              p.first_name, p.last_name, p.full_name, p.department
+       FROM users u
+       LEFT JOIN user_profiles p ON u.id = p.user_id
+       WHERE u.id = ? AND u.role = 'instructor' AND u.deleted_at IS NULL`,
       [parseInt(id)]
     );
 
@@ -34,7 +55,16 @@ export const getInstructorById = async (req, res) => {
       return res.status(404).json({ error: "Instructor not found" });
     }
 
-    res.status(200).json(instructors[0]);
+    const instructor = instructors[0];
+
+    res.status(200).json({
+      id: instructor.id,
+      first_name: instructor.first_name,
+      last_name: instructor.last_name,
+      email: instructor.email,
+      department: instructor.department,
+      created_at: instructor.created_at,
+    });
   } catch (err) {
     console.error("Error fetching instructor:", err);
     res.status(500).json({ error: "Server error" });
@@ -45,9 +75,8 @@ export const getInstructorById = async (req, res) => {
 export const updateInstructor = async (req, res) => {
   try {
     const { id } = req.params;
-    const { first_name, last_name, email } = req.body;
+    const { first_name, last_name, email, department } = req.body;
 
-    // Verify id is numeric
     if (isNaN(id)) {
       return res.status(400).json({ error: "Invalid instructor ID format" });
     }
@@ -61,7 +90,7 @@ export const updateInstructor = async (req, res) => {
 
     // Check if email already exists (excluding current instructor)
     const [existingEmail] = await db.query(
-      "SELECT id FROM instructors WHERE email = ? AND id != ?",
+      "SELECT id FROM users WHERE email = ? AND id != ? AND deleted_at IS NULL",
       [email, parseInt(id)]
     );
 
@@ -69,16 +98,33 @@ export const updateInstructor = async (req, res) => {
       return res.status(400).json({ error: "Email already in use" });
     }
 
-    const [result] = await db.query(
-      "UPDATE instructors SET first_name = ?, last_name = ?, email = ? WHERE id = ?",
-      [first_name, last_name, email, parseInt(id)]
-    );
+    const connection = await db.getConnection();
 
-    if (result.affectedRows === 0) {
-      return res.status(404).json({ error: "Instructor not found" });
+    try {
+      // ✅ NEW SCHEMA: Update users table
+      await connection.query(
+        "UPDATE users SET email = ? WHERE id = ?",
+        [email, parseInt(id)]
+      );
+
+      // ✅ NEW SCHEMA: Update user_profiles table
+      const fullName = `${first_name} ${last_name}`.trim();
+      const [result] = await connection.query(
+        "UPDATE user_profiles SET first_name = ?, last_name = ?, full_name = ?, department = ? WHERE user_id = ?",
+        [first_name, last_name, fullName, department || null, parseInt(id)]
+      );
+
+      connection.release();
+
+      if (result.affectedRows === 0) {
+        return res.status(404).json({ error: "Instructor not found" });
+      }
+
+      res.status(200).json({ message: "Instructor profile updated successfully" });
+    } catch (err) {
+      connection.release();
+      throw err;
     }
-
-    res.status(200).json({ message: "Instructor profile updated successfully" });
   } catch (err) {
     console.error("Error updating instructor:", err);
     res.status(500).json({ error: "Server error" });
@@ -90,14 +136,13 @@ export const deleteInstructor = async (req, res) => {
   try {
     const { id } = req.params;
 
-    // Verify id is numeric
     if (isNaN(id)) {
       return res.status(400).json({ error: "Invalid instructor ID format" });
     }
 
-    // Delete instructor
+    // ✅ NEW SCHEMA: Soft delete instructor (mark as deleted)
     const [result] = await db.query(
-      "DELETE FROM instructors WHERE id = ?",
+      "UPDATE users SET deleted_at = NOW(), status = 'inactive' WHERE id = ? AND role = 'instructor'",
       [parseInt(id)]
     );
 
@@ -119,15 +164,15 @@ export const getInstructorStats = async (req, res) => {
   try {
     const { instructor_id } = req.params;
 
-    // Verify instructor_id is numeric
     if (isNaN(instructor_id)) {
       return res.status(400).json({ error: "Invalid instructor ID format" });
     }
 
-    // Get student statistics
+    // ✅ NEW SCHEMA: Get student statistics (count users with role='student')
     const [studentStats] = await db.query(
-      `SELECT COUNT(*) as total_students
-       FROM students`
+      `SELECT COUNT(*) as total_students 
+       FROM users 
+       WHERE role = 'student' AND deleted_at IS NULL`
     );
 
     // Get project statistics
@@ -142,8 +187,7 @@ export const getInstructorStats = async (req, res) => {
 
     // Get group statistics
     const [groupStats] = await db.query(
-      `SELECT COUNT(DISTINCT id) as total_groups
-       FROM student_groups`
+      `SELECT COUNT(DISTINCT id) as total_groups FROM student_groups`
     );
 
     res.status(200).json({
@@ -169,37 +213,49 @@ export const getProjectById = async (req, res) => {
   try {
     const { id } = req.params;
 
-    if (isNaN(id)) {
+    if (!id) {
       return res.status(400).json({ error: "Invalid project ID format" });
     }
 
+    // ✅ NEW SCHEMA: Query projects with client info from users + user_profiles
     const [projects] = await db.query(
       `SELECT 
          p.id,
          p.title,
          p.description,
          p.status,
-         p.created_at,
-         c.first_name AS client_first_name,
-         c.last_name AS client_last_name,
-         c.email AS client_email
+         p.posted_date as created_at,
+         up.first_name AS client_first_name,
+         up.last_name AS client_last_name,
+         u.email AS client_email
        FROM projects p
-       LEFT JOIN clients c ON p.client_id = c.id
+       LEFT JOIN users u ON p.owner_id = u.id
+       LEFT JOIN user_profiles up ON u.id = up.user_id
        WHERE p.id = ?`,
-      [parseInt(id)]
+      [id]
     );
 
     if (projects.length === 0) {
       return res.status(404).json({ error: "Project not found" });
     }
 
-    res.status(200).json(projects[0]);
+    const project = projects[0];
+
+    res.status(200).json({
+      id: project.id,
+      title: project.title,
+      description: project.description,
+      status: project.status,
+      created_at: project.created_at,
+      client_first_name: project.client_first_name,
+      client_last_name: project.client_last_name,
+      client_email: project.client_email,
+    });
   } catch (err) {
     console.error("Error fetching project:", err);
     res.status(500).json({ error: "Server error" });
   }
 };
-
 
 export default {
   getAllInstructors,

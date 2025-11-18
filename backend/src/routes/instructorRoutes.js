@@ -25,7 +25,7 @@ router.post("/signup", validateInstructorSignup, async (req, res) => {
 
     // Check if email already exists in database
     const [existing] = await db.query(
-      "SELECT id FROM instructors WHERE email = ?",
+      "SELECT id FROM users WHERE email = ?",
       [email]
     );
     
@@ -50,28 +50,47 @@ router.post("/signup", validateInstructorSignup, async (req, res) => {
 
     const uid = decodedToken.uid;
 
-    // Create instructor in database
-    const [result] = await db.query(
-      "INSERT INTO instructors (first_name, last_name, email, firebase_uid) VALUES (?, ?, ?, ?)",
-      [first_name, last_name, email, uid]
-    );
+    const connection = await db.getConnection();
 
-    const instructorId = result.insertId;
+    try {
+      // ✅ NEW SCHEMA: Insert into users table
+      const [userResult] = await connection.query(
+        "INSERT INTO users (email, firebase_uid, role, email_verified, status) VALUES (?, ?, 'instructor', 1, 'active')",
+        [email, uid]
+      );
 
-    // Generate JWT token
-    const token = generateJWT(uid, email, "instructor", instructorId);
+      const userId = userResult.insertId;
 
-    res.status(201).json({
-      success: true,
-      message: "Instructor registered successfully",
-      token,
-      instructor: {
-        id: instructorId,
-        first_name,
-        last_name,
-        email,
-      },
-    });
+      // ✅ NEW SCHEMA: Insert into user_profiles table
+      const fullName = `${first_name} ${last_name}`.trim();
+      await connection.query(
+        `INSERT INTO user_profiles 
+         (user_id, first_name, last_name, full_name, department) 
+         VALUES (?, ?, ?, ?, ?)`,
+        [userId, first_name, last_name, fullName, null]
+      );
+
+      connection.release();
+
+      // Generate JWT token
+      const token = generateJWT(uid, email, "instructor", userId);
+
+      // ✅ BACKWARDS COMPATIBLE RESPONSE
+      res.status(201).json({
+        success: true,
+        message: "Instructor registered successfully",
+        token,
+        instructor: {
+          id: userId,          // Numeric ID
+          first_name,
+          last_name,
+          email,
+        },
+      });
+    } catch (err) {
+      connection.release();
+      throw err;
+    }
   } catch (err) {
     console.error("Signup error:", err);
 
@@ -109,9 +128,13 @@ router.post("/login", validateInstructorLogin, async (req, res) => {
 
     const uid = decodedToken.uid;
 
-    // Get instructor from database
+    // ✅ NEW SCHEMA: Query users + user_profiles
     const [instructors] = await db.query(
-      "SELECT id, first_name, last_name, email FROM instructors WHERE email = ?",
+      `SELECT u.id, u.email, u.role,
+              p.first_name, p.last_name, p.full_name, p.department
+       FROM users u
+       LEFT JOIN user_profiles p ON u.id = p.user_id
+       WHERE u.email = ? AND u.role = 'instructor' AND u.deleted_at IS NULL`,
       [email]
     );
 
@@ -125,9 +148,16 @@ router.post("/login", validateInstructorLogin, async (req, res) => {
     const instructor = instructors[0];
     const instructorId = instructor.id;
 
+    // Update last_login_at
+    await db.query(
+      "UPDATE users SET last_login_at = NOW() WHERE id = ?",
+      [instructorId]
+    );
+
     // Generate JWT token
     const token = generateJWT(uid, email, "instructor", instructorId);
 
+    // ✅ BACKWARDS COMPATIBLE RESPONSE
     res.json({
       success: true,
       message: "Login successful",
@@ -137,6 +167,7 @@ router.post("/login", validateInstructorLogin, async (req, res) => {
         first_name: instructor.first_name,
         last_name: instructor.last_name,
         email: instructor.email,
+        department: instructor.department,
       },
     });
   } catch (err) {
@@ -156,7 +187,6 @@ router.get("/:instructor_id", verifyToken, async (req, res) => {
   try {
     const { instructor_id } = req.params;
 
-    // Validate instructor_id is numeric
     if (isNaN(instructor_id)) {
       return res.status(400).json({
         success: false,
@@ -172,8 +202,13 @@ router.get("/:instructor_id", verifyToken, async (req, res) => {
       });
     }
 
+    // ✅ NEW SCHEMA: Query users + user_profiles
     const [instructors] = await db.query(
-      "SELECT id, first_name, last_name, email, created_at FROM instructors WHERE id = ?",
+      `SELECT u.id, u.email, u.created_at,
+              p.first_name, p.last_name, p.full_name, p.department
+       FROM users u
+       LEFT JOIN user_profiles p ON u.id = p.user_id
+       WHERE u.id = ? AND u.role = 'instructor' AND u.deleted_at IS NULL`,
       [parseInt(instructor_id)]
     );
 
@@ -184,9 +219,18 @@ router.get("/:instructor_id", verifyToken, async (req, res) => {
       });
     }
 
+    const instructor = instructors[0];
+
     res.json({
       success: true,
-      data: instructors[0],
+      data: {
+        id: instructor.id,
+        first_name: instructor.first_name,
+        last_name: instructor.last_name,
+        email: instructor.email,
+        department: instructor.department,
+        created_at: instructor.created_at,
+      },
     });
   } catch (err) {
     console.error("Error fetching instructor:", err);
@@ -201,9 +245,8 @@ router.get("/:instructor_id", verifyToken, async (req, res) => {
 router.put("/:instructor_id", verifyToken, async (req, res) => {
   try {
     const { instructor_id } = req.params;
-    const { first_name, last_name, email } = req.body;
+    const { first_name, last_name, email, department } = req.body;
 
-    // Validate instructor_id is numeric
     if (isNaN(instructor_id)) {
       return res.status(400).json({
         success: false,
@@ -229,7 +272,7 @@ router.put("/:instructor_id", verifyToken, async (req, res) => {
 
     // Check if email already exists (excluding current instructor)
     const [existingEmail] = await db.query(
-      "SELECT id FROM instructors WHERE email = ? AND id != ?",
+      "SELECT id FROM users WHERE email = ? AND id != ? AND deleted_at IS NULL",
       [email, parseInt(instructor_id)]
     );
 
@@ -240,22 +283,39 @@ router.put("/:instructor_id", verifyToken, async (req, res) => {
       });
     }
 
-    const [result] = await db.query(
-      "UPDATE instructors SET first_name = ?, last_name = ?, email = ? WHERE id = ?",
-      [first_name, last_name, email, parseInt(instructor_id)]
-    );
+    const connection = await db.getConnection();
 
-    if (result.affectedRows === 0) {
-      return res.status(404).json({
-        success: false,
-        error: "Instructor not found",
+    try {
+      // ✅ NEW SCHEMA: Update users table
+      await connection.query(
+        "UPDATE users SET email = ? WHERE id = ?",
+        [email, parseInt(instructor_id)]
+      );
+
+      // ✅ NEW SCHEMA: Update user_profiles table
+      const fullName = `${first_name} ${last_name}`.trim();
+      const [result] = await connection.query(
+        "UPDATE user_profiles SET first_name = ?, last_name = ?, full_name = ?, department = ? WHERE user_id = ?",
+        [first_name, last_name, fullName, department || null, parseInt(instructor_id)]
+      );
+
+      connection.release();
+
+      if (result.affectedRows === 0) {
+        return res.status(404).json({
+          success: false,
+          error: "Instructor not found",
+        });
+      }
+
+      res.json({
+        success: true,
+        message: "Instructor profile updated successfully",
       });
+    } catch (err) {
+      connection.release();
+      throw err;
     }
-
-    res.json({
-      success: true,
-      message: "Instructor profile updated successfully",
-    });
   } catch (err) {
     console.error("Error updating instructor:", err);
     res.status(500).json({
@@ -270,7 +330,6 @@ router.delete("/:instructor_id", verifyToken, async (req, res) => {
   try {
     const { instructor_id } = req.params;
 
-    // Validate instructor_id is numeric
     if (isNaN(instructor_id)) {
       return res.status(400).json({
         success: false,
@@ -286,9 +345,9 @@ router.delete("/:instructor_id", verifyToken, async (req, res) => {
       });
     }
 
-    // Delete the instructor
+    // ✅ NEW SCHEMA: Soft delete using deleted_at
     const [result] = await db.query(
-      "DELETE FROM instructors WHERE id = ?",
+      "UPDATE users SET deleted_at = NOW(), status = 'inactive' WHERE id = ? AND role = 'instructor'",
       [parseInt(instructor_id)]
     );
 
@@ -319,7 +378,6 @@ router.get("/:instructor_id/stats", verifyToken, async (req, res) => {
   try {
     const { instructor_id } = req.params;
 
-    // Validate instructor_id is numeric
     if (isNaN(instructor_id)) {
       return res.status(400).json({
         success: false,
@@ -335,9 +393,11 @@ router.get("/:instructor_id/stats", verifyToken, async (req, res) => {
       });
     }
 
-    // Get student statistics
+    // ✅ NEW SCHEMA: Get student statistics (count users with role='student')
     const [studentStats] = await db.query(
-      `SELECT COUNT(*) as total_students FROM students`
+      `SELECT COUNT(*) as total_students 
+       FROM users 
+       WHERE role = 'student' AND deleted_at IS NULL`
     );
 
     // Get project statistics
@@ -377,8 +437,60 @@ router.get("/:instructor_id/stats", verifyToken, async (req, res) => {
   }
 });
 
-import { getProjectById } from "../controllers/instructorController.js";
+// ==================== INSTRUCTOR PROJECT DETAILS ====================
 
-router.get("/projects/:id", getProjectById);
+// Get a single project by ID (for instructor "View Details")
+router.get("/projects/:id", async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    // ✅ NEW SCHEMA: Query projects with client info from users + user_profiles
+    const [projects] = await db.query(
+      `SELECT 
+         p.id,
+         p.title,
+         p.description,
+         p.status,
+         p.posted_date as created_at,
+         up.first_name AS client_first_name,
+         up.last_name AS client_last_name,
+         u.email AS client_email
+       FROM projects p
+       LEFT JOIN users u ON p.owner_id = u.id
+       LEFT JOIN user_profiles up ON u.id = up.user_id
+       WHERE p.id = ?`,
+      [id]
+    );
+
+    if (projects.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: "Project not found",
+      });
+    }
+
+    const project = projects[0];
+
+    res.json({
+      success: true,
+      data: {
+        id: project.id,
+        title: project.title,
+        description: project.description,
+        status: project.status,
+        created_at: project.created_at,
+        client_first_name: project.client_first_name,
+        client_last_name: project.client_last_name,
+        client_email: project.client_email,
+      },
+    });
+  } catch (err) {
+    console.error("Error fetching project:", err);
+    res.status(500).json({
+      success: false,
+      error: "Failed to fetch project",
+    });
+  }
+});
 
 export default router;
