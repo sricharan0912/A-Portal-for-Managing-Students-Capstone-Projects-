@@ -5,7 +5,6 @@ import { getInstructorStudents } from "../utils/apiHelper";
 /**
  * Instructor → Students Page
  * Displays all students with search + add student button.
- * Matches your reference design and existing blue theme.
  */
 export default function StudentsView({ instructorId }) {
   const navigate = useNavigate();
