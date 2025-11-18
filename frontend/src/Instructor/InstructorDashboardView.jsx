@@ -3,7 +3,6 @@ import { getInstructorStats } from "../utils/apiHelper";
 
 /**
  * InstructorDashboardView Component
- * Expanded layout matching reference screenshots (Dashboard Overview)
  */
 export default function InstructorDashboardView({ instructorId }) {
   const [stats, setStats] = useState({

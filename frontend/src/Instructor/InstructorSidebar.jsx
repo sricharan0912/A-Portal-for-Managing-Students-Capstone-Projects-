@@ -4,7 +4,6 @@ const DRAWER_WIDTH = 280;
 /**
  * InstructorSidebar Component
  * Extended navigation sidebar (Dashboard, Students, Projects, Groups, Evaluations, Profile)
- * Retains your existing blue design & layout
  */
 export default function InstructorSidebar({
   active,

@@ -4,7 +4,6 @@ import { getInstructorGroups, autoAssignGroups } from "../utils/apiHelper";
 /**
  * Instructor → Groups Page
  * Displays all groups and allows manual or automatic group formation.
- * Matches screenshots and uses existing blue/white theme.
  */
 export default function GroupsView() {
   const [groups, setGroups] = useState([]);

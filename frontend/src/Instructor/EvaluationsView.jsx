@@ -4,7 +4,6 @@ import { getInstructorEvaluations } from "../utils/apiHelper";
 /**
  * Instructor → Evaluations Page
  * Displays scheduled and completed evaluations with search and schedule button.
- * Matches your screenshots and current blue theme.
  */
 export default function EvaluationsView() {
   const [evaluations, setEvaluations] = useState([]);
