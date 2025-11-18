@@ -70,7 +70,7 @@ export const fetchStudentGroup = async (studentId) =>
 
 /* ===================== INSTRUCTOR ===================== */
 
-// ✅ FIXED: Changed from /instructor/ to /instructors/ (plural) to match backend
+// Get instructor stats
 export const getInstructorStats = async (instructorId) =>
   apiCall(`/instructors/${instructorId}/stats`, { method: "GET" });
 
@@ -96,7 +96,7 @@ export const rejectProject = async (projectId) =>
 export const runGroupingAlgorithm = async () =>
   apiCall("/instructor/assign-groups", { method: "POST" });
 
-// ✅ FIXED: Get all students (instructors can see all students in the system)
+// Get all students (instructors can see all students in the system)
 export const getInstructorStudents = async (instructorId) =>
   apiCall("/students", { method: "GET" });
 
@@ -106,17 +106,15 @@ export const addNewStudent = async (studentData) =>
     body: JSON.stringify(studentData),
   });
 
-
-// ✅ FIXED: Get all projects (instructors can see all projects in the system)
+// Get all projects (instructors can see all projects in the system)
 export const getInstructorProjects = async (instructorId) =>
   apiCall("/projects", { method: "GET" });
 
-// Get project details by ID
+// Get project details by ID - This is the main function to use for both student and instructor
 export const getProjectById = async (projectId) =>
   apiCall(`/projects/${projectId}`, { method: "GET" });
 
-export const getInstructorProjectById = async (projectId) =>
-  apiCall(`/instructor/projects/${projectId}`, { method: "GET" });
+// REMOVED getInstructorProjectById - use getProjectById instead
 
 // Update project status (approve, reject, or other updates)
 export const updateProjectStatus = async (projectId, status, feedback = "") =>
@@ -134,7 +132,7 @@ export const createNewProject = async (projectData) =>
 
 // Get list of all groups
 export const getInstructorGroups = async () =>
-  apiCall("/instructor/groups", { method: "GET" });
+  apiCall("/groups", { method: "GET" });  // Changed from /instructor/groups to /groups
 
 // Auto assign students to groups (run algorithm)
 export const autoAssignGroups = async () =>
@@ -154,18 +152,18 @@ export const rerunAutoGrouping = async () =>
 
 // Create a new group manually
 export const createNewGroup = async (groupData) =>
-  apiCall("/instructor/groups", {
+  apiCall("/groups", {  // Changed from /instructor/groups to /groups
     method: "POST",
     body: JSON.stringify(groupData),
   });
 
 // Get all evaluations
 export const getInstructorEvaluations = async () =>
-  apiCall("/instructor/evaluations", { method: "GET" });
+  apiCall("/evaluations", { method: "GET" });  // Changed from /instructor/evaluations to /evaluations
 
 // Schedule a new evaluation
 export const scheduleEvaluation = async (payload) =>
-  apiCall("/instructor/evaluations", {
+  apiCall("/evaluations", {  // Changed from /instructor/evaluations to /evaluations
     method: "POST",
     body: JSON.stringify(payload),
   });

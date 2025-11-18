@@ -93,6 +93,8 @@ export default function ProjectFormModal({
       ...(clientId && !isEditing ? { client_id: clientId } : {}),
     };
 
+    console.log("📤 Submitting payload:", payload);
+
     setLoading(true);
     try {
       let result;
@@ -108,19 +110,36 @@ export default function ProjectFormModal({
         });
       }
 
-      const updated =
-        result && typeof result === "object"
-          ? result
-          : {
-              // fallback if API returns nothing
-              id: projectData?.id ?? Date.now(),
-              ...payload,
-            };
+      console.log("📥 API Response:", result);
 
-      if (!isEditing && onProjectCreated) onProjectCreated(updated);
+      // ✅ Extract the actual project data from the API response
+      // Backend returns: { success: true, data: { id, title, ... }, message: "..." }
+      const projectFromApi = result?.data || result;
+      
+      // Build complete project object with all fields
+      const updated = {
+        // Start with the payload (form data)
+        ...payload,
+        // Override with API response data (includes id, slug, created_at, etc.)
+        ...projectFromApi,
+        // Ensure we have critical fields
+        id: projectFromApi.id || projectData?.id || Date.now(),
+        status: projectFromApi.status || payload.status || "open",
+        created_at: projectFromApi.created_at || new Date().toISOString(),
+      };
+
+      console.log("✅ Final project object:", updated);
+
+      // Call the appropriate callbacks
+      if (!isEditing && onProjectCreated) {
+        console.log("🎉 Calling onProjectCreated");
+        onProjectCreated(updated);
+      }
+      
       onSave(updated);
       onClose();
     } catch (err) {
+      console.error("❌ Error saving project:", err);
       setError(err?.message || "Failed to save project.");
     } finally {
       setLoading(false);
@@ -129,7 +148,7 @@ export default function ProjectFormModal({
 
   return (
     <div className="form-enter rounded-2xl bg-white p-8 shadow-lg">
-      <div className="mb-8 flex items-center justify-between border-b border-slate-2 00 pb-6">
+      <div className="mb-8 flex items-center justify-between border-b border-slate-200 pb-6">
         <div>
           <h2 className="text-3xl font-bold text-slate-900">
             {isEditing ? "Edit Project" : "Create New Project"}
@@ -196,16 +215,14 @@ export default function ProjectFormModal({
             </label>
             <textarea
               id="pfm-desc"
-              rows="5"
               required
+              rows="5"
               className="w-full resize-y rounded-lg border border-slate-300 p-3.5 text-slate-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
-              placeholder="Describe the problem, scope, deliverables, timeline, and any specific constraints or requirements..."
+              placeholder="Provide a comprehensive overview of your project, including goals, scope, and any specific requirements..."
               value={description}
               onChange={(e) => setDescription(e.target.value)}
             />
-            <p className="mt-1.5 text-xs text-slate-500">
-              Provide detailed information about your project
-            </p>
+            <p className="mt-1.5 text-xs text-slate-500">Provide detailed information about your project</p>
           </div>
 
           <div className="grid grid-cols-1 gap-6 md:grid-cols-2">

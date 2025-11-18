@@ -1,11 +1,10 @@
 import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { getInstructorProjects } from "../utils/apiHelper";
+import { apiCall } from "../utils/apiHelper";
 
 /**
  * Instructor → Projects View
  * Displays all projects in cards/grid format with search + create project button.
- * Matches your screenshots and existing blue theme.
  */
 export default function ProjectsView({ instructorId }) {
   const navigate = useNavigate();
@@ -13,22 +12,31 @@ export default function ProjectsView({ instructorId }) {
   const [filteredProjects, setFilteredProjects] = useState([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
   useEffect(() => {
     const fetchProjects = async () => {
-      if (!instructorId) {
-        console.error("No instructor ID provided");
-        setLoading(false);
-        return;
-      }
-
       try {
-        const res = await getInstructorProjects(instructorId);
-        const data = res.data || [];
-        setProjects(data);
-        setFilteredProjects(data);
+        console.log("Fetching projects...");
+        const res = await apiCall("/projects", { method: "GET" });
+        console.log("Projects API response:", res);
+        
+        // Handle different response formats
+        let projectsData = [];
+        if (Array.isArray(res)) {
+          projectsData = res;
+        } else if (res?.data && Array.isArray(res.data)) {
+          projectsData = res.data;
+        } else if (res?.projects && Array.isArray(res.projects)) {
+          projectsData = res.projects;
+        }
+        
+        console.log("Processed projects data:", projectsData);
+        setProjects(projectsData);
+        setFilteredProjects(projectsData);
       } catch (err) {
         console.error("Error fetching projects:", err);
+        setError(err.message);
       } finally {
         setLoading(false);
       }
@@ -43,6 +51,7 @@ export default function ProjectsView({ instructorId }) {
       projects.filter(
         (p) =>
           p.title?.toLowerCase().includes(term) ||
+          p.client_name?.toLowerCase().includes(term) ||
           p.client?.toLowerCase().includes(term) ||
           p.category?.toLowerCase().includes(term)
       )
@@ -57,11 +66,29 @@ export default function ProjectsView({ instructorId }) {
     );
   }
 
+  if (error) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="text-center">
+          <p className="text-red-600 mb-4">Error loading projects: {error}</p>
+          <button
+            onClick={() => window.location.reload()}
+            className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+          >
+            Retry
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
       {/* Header */}
       <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
-        <h2 className="text-2xl font-bold text-slate-800">Projects</h2>
+        <h2 className="text-2xl font-bold text-slate-800">
+          Projects ({projects.length})
+        </h2>
 
         <div className="flex items-center gap-3 w-full sm:w-auto">
           {/* Search bar */}
@@ -87,7 +114,7 @@ export default function ProjectsView({ instructorId }) {
             </span>
           </div>
 
-          {/* Create Project Button - ✅ Fixed to use navigate */}
+          {/* Create Project Button */}
           <button
             onClick={() => navigate("/instructor-dashboard/create-project")}
             className="inline-flex items-center gap-2 rounded-lg bg-blue-700 px-4 py-2 text-sm font-medium text-white hover:bg-blue-600 focus:ring-2 focus:ring-blue-300 transition"
@@ -105,6 +132,24 @@ export default function ProjectsView({ instructorId }) {
           </button>
         </div>
       </div>
+
+      {/* Debug Info - Remove this in production */}
+      {projects.length === 0 && (
+        <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+          <p className="text-yellow-800 font-medium">No projects found in the database.</p>
+          <p className="text-yellow-700 text-sm mt-1">
+            This could mean:
+          </p>
+          <ul className="list-disc list-inside text-yellow-700 text-sm mt-2">
+            <li>No projects have been created yet</li>
+            <li>There's an issue with the API connection</li>
+            <li>The authentication token might not have proper permissions</li>
+          </ul>
+          <p className="text-yellow-700 text-sm mt-3">
+            Try creating a new project using the "Create Project" button above.
+          </p>
+        </div>
+      )}
 
       {/* Project Cards */}
       {filteredProjects.length > 0 ? (
@@ -155,39 +200,27 @@ export default function ProjectsView({ instructorId }) {
                 </div>
               </div>
 
-              {/* Actions - ✅ Fixed to use navigate */}
-              <div className="flex justify-between items-center border-t border-slate-100 px-5 py-3 bg-slate-50 rounded-b-xl">
+              {/* Actions - REMOVED ID DISPLAY */}
+              <div className="flex justify-end items-center border-t border-slate-100 px-5 py-3 bg-slate-50 rounded-b-xl">
                 <button
-                  onClick={() => navigate(`/instructor-dashboard/projects/${project.id}`)}
+                  onClick={() => {
+                    console.log("Navigating to project:", project.id);
+                    navigate(`/instructor-dashboard/projects/${project.id}`);
+                  }}
                   className="text-blue-700 hover:text-blue-900 text-sm font-medium"
                 >
                   View Details
                 </button>
-
-                {project.status === "open" && (
-                  <div className="flex gap-2">
-                    <button
-                      className="text-green-600 hover:text-green-800 text-sm font-medium"
-                      onClick={() => alert(`Approved ${project.title}`)}
-                    >
-                      Approve
-                    </button>
-                    <button
-                      className="text-red-600 hover:text-red-800 text-sm font-medium"
-                      onClick={() => alert(`Rejected ${project.title}`)}
-                    >
-                      Reject
-                    </button>
-                  </div>
-                )}
               </div>
             </div>
           ))}
         </div>
       ) : (
-        <div className="text-center py-10 text-slate-500 text-sm border border-slate-200 bg-white rounded-xl shadow-sm">
-          No projects found.
-        </div>
+        projects.length > 0 && (
+          <div className="text-center py-10 text-slate-500 text-sm border border-slate-200 bg-white rounded-xl shadow-sm">
+            No projects match your search.
+          </div>
+        )
       )}
     </div>
   );

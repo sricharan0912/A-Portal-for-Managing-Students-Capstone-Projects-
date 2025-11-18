@@ -17,18 +17,26 @@ export default function ProjectListView({
   const handleDeleteProject = async (projectId) => {
     if (!window.confirm("Are you sure you want to delete this project?")) return;
 
+    console.log("🗑️ Deleting project:", projectId);
+    
     try {
       setDeletingId(projectId);
-      await apiCall(`${API_BASE_URL}/projects/${projectId}`, { method: "DELETE" });
+      const response = await apiCall(`${API_BASE_URL}/projects/${projectId}`, { method: "DELETE" });
+
+      console.log("✅ Project deleted successfully:", response);
 
       // If parent provides a refetch, prefer that (single source of truth)
       if (typeof onRefresh === "function") {
+        console.log("🔄 Calling onRefresh to update UI...");
         await onRefresh();
+        console.log("✅ UI refreshed");
       } else {
+        console.log("📝 Updating local state (fallback)...");
         // Fallback: update local list
         setProjects((prev) => prev.filter((p) => p.id !== projectId));
       }
     } catch (err) {
+      console.error("❌ Error deleting project:", err);
       alert(`Error deleting project: ${err?.message || "Unknown error"}`);
     } finally {
       setDeletingId(null);
