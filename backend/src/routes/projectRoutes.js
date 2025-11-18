@@ -34,16 +34,42 @@ router.get("/", async (req, res) => {
     let query;
     if (userRole === "instructor" || userRole === "admin") {
       // Instructors and admins see ALL projects
-      query = `SELECT id, client_id, title, description, skills_required, category, 
-              team_size, start_date, end_date, complexity_level, deliverables, 
-              project_location, industry, status, created_at
+      query = `SELECT 
+         id, 
+         owner_id as client_id,
+         title, 
+         description, 
+         required_skills as skills_required, 
+         category, 
+         max_team_size as team_size, 
+         start_date, 
+         end_date, 
+         difficulty_level as complexity_level, 
+         deliverables, 
+         location as project_location, 
+         industry_category as industry, 
+         status, 
+         created_at
        FROM projects 
        ORDER BY created_at DESC`;
     } else {
       // Students and public see only open projects
-      query = `SELECT id, client_id, title, description, skills_required, category, 
-              team_size, start_date, end_date, complexity_level, deliverables, 
-              project_location, industry, status, created_at
+      query = `SELECT 
+         id, 
+         owner_id as client_id,
+         title, 
+         description, 
+         required_skills as skills_required, 
+         category, 
+         max_team_size as team_size, 
+         start_date, 
+         end_date, 
+         difficulty_level as complexity_level, 
+         deliverables, 
+         location as project_location, 
+         industry_category as industry, 
+         status, 
+         created_at
        FROM projects 
        WHERE status = 'open' 
        ORDER BY created_at DESC`;
@@ -69,7 +95,6 @@ router.get("/client/:client_id", verifyToken, async (req, res) => {
   try {
     const { client_id } = req.params;
 
-    // Validate client_id is numeric
     if (isNaN(client_id)) {
       return res.status(400).json({
         success: false,
@@ -86,11 +111,24 @@ router.get("/client/:client_id", verifyToken, async (req, res) => {
     }
 
     const [projects] = await db.query(
-      `SELECT id, client_id, title, description, skills_required, category, 
-              team_size, start_date, end_date, complexity_level, deliverables, 
-              project_location, industry, status, created_at
+      `SELECT 
+         id, 
+         owner_id as client_id,
+         title, 
+         description, 
+         required_skills as skills_required, 
+         category, 
+         max_team_size as team_size, 
+         start_date, 
+         end_date, 
+         difficulty_level as complexity_level, 
+         deliverables, 
+         location as project_location, 
+         industry_category as industry, 
+         status, 
+         created_at
        FROM projects 
-       WHERE client_id = ?
+       WHERE owner_id = ?
        ORDER BY created_at DESC`,
       [parseInt(client_id)]
     );
@@ -113,20 +151,26 @@ router.get("/:project_id", async (req, res) => {
   try {
     const { project_id } = req.params;
 
-    if (isNaN(project_id)) {
-      return res.status(400).json({
-        success: false,
-        error: "Invalid project ID format",
-      });
-    }
-
     const [projects] = await db.query(
-      `SELECT id, client_id, title, description, skills_required, category, 
-              team_size, start_date, end_date, complexity_level, deliverables, 
-              project_location, industry, status, created_at
+      `SELECT 
+         id, 
+         owner_id as client_id,
+         title, 
+         description, 
+         required_skills as skills_required, 
+         category, 
+         max_team_size as team_size, 
+         start_date, 
+         end_date, 
+         difficulty_level as complexity_level, 
+         deliverables, 
+         location as project_location, 
+         industry_category as industry, 
+         status, 
+         created_at
        FROM projects 
        WHERE id = ?`,
-      [parseInt(project_id)]
+      [project_id]
     );
 
     if (projects.length === 0) {
@@ -162,9 +206,22 @@ router.get("/category/:category", async (req, res) => {
     }
 
     const [projects] = await db.query(
-      `SELECT id, client_id, title, description, skills_required, category, 
-              team_size, start_date, end_date, complexity_level, deliverables, 
-              project_location, industry, status, created_at
+      `SELECT 
+         id, 
+         owner_id as client_id,
+         title, 
+         description, 
+         required_skills as skills_required, 
+         category, 
+         max_team_size as team_size, 
+         start_date, 
+         end_date, 
+         difficulty_level as complexity_level, 
+         deliverables, 
+         location as project_location, 
+         industry_category as industry, 
+         status, 
+         created_at
        FROM projects 
        WHERE category = ? AND status = 'open'
        ORDER BY created_at DESC`,
@@ -198,11 +255,24 @@ router.get("/complexity/:complexity", async (req, res) => {
     }
 
     const [projects] = await db.query(
-      `SELECT id, client_id, title, description, skills_required, category, 
-              team_size, start_date, end_date, complexity_level, deliverables, 
-              project_location, industry, status, created_at
+      `SELECT 
+         id, 
+         owner_id as client_id,
+         title, 
+         description, 
+         required_skills as skills_required, 
+         category, 
+         max_team_size as team_size, 
+         start_date, 
+         end_date, 
+         difficulty_level as complexity_level, 
+         deliverables, 
+         location as project_location, 
+         industry_category as industry, 
+         status, 
+         created_at
        FROM projects 
-       WHERE complexity_level = ? AND status = 'open'
+       WHERE difficulty_level = ? AND status = 'open'
        ORDER BY created_at DESC`,
       [complexity]
     );
@@ -235,11 +305,24 @@ router.get("/search", async (req, res) => {
     const searchTerm = `%${keyword}%`;
 
     const [projects] = await db.query(
-      `SELECT id, client_id, title, description, skills_required, category, 
-              team_size, start_date, end_date, complexity_level, deliverables, 
-              project_location, industry, status, created_at
+      `SELECT 
+         id, 
+         owner_id as client_id,
+         title, 
+         description, 
+         required_skills as skills_required, 
+         category, 
+         max_team_size as team_size, 
+         start_date, 
+         end_date, 
+         difficulty_level as complexity_level, 
+         deliverables, 
+         location as project_location, 
+         industry_category as industry, 
+         status, 
+         created_at
        FROM projects 
-       WHERE (title LIKE ? OR description LIKE ? OR skills_required LIKE ?) 
+       WHERE (title LIKE ? OR description LIKE ? OR required_skills LIKE ?) 
              AND status = 'open'
        ORDER BY created_at DESC`,
       [searchTerm, searchTerm, searchTerm]
@@ -263,9 +346,11 @@ router.get("/search", async (req, res) => {
 // Create new project (PROTECTED - client only)
 router.post("/", verifyToken, async (req, res) => {
   try {
-    const { title, description, skills_required, category, team_size, 
-            start_date, end_date, complexity_level, deliverables, 
-            project_location, industry, client_id } = req.body;
+    const { 
+      title, description, skills_required, category, team_size, 
+      start_date, end_date, complexity_level, deliverables, 
+      project_location, industry, client_id 
+    } = req.body;
 
     // Check if user is a client
     if (req.user.role !== "client") {
@@ -286,27 +371,73 @@ router.post("/", verifyToken, async (req, res) => {
     // Use client_id from request body or from token
     const finalClientId = client_id || req.user.clientId;
 
-    // Insert project
+    // Verify client exists in users table
+    const [clientCheck] = await db.query(
+      "SELECT id FROM users WHERE id = ? AND role = 'client' AND deleted_at IS NULL",
+      [finalClientId]
+    );
+
+    if (clientCheck.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: "Client not found",
+      });
+    }
+
+    // ✅ CONVERT SKILLS_REQUIRED TO JSON ARRAY
+    let skillsJson;
+    if (typeof skills_required === 'string') {
+      // Split by commas if it's a comma-separated string
+      const skillsArray = skills_required.split(',').map(s => s.trim()).filter(s => s);
+      skillsJson = JSON.stringify(skillsArray);
+    } else if (Array.isArray(skills_required)) {
+      skillsJson = JSON.stringify(skills_required);
+    } else {
+      skillsJson = JSON.stringify([skills_required]);
+    }
+
+    // ✅ CONVERT DELIVERABLES TO JSON ARRAY
+    let deliverablesJson = null;
+    if (deliverables) {
+      if (typeof deliverables === 'string') {
+        // Split by commas or newlines
+        const deliverablesArray = deliverables.split(/[,\n]/).map(d => d.trim()).filter(d => d);
+        deliverablesJson = JSON.stringify(deliverablesArray);
+      } else if (Array.isArray(deliverables)) {
+        deliverablesJson = JSON.stringify(deliverables);
+      } else {
+        deliverablesJson = JSON.stringify([deliverables]);
+      }
+    }
+
+    // ✅ GENERATE SLUG FROM TITLE (required unique field)
+    const slug = title
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '')
+      + '-' + Date.now();
+
+    // ✅ NEW SCHEMA: Insert with JSON values and slug
     const [result] = await db.query(
       `INSERT INTO projects 
-       (client_id, title, description, skills_required, category, team_size, 
-        start_date, end_date, complexity_level, deliverables, project_location, 
-        industry, status, created_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())`,
+       (owner_id, title, slug, description, required_skills, category, 
+        max_team_size, start_date, end_date, difficulty_level, 
+        deliverables, location, industry_category, status) 
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'open')`,
       [
         finalClientId,
         title,
+        slug,                         // ✅ Added slug (required)
         description,
-        skills_required,
+        skillsJson,                   // ✅ JSON string
         category || null,
-        team_size ? parseInt(team_size) : null,
+        team_size || null,
         start_date || null,
         end_date || null,
-        complexity_level || null,
-        deliverables || null,
+        complexity_level || 'intermediate',  // ✅ Default value
+        deliverablesJson,             // ✅ JSON string or null
         project_location || null,
         industry || null,
-        "open" // Default status
       ]
     );
 
@@ -315,43 +446,45 @@ router.post("/", verifyToken, async (req, res) => {
       message: "Project created successfully",
       data: {
         id: result.insertId,
-        client_id: finalClientId,
         title,
         description,
-        status: "open",
+        slug,
       },
     });
   } catch (err) {
-    console.error("Error creating project:", err);
+    console.error("❌ Error creating project:", err);
     res.status(500).json({
       success: false,
       error: "Failed to create project",
+      details: process.env.NODE_ENV === "development" ? err.message : undefined,
     });
   }
 });
 
-// ==================== PROJECT UPDATE (CLIENT + INSTRUCTOR) ====================
+// ==================== PROJECT UPDATE (CLIENT ONLY) ====================
 
-// Update project (PROTECTED - client who owns it OR instructor)
+// Update project (PROTECTED - client only, must own project)
 router.put("/:project_id", verifyToken, async (req, res) => {
   try {
     const { project_id } = req.params;
-    const { title, description, skills_required, category, team_size, 
-            start_date, end_date, complexity_level, deliverables, 
-            project_location, industry, status, feedback } = req.body;
+    const {
+      title, description, skills_required, category, team_size,
+      start_date, end_date, complexity_level, deliverables,
+      project_location, industry, status, feedback
+    } = req.body;
 
-    // Validate project_id
-    if (isNaN(project_id)) {
-      return res.status(400).json({
+    // Check if user is a client
+    if (req.user.role !== "client") {
+      return res.status(403).json({
         success: false,
-        error: "Invalid project ID format",
+        error: "Only clients can update projects",
       });
     }
 
-    // Get project to check ownership
+    // Verify project exists and belongs to this client
     const [projectCheck] = await db.query(
-      "SELECT client_id, status FROM projects WHERE id = ?",
-      [parseInt(project_id)]
+      "SELECT owner_id FROM projects WHERE id = ?",
+      [project_id]
     );
 
     if (projectCheck.length === 0) {
@@ -361,50 +494,61 @@ router.put("/:project_id", verifyToken, async (req, res) => {
       });
     }
 
-    const project = projectCheck[0];
-
-    // Authorization logic:
-    // - Clients can only update their own projects
-    // - Instructors can update any project (for approval/rejection)
-    if (req.user.role === "client") {
-      if (project.client_id !== req.user.clientId) {
-        return res.status(403).json({
-          success: false,
-          error: "You can only update your own projects",
-        });
-      }
-
-      // Clients cannot change status (only instructors can approve/reject)
-      if (status && status !== project.status) {
-        return res.status(403).json({
-          success: false,
-          error: "Only instructors can change project status",
-        });
-      }
-    } else if (req.user.role !== "instructor" && req.user.role !== "admin") {
+    if (projectCheck[0].owner_id !== req.user.clientId) {
       return res.status(403).json({
         success: false,
-        error: "Unauthorized to update projects",
+        error: "You can only update your own projects",
       });
     }
 
-    // Build update query dynamically based on provided fields
+    // Build dynamic update query
     const updates = [];
     const values = [];
 
     if (title !== undefined) { updates.push("title = ?"); values.push(title); }
     if (description !== undefined) { updates.push("description = ?"); values.push(description); }
-    if (skills_required !== undefined) { updates.push("skills_required = ?"); values.push(skills_required); }
-    if (category !== undefined) { updates.push("category = ?"); values.push(category || null); }
-    if (team_size !== undefined) { updates.push("team_size = ?"); values.push(team_size ? parseInt(team_size) : null); }
-    if (start_date !== undefined) { updates.push("start_date = ?"); values.push(start_date || null); }
-    if (end_date !== undefined) { updates.push("end_date = ?"); values.push(end_date || null); }
-    if (complexity_level !== undefined) { updates.push("complexity_level = ?"); values.push(complexity_level || null); }
-    if (deliverables !== undefined) { updates.push("deliverables = ?"); values.push(deliverables || null); }
-    if (project_location !== undefined) { updates.push("project_location = ?"); values.push(project_location || null); }
-    if (industry !== undefined) { updates.push("industry = ?"); values.push(industry || null); }
+    
+    // ✅ Convert skills_required to JSON if provided
+    if (skills_required !== undefined) {
+      let skillsJson;
+      if (typeof skills_required === 'string') {
+        const skillsArray = skills_required.split(',').map(s => s.trim()).filter(s => s);
+        skillsJson = JSON.stringify(skillsArray);
+      } else if (Array.isArray(skills_required)) {
+        skillsJson = JSON.stringify(skills_required);
+      } else {
+        skillsJson = JSON.stringify([skills_required]);
+      }
+      updates.push("required_skills = ?");
+      values.push(skillsJson);
+    }
+    
+    if (category !== undefined) { updates.push("category = ?"); values.push(category); }
+    if (team_size !== undefined) { updates.push("max_team_size = ?"); values.push(team_size); }
+    if (start_date !== undefined) { updates.push("start_date = ?"); values.push(start_date); }
+    if (end_date !== undefined) { updates.push("end_date = ?"); values.push(end_date); }
+    if (complexity_level !== undefined) { updates.push("difficulty_level = ?"); values.push(complexity_level); }
+    
+    // ✅ Convert deliverables to JSON if provided
+    if (deliverables !== undefined) {
+      let deliverablesJson = null;
+      if (deliverables) {
+        if (typeof deliverables === 'string') {
+          const deliverablesArray = deliverables.split(/[,\n]/).map(d => d.trim()).filter(d => d);
+          deliverablesJson = JSON.stringify(deliverablesArray);
+        } else if (Array.isArray(deliverables)) {
+          deliverablesJson = JSON.stringify(deliverables);
+        } else {
+          deliverablesJson = JSON.stringify([deliverables]);
+        }
+      }
+      updates.push("deliverables = ?");
+      values.push(deliverablesJson);
+    }
+    
+    if (project_location !== undefined) { updates.push("location = ?"); values.push(project_location); }
+    if (industry !== undefined) { updates.push("industry_category = ?"); values.push(industry); }
     if (status !== undefined) { updates.push("status = ?"); values.push(status); }
-    if (feedback !== undefined) { updates.push("feedback = ?"); values.push(feedback || null); }
 
     if (updates.length === 0) {
       return res.status(400).json({
@@ -413,7 +557,7 @@ router.put("/:project_id", verifyToken, async (req, res) => {
       });
     }
 
-    values.push(parseInt(project_id));
+    values.push(project_id);
 
     const [result] = await db.query(
       `UPDATE projects SET ${updates.join(", ")} WHERE id = ?`,
@@ -447,14 +591,6 @@ router.delete("/:project_id", verifyToken, async (req, res) => {
   try {
     const { project_id } = req.params;
 
-    // Validate project_id
-    if (isNaN(project_id)) {
-      return res.status(400).json({
-        success: false,
-        error: "Invalid project ID format",
-      });
-    }
-
     // Check if user is a client
     if (req.user.role !== "client") {
       return res.status(403).json({
@@ -465,8 +601,8 @@ router.delete("/:project_id", verifyToken, async (req, res) => {
 
     // Verify project exists and belongs to this client
     const [projectCheck] = await db.query(
-      "SELECT client_id FROM projects WHERE id = ?",
-      [parseInt(project_id)]
+      "SELECT owner_id FROM projects WHERE id = ?",
+      [project_id]
     );
 
     if (projectCheck.length === 0) {
@@ -476,7 +612,7 @@ router.delete("/:project_id", verifyToken, async (req, res) => {
       });
     }
 
-    if (projectCheck[0].client_id !== req.user.clientId) {
+    if (projectCheck[0].owner_id !== req.user.clientId) {
       return res.status(403).json({
         success: false,
         error: "You can only delete your own projects",
@@ -492,26 +628,26 @@ router.delete("/:project_id", verifyToken, async (req, res) => {
       // 1. Delete student preferences for this project
       await connection.query(
         "DELETE FROM student_preferences WHERE project_id = ?",
-        [parseInt(project_id)]
+        [project_id]
       );
 
       // 2. Delete group members for groups of this project
       await connection.query(
         `DELETE FROM group_members 
          WHERE group_id IN (SELECT id FROM student_groups WHERE project_id = ?)`,
-        [parseInt(project_id)]
+        [project_id]
       );
 
       // 3. Delete student groups for this project
       await connection.query(
         "DELETE FROM student_groups WHERE project_id = ?",
-        [parseInt(project_id)]
+        [project_id]
       );
 
       // 4. Delete the project
       const [result] = await connection.query(
         "DELETE FROM projects WHERE id = ?",
-        [parseInt(project_id)]
+        [project_id]
       );
 
       connection.release();
@@ -547,14 +683,6 @@ router.get("/:project_id/details", verifyToken, async (req, res) => {
   try {
     const { project_id } = req.params;
 
-    // Validate project_id
-    if (isNaN(project_id)) {
-      return res.status(400).json({
-        success: false,
-        error: "Invalid project ID format",
-      });
-    }
-
     // Check if user is a client
     if (req.user.role !== "client") {
       return res.status(403).json({
@@ -563,14 +691,26 @@ router.get("/:project_id/details", verifyToken, async (req, res) => {
       });
     }
 
-    // Get project
     const [projects] = await db.query(
-      `SELECT id, client_id, title, description, skills_required, category,
-              team_size, start_date, end_date, complexity_level, deliverables,
-              project_location, industry, status, created_at
+      `SELECT 
+         id, 
+         owner_id as client_id,
+         title, 
+         description, 
+         required_skills as skills_required, 
+         category, 
+         max_team_size as team_size, 
+         start_date, 
+         end_date, 
+         difficulty_level as complexity_level, 
+         deliverables, 
+         location as project_location, 
+         industry_category as industry, 
+         status, 
+         created_at
        FROM projects
-       WHERE id = ? AND client_id = ?`,
-      [parseInt(project_id), req.user.clientId]
+       WHERE id = ? AND owner_id = ?`,
+      [project_id, req.user.clientId]
     );
 
     if (projects.length === 0) {
@@ -582,15 +722,19 @@ router.get("/:project_id/details", verifyToken, async (req, res) => {
 
     const project = projects[0];
 
-    // Get preferences for this project
     const [preferences] = await db.query(
-      `SELECT sp.id, sp.student_id, sp.preference_rank, 
-              s.first_name, s.last_name, s.email
+      `SELECT 
+         sp.student_id, 
+         sp.rank as preference_rank,
+         p.first_name, 
+         p.last_name, 
+         u.email
        FROM student_preferences sp
-       JOIN students s ON sp.student_id = s.id
+       JOIN users u ON sp.student_id = u.id
+       LEFT JOIN user_profiles p ON u.id = p.user_id
        WHERE sp.project_id = ?
-       ORDER BY sp.preference_rank ASC`,
-      [parseInt(project_id)]
+       ORDER BY sp.rank ASC`,
+      [project_id]
     );
 
     // Get assigned groups
@@ -600,7 +744,7 @@ router.get("/:project_id/details", verifyToken, async (req, res) => {
        LEFT JOIN group_members gm ON sg.id = gm.group_id
        WHERE sg.project_id = ?
        GROUP BY sg.id`,
-      [parseInt(project_id)]
+      [project_id]
     );
 
     res.json({
@@ -629,14 +773,6 @@ router.get("/:project_id/preferences", verifyToken, async (req, res) => {
   try {
     const { project_id } = req.params;
 
-    // Validate project_id
-    if (isNaN(project_id)) {
-      return res.status(400).json({
-        success: false,
-        error: "Invalid project ID format",
-      });
-    }
-
     // Check if user is a client
     if (req.user.role !== "client") {
       return res.status(403).json({
@@ -647,8 +783,8 @@ router.get("/:project_id/preferences", verifyToken, async (req, res) => {
 
     // Verify project exists and belongs to this client
     const [projectCheck] = await db.query(
-      "SELECT client_id FROM projects WHERE id = ?",
-      [parseInt(project_id)]
+      "SELECT owner_id FROM projects WHERE id = ?",
+      [project_id]
     );
 
     if (projectCheck.length === 0) {
@@ -658,22 +794,26 @@ router.get("/:project_id/preferences", verifyToken, async (req, res) => {
       });
     }
 
-    if (projectCheck[0].client_id !== req.user.clientId) {
+    if (projectCheck[0].owner_id !== req.user.clientId) {
       return res.status(403).json({
         success: false,
         error: "You can only view preferences for your own projects",
       });
     }
 
-    // Get preferences
     const [preferences] = await db.query(
-      `SELECT sp.id, sp.student_id, sp.preference_rank, 
-              s.first_name, s.last_name, s.email
+      `SELECT 
+         sp.student_id, 
+         sp.rank as preference_rank,
+         p.first_name, 
+         p.last_name, 
+         u.email
        FROM student_preferences sp
-       JOIN students s ON sp.student_id = s.id
+       JOIN users u ON sp.student_id = u.id
+       LEFT JOIN user_profiles p ON u.id = p.user_id
        WHERE sp.project_id = ?
-       ORDER BY sp.preference_rank ASC`,
-      [parseInt(project_id)]
+       ORDER BY sp.rank ASC`,
+      [project_id]
     );
 
     res.json({

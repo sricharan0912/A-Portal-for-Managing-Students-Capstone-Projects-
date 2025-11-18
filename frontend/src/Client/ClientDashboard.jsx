@@ -9,6 +9,7 @@ import { useProjects } from "../hooks/useProjects";
 
 const NAVBAR_HEIGHT = 64;
 const DRAWER_WIDTH = 280;
+const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:5050";
 
 /**
  * ClientDashboard Component
@@ -25,7 +26,7 @@ export default function ClientDashboard() {
   const clientId = useClientId();
 
   // Fetch projects using custom hook
-  const { projects, setProjects, loading, error: projectsError } =
+  const { projects, setProjects, loading, error: projectsError, refetch } =
     useProjects(clientId);
 
   // UI State
@@ -33,11 +34,12 @@ export default function ClientDashboard() {
   const [active, setActive] = useState("dashboard");
   const [showForm, setShowForm] = useState(false);
   const [editingProject, setEditingProject] = useState(null);
+  
   const handleEditProject = (project) => {
-  console.log("📝 Setting editing project in parent:", project);
-  setEditingProject(project);
-  setShowForm(true);
-};
+    console.log("📝 Setting editing project in parent:", project);
+    setEditingProject(project);
+    setShowForm(true);
+  };
 
   // Redirect if not logged in
   if (!client) {
@@ -80,14 +82,26 @@ export default function ClientDashboard() {
   };
 
   // Handle form save
-  const handleFormSave = () => {
+  const handleFormSave = async () => {
     setShowForm(false);
     setEditingProject(null);
+    
+    // ✅ Refetch projects after save to ensure UI is up-to-date
+    await refetchProjects();
   };
 
-  // Handle new project created
-  const handleProjectCreated = (newProject) => {
+  // ✅ Use the refetch function from useProjects hook
+  const refetchProjects = refetch;
+
+  // ✅ UPDATED: Handle new project created with immediate refetch
+  const handleProjectCreated = async (newProject) => {
+    console.log("🎉 New project created:", newProject);
+    
+    // Add the new project to state immediately for instant feedback
     setProjects((prev) => [...prev, newProject]);
+    
+    // Then refetch all projects to ensure we have complete/latest data
+    await refetchProjects();
   };
 
   // Animation styles
@@ -157,31 +171,16 @@ export default function ClientDashboard() {
           )}
 
           {/* Projects View */}
-          {/* {active === "projects" && !showForm && (
+          {active === "projects" && !showForm && (
             <ProjectListView
               projects={projects}
               setProjects={setProjects}
               loading={loading}
               clientId={clientId}
-              showForm={showForm}
-              setShowForm={setShowForm}
-              editingProject={editingProject}
-              setEditingProject={setEditingProject}
-              onShowForm={handleShowForm}
+              onShowForm={handleEditProject}
+              onRefresh={refetchProjects}  // ✅ Pass refetch function
             />
-          )} */}
-
-          {active === "projects" && !showForm && (
-  <ProjectListView
-    projects={projects}
-    setProjects={setProjects}
-    loading={loading}
-    clientId={clientId}
-    onShowForm={handleEditProject}  // Pass the handler that sets both state AND shows form
-  />
-)}
-
-
+          )}
 
           {/* Project Form Modal */}
           {showForm && (

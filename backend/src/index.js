@@ -83,6 +83,63 @@ app.get("/health", (req, res) => {
   });
 });
 
+// ==================== EMAIL VALIDATION ENDPOINT ====================
+
+/**
+ * ✅ UNIFIED SCHEMA: Check if email is available (prevents duplicate registrations)
+ * GET /check-email?email=user@example.com
+ * 
+ * Returns 200 if email is available
+ * Returns 409 if email already exists in users table
+ */
+app.get("/check-email", async (req, res) => {
+  try {
+    const { email } = req.query;
+
+    console.log("✅ Check email request for:", email);
+
+    if (!email || typeof email !== "string") {
+      return res.status(400).json({
+        success: false,
+        error: "Email parameter is required",
+      });
+    }
+
+    const normalizedEmail = email.toLowerCase().trim();
+
+    // ✅ NEW UNIFIED SCHEMA: Check users table (all user types in one table)
+    const [users] = await db.query(
+      "SELECT id, role FROM users WHERE LOWER(email) = ? AND deleted_at IS NULL",
+      [normalizedEmail]
+    );
+
+    if (users.length > 0) {
+      const userRole = users[0].role;
+      console.log(`❌ Email found in users table as ${userRole}`);
+      return res.status(409).json({
+        success: false,
+        error: `Email already registered as a ${userRole}`,
+      });
+    }
+
+    // Email is available
+    console.log("✅ Email is available");
+    res.status(200).json({
+      success: true,
+      message: "Email is available",
+      available: true,
+    });
+
+  } catch (err) {
+    console.error("❌ Error checking email:", err);
+    res.status(500).json({
+      success: false,
+      error: "Failed to check email availability",
+      details: process.env.NODE_ENV === "development" ? err.message : undefined,
+    });
+  }
+});
+
 // ==================== ROUTES ====================
 
 // Project routes
@@ -96,91 +153,6 @@ app.use("/students", studentRoutes);
 
 // Instructor routes
 app.use("/instructors", instructorRoutes);
-
-
-
-// ==================== EMAIL VALIDATION ENDPOINT ====================
-
-/**
- * Check if email is available (prevents duplicate registrations)
- * GET /check-email?email=user@example.com
- * 
- * Returns 200 if email is available
- * Returns 409 if email already exists in any table
- */
-app.get("/check-email", async (req, res) => {
-  try {
-    const { email } = req.query;
-
-    console.log("Check email request for:", email);
-
-    if (!email || typeof email !== "string") {
-      return res.status(400).json({
-        success: false,
-        error: "Email parameter is required",
-      });
-    }
-
-    const normalizedEmail = email.toLowerCase().trim();
-
-    // Check students table
-    const [students] = await db.query(
-      "SELECT id FROM students WHERE LOWER(email) = ?",
-      [normalizedEmail]
-    );
-
-    if (students.length > 0) {
-      console.log("Email found in students table");
-      return res.status(409).json({
-        success: false,
-        error: "Email already registered as a student",
-      });
-    }
-
-    // Check clients table
-    const [clients] = await db.query(
-      "SELECT id FROM clients WHERE LOWER(email) = ?",
-      [normalizedEmail]
-    );
-
-    if (clients.length > 0) {
-      console.log("Email found in clients table");
-      return res.status(409).json({
-        success: false,
-        error: "Email already registered as a client",
-      });
-    }
-
-    // Check instructors table
-    const [instructors] = await db.query(
-      "SELECT id FROM instructors WHERE LOWER(email) = ?",
-      [normalizedEmail]
-    );
-
-    if (instructors.length > 0) {
-      console.log("Email found in instructors table");
-      return res.status(409).json({
-        success: false,
-        error: "Email already registered as an instructor",
-      });
-    }
-
-    // Email is available
-    console.log("Email is available");
-    res.status(200).json({
-      success: true,
-      message: "Email is available",
-      available: true,
-    });
-
-  } catch (err) {
-    console.error("Error checking email:", err);
-    res.status(500).json({
-      success: false,
-      error: "Failed to check email availability",
-    });
-  }
-});
 
 // ==================== 404 HANDLER ====================
 
@@ -211,7 +183,7 @@ const server = app.listen(PORT, () => {
   console.log("🚀 Capstone Hub Backend Server");
   console.log("=".repeat(50));
   console.log(`✅ Server running on http://localhost:${PORT}`);
-  console.log(`📝 Environment: ${NODE_ENV}`);
+  console.log(`🔧 Environment: ${NODE_ENV}`);
   console.log(`🌐 Frontend URL: ${process.env.FRONTEND_URL || "http://localhost:5173"}`);
   console.log("=".repeat(50) + "\n");
 
@@ -225,7 +197,7 @@ const server = app.listen(PORT, () => {
 
 // Handle graceful shutdown
 process.on("SIGTERM", () => {
-  console.log("\n📞 SIGTERM signal received: closing HTTP server");
+  console.log("\n🔴 SIGTERM signal received: closing HTTP server");
   server.close(() => {
     console.log("✅ HTTP server closed");
     process.exit(0);
@@ -233,7 +205,7 @@ process.on("SIGTERM", () => {
 });
 
 process.on("SIGINT", () => {
-  console.log("\n📞 SIGINT signal received: closing HTTP server");
+  console.log("\n🔴 SIGINT signal received: closing HTTP server");
   server.close(() => {
     console.log("✅ HTTP server closed");
     process.exit(0);

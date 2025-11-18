@@ -22,9 +22,9 @@ router.post("/signup", validateClientSignup, async (req, res) => {
   try {
     const { email, idToken, name, organization_name, website } = req.body;
 
-    // Check if email already exists in database
+    // Check if email already exists
     const [existing] = await db.query(
-      "SELECT id FROM clients WHERE email = ?",
+      "SELECT id FROM users WHERE email = ?",
       [email]
     );
     
@@ -48,32 +48,62 @@ router.post("/signup", validateClientSignup, async (req, res) => {
       });
     }
 
-    // Create client in database
-    const [result] = await db.query(
-      "INSERT INTO clients (name, email, organization_name, website, firebase_uid) VALUES (?, ?, ?, ?, ?)",
-      [name, email, organization_name, website || null, uid]
-    );
+    // Split name into first_name and last_name
+    let first_name, last_name;
+    if (name) {
+      const nameParts = name.trim().split(/\s+/);
+      first_name = nameParts[0] || "";
+      last_name = nameParts.slice(1).join(" ") || nameParts[0];
+    } else {
+      first_name = "";
+      last_name = "";
+    }
 
-    const clientId = result.insertId;
+    const connection = await db.getConnection();
 
-    // Generate JWT token
-    const token = generateJWT(uid, email, "client", clientId);
+    try {
+      // ✅ NEW SCHEMA: Insert into users table
+      const [userResult] = await connection.query(
+        "INSERT INTO users (email, firebase_uid, role, email_verified, status) VALUES (?, ?, 'client', 1, 'active')",
+        [email, uid]
+      );
 
-    res.status(201).json({
-      success: true,
-      message: "Client registered successfully",
-      token,
-      client: {
-        id: clientId,
-        name,
-        email,
-        organization_name,
-      },
-    });
+      const userId = userResult.insertId;
+
+      // ✅ NEW SCHEMA: Insert into user_profiles table
+      await connection.query(
+        `INSERT INTO user_profiles 
+         (user_id, first_name, last_name, full_name, organization_name, website) 
+         VALUES (?, ?, ?, ?, ?, ?)`,
+        [userId, first_name, last_name, name, organization_name, website || null]
+      );
+
+      connection.release();
+
+      // Generate JWT token
+      const token = generateJWT(uid, email, "client", userId);
+
+      // ✅ BACKWARDS COMPATIBLE RESPONSE
+      res.status(201).json({
+        success: true,
+        message: "Client registered successfully",
+        token,
+        client: {
+          id: userId,                      // Numeric ID
+          name: name,                      // Combined name
+          first_name,
+          last_name,
+          email,
+          organization_name,
+        },
+      });
+    } catch (err) {
+      connection.release();
+      throw err;
+    }
   } catch (err) {
     console.error("Signup error:", err);
 
-    // Handle database duplicate entry error
     if (err.code === "ER_DUP_ENTRY") {
       return res.status(400).json({
         success: false,
@@ -107,32 +137,45 @@ router.post("/login", validateClientLogin, async (req, res) => {
 
     const uid = decodedToken.uid;
 
-    // Get client from database
-    const [clients] = await db.query(
-      "SELECT id, name, email, organization_name FROM clients WHERE email = ?",
+    // ✅ NEW SCHEMA: Query users + user_profiles
+    const [users] = await db.query(
+      `SELECT u.id, u.email, u.role, 
+              p.first_name, p.last_name, p.full_name, p.organization_name
+       FROM users u
+       LEFT JOIN user_profiles p ON u.id = p.user_id
+       WHERE u.email = ? AND u.role = 'client'`,
       [email]
     );
 
-    if (clients.length === 0) {
+    if (users.length === 0) {
       return res.status(401).json({
         success: false,
         error: "Client account not found. Please sign up first.",
       });
     }
 
-    const client = clients[0];
+    const client = users[0];
     const clientId = client.id;
+
+    // Update last_login_at
+    await db.query(
+      "UPDATE users SET last_login_at = NOW() WHERE id = ?",
+      [clientId]
+    );
 
     // Generate JWT token
     const token = generateJWT(uid, email, "client", clientId);
 
+    // ✅ BACKWARDS COMPATIBLE RESPONSE
     res.json({
       success: true,
       message: "Login successful",
       token,
       client: {
         id: clientId,
-        name: client.name,
+        name: client.full_name || `${client.first_name} ${client.last_name}`.trim(),
+        first_name: client.first_name,
+        last_name: client.last_name,
         email: client.email,
         organization_name: client.organization_name,
       },
@@ -154,54 +197,6 @@ router.get("/:client_id", verifyToken, async (req, res) => {
   try {
     const { client_id } = req.params;
 
-    // Validate client_id is numeric
-    if (isNaN(client_id)) {
-      return res.status(400).json({
-        success: false,
-        error: "Invalid client ID format",
-      });
-    }
-
-    // Authorization check - client can only access their own profile or admin
-    if (parseInt(client_id) !== req.user.clientId && req.user.role !== "admin") {
-      return res.status(403).json({
-        success: false,
-        error: "Unauthorized access",
-      });
-    }
-
-    const [clients] = await db.query(
-      "SELECT id, name, email, organization_name, website, created_at FROM clients WHERE id = ?",
-      [parseInt(client_id)]
-    );
-
-    if (clients.length === 0) {
-      return res.status(404).json({
-        success: false,
-        error: "Client not found",
-      });
-    }
-
-    res.json({
-      success: true,
-      data: clients[0],
-    });
-  } catch (err) {
-    console.error("Error fetching client:", err);
-    res.status(500).json({
-      success: false,
-      error: "Failed to fetch client profile",
-    });
-  }
-});
-
-// Update client profile (PROTECTED)
-router.put("/:client_id", verifyToken, async (req, res) => {
-  try {
-    const { client_id } = req.params;
-    const { name, organization_name, website } = req.body;
-
-    // Validate client_id is numeric
     if (isNaN(client_id)) {
       return res.status(400).json({
         success: false,
@@ -217,17 +212,102 @@ router.put("/:client_id", verifyToken, async (req, res) => {
       });
     }
 
-    // Validation
-    if (!name || !organization_name) {
-      return res.status(400).json({
+    // ✅ NEW SCHEMA: Query users + user_profiles
+    const [clients] = await db.query(
+      `SELECT u.id, u.email, u.created_at,
+              p.first_name, p.last_name, p.full_name, 
+              p.organization_name, p.website
+       FROM users u
+       LEFT JOIN user_profiles p ON u.id = p.user_id
+       WHERE u.id = ? AND u.role = 'client'`,
+      [parseInt(client_id)]
+    );
+
+    if (clients.length === 0) {
+      return res.status(404).json({
         success: false,
-        error: "Name and organization name are required",
+        error: "Client not found",
       });
     }
 
+    const client = clients[0];
+
+    res.json({
+      success: true,
+      data: {
+        id: client.id,
+        name: client.full_name || `${client.first_name} ${client.last_name}`.trim(),
+        first_name: client.first_name,
+        last_name: client.last_name,
+        email: client.email,
+        organization_name: client.organization_name,
+        website: client.website,
+        created_at: client.created_at,
+      },
+    });
+  } catch (err) {
+    console.error("Error fetching client:", err);
+    res.status(500).json({
+      success: false,
+      error: "Failed to fetch client profile",
+    });
+  }
+});
+
+// Update client profile (PROTECTED)
+router.put("/:client_id", verifyToken, async (req, res) => {
+  try {
+    const { client_id } = req.params;
+    const { name, first_name, last_name, organization_name, website } = req.body;
+
+    if (isNaN(client_id)) {
+      return res.status(400).json({
+        success: false,
+        error: "Invalid client ID format",
+      });
+    }
+
+    // Authorization check
+    if (parseInt(client_id) !== req.user.clientId && req.user.role !== "admin") {
+      return res.status(403).json({
+        success: false,
+        error: "Unauthorized access",
+      });
+    }
+
+    // Handle both old (name) and new (first_name, last_name) formats
+    let finalFirstName, finalLastName, finalFullName;
+    
+    if (first_name && last_name) {
+      finalFirstName = first_name;
+      finalLastName = last_name;
+      finalFullName = `${first_name} ${last_name}`;
+    } else if (name) {
+      const nameParts = name.trim().split(/\s+/);
+      finalFirstName = nameParts[0] || "";
+      finalLastName = nameParts.slice(1).join(" ") || nameParts[0];
+      finalFullName = name;
+    } else {
+      return res.status(400).json({
+        success: false,
+        error: "Name information is required",
+      });
+    }
+
+    if (!organization_name) {
+      return res.status(400).json({
+        success: false,
+        error: "Organization name is required",
+      });
+    }
+
+    // ✅ NEW SCHEMA: Update user_profiles table
     const [result] = await db.query(
-      "UPDATE clients SET name = ?, organization_name = ?, website = ? WHERE id = ?",
-      [name, organization_name, website || null, parseInt(client_id)]
+      `UPDATE user_profiles 
+       SET first_name = ?, last_name = ?, full_name = ?, 
+           organization_name = ?, website = ? 
+       WHERE user_id = ?`,
+      [finalFirstName, finalLastName, finalFullName, organization_name, website || null, parseInt(client_id)]
     );
 
     if (result.affectedRows === 0) {
@@ -255,7 +335,6 @@ router.delete("/:client_id", verifyToken, async (req, res) => {
   try {
     const { client_id } = req.params;
 
-    // Validate client_id is numeric
     if (isNaN(client_id)) {
       return res.status(400).json({
         success: false,
@@ -271,45 +350,12 @@ router.delete("/:client_id", verifyToken, async (req, res) => {
       });
     }
 
-    // Get database connection for transaction
     const connection = await db.getConnection();
 
     try {
-      // Delete in correct order (respecting foreign key constraints)
-      
-      // 1. Delete student preferences for all projects of this client
-      await connection.query(
-        `DELETE FROM student_preferences 
-         WHERE project_id IN (SELECT id FROM projects WHERE client_id = ?)`,
-        [parseInt(client_id)]
-      );
-
-      // 2. Delete group members for groups of this client's projects
-      await connection.query(
-        `DELETE FROM group_members 
-         WHERE group_id IN (
-           SELECT sg.id FROM student_groups sg 
-           WHERE sg.project_id IN (SELECT id FROM projects WHERE client_id = ?)
-         )`,
-        [parseInt(client_id)]
-      );
-
-      // 3. Delete student groups for this client's projects
-      await connection.query(
-        `DELETE FROM student_groups 
-         WHERE project_id IN (SELECT id FROM projects WHERE client_id = ?)`,
-        [parseInt(client_id)]
-      );
-
-      // 4. Delete all projects for this client
-      await connection.query(
-        "DELETE FROM projects WHERE client_id = ?",
-        [parseInt(client_id)]
-      );
-
-      // 5. Delete the client
+      // ✅ NEW SCHEMA: Soft delete using deleted_at
       const [result] = await connection.query(
-        "DELETE FROM clients WHERE id = ?",
+        "UPDATE users SET deleted_at = NOW(), status = 'inactive' WHERE id = ? AND role = 'client'",
         [parseInt(client_id)]
       );
 
@@ -346,7 +392,6 @@ router.get("/:client_id/projects", verifyToken, async (req, res) => {
   try {
     const { client_id } = req.params;
 
-    // Validate client_id is numeric
     if (isNaN(client_id)) {
       return res.status(400).json({
         success: false,
@@ -362,13 +407,27 @@ router.get("/:client_id/projects", verifyToken, async (req, res) => {
       });
     }
 
+    // ✅ NEW SCHEMA: Query with column aliases for backwards compatibility
     const [projects] = await db.query(
-      `SELECT id, client_id, title, description, skills_required, category, 
-              team_size, start_date, end_date, complexity_level, deliverables, 
-              project_location, industry, status, created_at
+      `SELECT 
+         id,
+         owner_id as client_id,
+         title,
+         description,
+         required_skills as skills_required,
+         category,
+         max_team_size as team_size,
+         start_date,
+         end_date,
+         difficulty_level as complexity_level,
+         deliverables,
+         location as project_location,
+         industry_category as industry,
+         status,
+         posted_date as created_at
        FROM projects 
-       WHERE client_id = ? 
-       ORDER BY created_at DESC`,
+       WHERE owner_id = ? 
+       ORDER BY posted_date DESC`,
       [parseInt(client_id)]
     );
 
@@ -390,7 +449,6 @@ router.get("/:client_id/stats", verifyToken, async (req, res) => {
   try {
     const { client_id } = req.params;
 
-    // Validate client_id is numeric
     if (isNaN(client_id)) {
       return res.status(400).json({
         success: false,
@@ -406,7 +464,6 @@ router.get("/:client_id/stats", verifyToken, async (req, res) => {
       });
     }
 
-    // Get project statistics
     const [stats] = await db.query(
       `SELECT 
         COUNT(*) as total_projects,
@@ -414,17 +471,16 @@ router.get("/:client_id/stats", verifyToken, async (req, res) => {
         SUM(CASE WHEN status = 'approved' THEN 1 ELSE 0 END) as approved_projects,
         SUM(CASE WHEN status = 'closed' THEN 1 ELSE 0 END) as closed_projects
        FROM projects 
-       WHERE client_id = ?`,
+       WHERE owner_id = ?`,
       [parseInt(client_id)]
     );
 
-    // Get preference statistics
     const [prefStats] = await db.query(
       `SELECT COUNT(DISTINCT sp.student_id) as interested_students,
               COUNT(*) as total_preferences
        FROM student_preferences sp
        JOIN projects p ON sp.project_id = p.id
-       WHERE p.client_id = ?`,
+       WHERE p.owner_id = ?`,
       [parseInt(client_id)]
     );
 
