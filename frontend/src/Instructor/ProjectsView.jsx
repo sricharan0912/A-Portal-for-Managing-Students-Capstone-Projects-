@@ -5,7 +5,6 @@ import { getInstructorProjects } from "../utils/apiHelper";
 /**
  * Instructor → Projects View
  * Displays all projects in cards/grid format with search + create project button.
- * Matches your screenshots and existing blue theme.
  */
 export default function ProjectsView({ instructorId }) {
   const navigate = useNavigate();
