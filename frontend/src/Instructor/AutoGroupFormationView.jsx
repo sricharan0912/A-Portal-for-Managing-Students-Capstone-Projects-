@@ -4,7 +4,6 @@ import { getAutoGroupStats, confirmAutoGroups, rerunAutoGrouping } from "../util
 /**
  * Instructor → Auto Group Formation Page
  * Shows formation summary, stats, satisfaction chart, and group preview table.
- * Matches your screenshots and theme.
  */
 export default function AutoGroupFormationView() {
   const [stats, setStats] = useState(null);
