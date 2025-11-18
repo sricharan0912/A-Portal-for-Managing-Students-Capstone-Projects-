@@ -6,7 +6,6 @@ import { getInstructorProjectById, updateProjectStatus } from "../utils/apiHelpe
 /**
  * Instructor → Project Details Page
  * Displays full project info with approve/reject actions.
- * Matches your dashboard theme.
  */
 export default function ProjectDetailsView() {
   const { id } = useParams(); // ✅ correctly reads /projects/:id
