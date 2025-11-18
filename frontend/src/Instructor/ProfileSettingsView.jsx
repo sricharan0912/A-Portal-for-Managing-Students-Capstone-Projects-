@@ -3,7 +3,6 @@ import { getInstructorProfile, updateInstructorProfile } from "../utils/apiHelpe
 
 /**
  * Instructor → Profile Settings Page
- * Matches your screenshots: profile info + notification toggles, white card layout.
  */
 export default function ProfileSettingsView() {
   const [profile, setProfile] = useState({
