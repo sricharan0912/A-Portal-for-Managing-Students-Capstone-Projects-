@@ -3,7 +3,6 @@ import { getInstructorGroups, scheduleEvaluation } from "../utils/apiHelper";
 
 /**
  * Instructor → Schedule Evaluation Form
- * Matches your screenshots: white card form, blue buttons, rounded layout.
  */
 export default function ScheduleEvaluationForm() {
   const [groups, setGroups] = useState([]);
