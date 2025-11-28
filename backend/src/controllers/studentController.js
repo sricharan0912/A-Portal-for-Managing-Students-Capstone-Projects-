@@ -5,10 +5,26 @@ import db from "../../db.js";
 // Get all students (for admin/instructor purposes)
 export const getAllStudents = async (req, res) => {
   try {
+    // ✅ NEW SCHEMA: Query users + user_profiles where role='student'
     const [students] = await db.query(
-      "SELECT id, first_name, last_name, email, created_at FROM students ORDER BY created_at DESC"
+      `SELECT u.id, u.email, u.created_at,
+              p.first_name, p.last_name, p.full_name
+       FROM users u
+       LEFT JOIN user_profiles p ON u.id = p.user_id
+       WHERE u.role = 'student' AND u.deleted_at IS NULL
+       ORDER BY u.created_at DESC`
     );
-    res.status(200).json(students);
+
+    // Format for backwards compatibility
+    const formattedStudents = students.map(student => ({
+      id: student.id,
+      first_name: student.first_name,
+      last_name: student.last_name,
+      email: student.email,
+      created_at: student.created_at,
+    }));
+
+    res.status(200).json(formattedStudents);
   } catch (err) {
     console.error("Error fetching students:", err);
     res.status(500).json({ error: "Server error" });
@@ -20,13 +36,17 @@ export const getStudentById = async (req, res) => {
   try {
     const { id } = req.params;
 
-    // Verify id is numeric
     if (isNaN(id)) {
       return res.status(400).json({ error: "Invalid student ID format" });
     }
 
+    // ✅ NEW SCHEMA: Query users + user_profiles
     const [students] = await db.query(
-      "SELECT id, first_name, last_name, email FROM students WHERE id = ?",
+      `SELECT u.id, u.email, u.created_at,
+              p.first_name, p.last_name, p.full_name
+       FROM users u
+       LEFT JOIN user_profiles p ON u.id = p.user_id
+       WHERE u.id = ? AND u.role = 'student' AND u.deleted_at IS NULL`,
       [parseInt(id)]
     );
 
@@ -34,7 +54,14 @@ export const getStudentById = async (req, res) => {
       return res.status(404).json({ error: "Student not found" });
     }
 
-    res.status(200).json(students[0]);
+    const student = students[0];
+
+    res.status(200).json({
+      id: student.id,
+      first_name: student.first_name,
+      last_name: student.last_name,
+      email: student.email,
+    });
   } catch (err) {
     console.error("Error fetching student:", err);
     res.status(500).json({ error: "Server error" });
@@ -47,7 +74,6 @@ export const updateStudent = async (req, res) => {
     const { id } = req.params;
     const { first_name, last_name, email } = req.body;
 
-    // Verify id is numeric
     if (isNaN(id)) {
       return res.status(400).json({ error: "Invalid student ID format" });
     }
@@ -61,7 +87,7 @@ export const updateStudent = async (req, res) => {
 
     // Check if email already exists (excluding current student)
     const [existingEmail] = await db.query(
-      "SELECT id FROM students WHERE email = ? AND id != ?",
+      "SELECT id FROM users WHERE email = ? AND id != ? AND deleted_at IS NULL",
       [email, parseInt(id)]
     );
 
@@ -69,16 +95,33 @@ export const updateStudent = async (req, res) => {
       return res.status(400).json({ error: "Email already in use" });
     }
 
-    const [result] = await db.query(
-      "UPDATE students SET first_name = ?, last_name = ?, email = ? WHERE id = ?",
-      [first_name, last_name, email, parseInt(id)]
-    );
+    const connection = await db.getConnection();
 
-    if (result.affectedRows === 0) {
-      return res.status(404).json({ error: "Student not found" });
+    try {
+      // ✅ NEW SCHEMA: Update users table
+      await connection.query(
+        "UPDATE users SET email = ? WHERE id = ?",
+        [email, parseInt(id)]
+      );
+
+      // ✅ NEW SCHEMA: Update user_profiles table
+      const fullName = `${first_name} ${last_name}`.trim();
+      const [result] = await connection.query(
+        "UPDATE user_profiles SET first_name = ?, last_name = ?, full_name = ? WHERE user_id = ?",
+        [first_name, last_name, fullName, parseInt(id)]
+      );
+
+      connection.release();
+
+      if (result.affectedRows === 0) {
+        return res.status(404).json({ error: "Student not found" });
+      }
+
+      res.status(200).json({ message: "Student profile updated successfully" });
+    } catch (err) {
+      connection.release();
+      throw err;
     }
-
-    res.status(200).json({ message: "Student profile updated successfully" });
   } catch (err) {
     console.error("Error updating student:", err);
     res.status(500).json({ error: "Server error" });
@@ -90,32 +133,42 @@ export const deleteStudent = async (req, res) => {
   try {
     const { id } = req.params;
 
-    // Verify id is numeric
     if (isNaN(id)) {
       return res.status(400).json({ error: "Invalid student ID format" });
     }
 
-    // Delete student preferences first (foreign key constraint)
-    await db.query("DELETE FROM student_preferences WHERE student_id = ?", [
-      parseInt(id),
-    ]);
+    const connection = await db.getConnection();
 
-    // Delete student from groups
-    await db.query("DELETE FROM group_members WHERE student_id = ?", [
-      parseInt(id),
-    ]);
+    try {
+      // Delete student preferences first (foreign key constraint)
+      await connection.query(
+        "DELETE FROM student_preferences WHERE student_id = ?",
+        [parseInt(id)]
+      );
 
-    // Delete student
-    const [result] = await db.query(
-      "DELETE FROM students WHERE id = ?",
-      [parseInt(id)]
-    );
+      // Delete student from groups
+      await connection.query(
+        "DELETE FROM group_members WHERE student_id = ?",
+        [parseInt(id)]
+      );
 
-    if (result.affectedRows === 0) {
-      return res.status(404).json({ error: "Student not found" });
+      // ✅ NEW SCHEMA: Soft delete student (mark as deleted)
+      const [result] = await connection.query(
+        "UPDATE users SET deleted_at = NOW(), status = 'inactive' WHERE id = ? AND role = 'student'",
+        [parseInt(id)]
+      );
+
+      connection.release();
+
+      if (result.affectedRows === 0) {
+        return res.status(404).json({ error: "Student not found" });
+      }
+
+      res.status(200).json({ message: "Student deleted successfully" });
+    } catch (err) {
+      connection.release();
+      throw err;
     }
-
-    res.status(200).json({ message: "Student deleted successfully" });
   } catch (err) {
     console.error("Error deleting student:", err);
     res.status(500).json({ error: "Server error" });
@@ -129,20 +182,31 @@ export const getStudentPreferences = async (req, res) => {
   try {
     const { student_id } = req.params;
 
-    // Verify student_id is numeric
     if (isNaN(student_id)) {
       return res.status(400).json({ error: "Invalid student ID format" });
     }
 
+    // ✅ NEW SCHEMA: Query with column aliases for backwards compatibility
     const [preferences] = await db.query(
-      `SELECT sp.id, sp.student_id, sp.project_id, sp.preference_rank, 
-              p.title, p.description, p.category, p.complexity_level, 
-              p.skills_required, p.team_size, p.start_date, p.end_date,
-              p.project_location, p.deliverables, p.industry
+      `SELECT 
+         sp.student_id, 
+         sp.project_id, 
+         sp.rank as preference_rank,
+         p.title, 
+         p.description, 
+         p.category, 
+         p.difficulty_level as complexity_level,
+         p.required_skills as skills_required,
+         p.max_team_size as team_size,
+         p.start_date, 
+         p.end_date,
+         p.location as project_location,
+         p.deliverables, 
+         p.industry_category as industry
        FROM student_preferences sp
        JOIN projects p ON sp.project_id = p.id
        WHERE sp.student_id = ?
-       ORDER BY sp.preference_rank ASC`,
+       ORDER BY sp.rank ASC`,
       [parseInt(student_id)]
     );
 
@@ -159,7 +223,6 @@ export const submitPreferences = async (req, res) => {
     const { student_id } = req.params;
     const { preferences } = req.body;
 
-    // Verify student_id is numeric
     if (isNaN(student_id)) {
       return res.status(400).json({ error: "Invalid student ID format" });
     }
@@ -198,14 +261,15 @@ export const submitPreferences = async (req, res) => {
     }
 
     // Delete existing preferences
-    await db.query("DELETE FROM student_preferences WHERE student_id = ?", [
-      parseInt(student_id),
-    ]);
+    await db.query(
+      "DELETE FROM student_preferences WHERE student_id = ?",
+      [parseInt(student_id)]
+    );
 
-    // Insert new preferences
+    // ✅ NEW SCHEMA: Insert new preferences with 'rank' column
     for (const pref of preferences) {
       await db.query(
-        "INSERT INTO student_preferences (student_id, project_id, preference_rank) VALUES (?, ?, ?)",
+        "INSERT INTO student_preferences (student_id, project_id, rank) VALUES (?, ?, ?)",
         [parseInt(student_id), pref.project_id, pref.preference_rank]
       );
     }
@@ -222,7 +286,6 @@ export const clearPreferences = async (req, res) => {
   try {
     const { student_id } = req.params;
 
-    // Verify student_id is numeric
     if (isNaN(student_id)) {
       return res.status(400).json({ error: "Invalid student ID format" });
     }
@@ -249,17 +312,30 @@ export const getStudentGroup = async (req, res) => {
   try {
     const { student_id } = req.params;
 
-    // Verify student_id is numeric
     if (isNaN(student_id)) {
       return res.status(400).json({ error: "Invalid student ID format" });
     }
 
+    // ✅ NEW SCHEMA: Query with column aliases for backwards compatibility
     const [groupData] = await db.query(
-      `SELECT sg.id, sg.group_number, sg.project_id,
-              p.id as project_id, p.title, p.description, p.category,
-              p.skills_required, p.complexity_level, p.team_size,
-              p.start_date, p.end_date, p.project_location, 
-              p.deliverables, p.industry, p.status, p.client_id
+      `SELECT 
+         sg.id, 
+         sg.group_number, 
+         sg.project_id,
+         p.id as project_id, 
+         p.title, 
+         p.description, 
+         p.category,
+         p.required_skills as skills_required,
+         p.difficulty_level as complexity_level,
+         p.max_team_size as team_size,
+         p.start_date, 
+         p.end_date, 
+         p.location as project_location,
+         p.deliverables, 
+         p.industry_category as industry,
+         p.status,
+         p.owner_id as client_id
        FROM group_members gm
        JOIN student_groups sg ON gm.group_id = sg.id
        JOIN projects p ON sg.project_id = p.id
@@ -283,7 +359,6 @@ export const getStudentGroupMembers = async (req, res) => {
   try {
     const { student_id } = req.params;
 
-    // Verify student_id is numeric
     if (isNaN(student_id)) {
       return res.status(400).json({ error: "Invalid student ID format" });
     }
@@ -295,18 +370,22 @@ export const getStudentGroupMembers = async (req, res) => {
     );
 
     if (groupData.length === 0) {
-      return res.json({ message: "Student not assigned to a group", members: [] });
+      return res.json({ 
+        message: "Student not assigned to a group", 
+        members: [] 
+      });
     }
 
     const groupId = groupData[0].group_id;
 
-    // Get all members in the group
+    // ✅ NEW SCHEMA: Get all members with user_profiles join
     const [members] = await db.query(
-      `SELECT gm.student_id, s.first_name, s.last_name, s.email 
+      `SELECT gm.student_id, p.first_name, p.last_name, u.email 
        FROM group_members gm
-       JOIN students s ON gm.student_id = s.id
+       JOIN users u ON gm.student_id = u.id
+       LEFT JOIN user_profiles p ON u.id = p.user_id
        WHERE gm.group_id = ?
-       ORDER BY s.first_name ASC`,
+       ORDER BY p.first_name ASC`,
       [groupId]
     );
 
@@ -322,13 +401,27 @@ export const getStudentGroupMembers = async (req, res) => {
 // Get all available projects (for browsing)
 export const getAvailableProjects = async (req, res) => {
   try {
+    // ✅ NEW SCHEMA: Query with column aliases for backwards compatibility
     const [projects] = await db.query(
-      `SELECT id, client_id, title, description, skills_required, category, 
-              team_size, start_date, end_date, complexity_level, deliverables, 
-              project_location, industry, status, created_at
+      `SELECT 
+         id, 
+         owner_id as client_id,
+         title, 
+         description, 
+         required_skills as skills_required, 
+         category, 
+         max_team_size as team_size, 
+         start_date, 
+         end_date, 
+         difficulty_level as complexity_level, 
+         deliverables, 
+         location as project_location, 
+         industry_category as industry, 
+         status, 
+         posted_date as created_at
        FROM projects 
        WHERE status = 'open' 
-       ORDER BY created_at DESC`
+       ORDER BY posted_date DESC`
     );
 
     res.status(200).json(projects);
@@ -347,13 +440,27 @@ export const getProjectsByCategory = async (req, res) => {
       return res.status(400).json({ error: "Category is required" });
     }
 
+    // ✅ NEW SCHEMA: Query with column aliases for backwards compatibility
     const [projects] = await db.query(
-      `SELECT id, client_id, title, description, skills_required, category, 
-              team_size, start_date, end_date, complexity_level, deliverables, 
-              project_location, industry, status, created_at
+      `SELECT 
+         id, 
+         owner_id as client_id,
+         title, 
+         description, 
+         required_skills as skills_required, 
+         category, 
+         max_team_size as team_size, 
+         start_date, 
+         end_date, 
+         difficulty_level as complexity_level, 
+         deliverables, 
+         location as project_location, 
+         industry_category as industry, 
+         status, 
+         posted_date as created_at
        FROM projects 
        WHERE category = ? AND status = 'open'
-       ORDER BY created_at DESC`,
+       ORDER BY posted_date DESC`,
       [category]
     );
 
@@ -378,13 +485,27 @@ export const getProjectsByComplexity = async (req, res) => {
       return res.status(400).json({ error: "Invalid complexity level" });
     }
 
+    // ✅ NEW SCHEMA: Use difficulty_level instead of complexity_level
     const [projects] = await db.query(
-      `SELECT id, client_id, title, description, skills_required, category, 
-              team_size, start_date, end_date, complexity_level, deliverables, 
-              project_location, industry, status, created_at
+      `SELECT 
+         id, 
+         owner_id as client_id,
+         title, 
+         description, 
+         required_skills as skills_required, 
+         category, 
+         max_team_size as team_size, 
+         start_date, 
+         end_date, 
+         difficulty_level as complexity_level, 
+         deliverables, 
+         location as project_location, 
+         industry_category as industry, 
+         status, 
+         posted_date as created_at
        FROM projects 
-       WHERE complexity_level = ? AND status = 'open'
-       ORDER BY created_at DESC`,
+       WHERE difficulty_level = ? AND status = 'open'
+       ORDER BY posted_date DESC`,
       [complexity]
     );
 
@@ -406,14 +527,28 @@ export const searchProjects = async (req, res) => {
 
     const searchTerm = `%${keyword}%`;
 
+    // ✅ NEW SCHEMA: Search in required_skills instead of skills_required
     const [projects] = await db.query(
-      `SELECT id, client_id, title, description, skills_required, category, 
-              team_size, start_date, end_date, complexity_level, deliverables, 
-              project_location, industry, status, created_at
+      `SELECT 
+         id, 
+         owner_id as client_id,
+         title, 
+         description, 
+         required_skills as skills_required, 
+         category, 
+         max_team_size as team_size, 
+         start_date, 
+         end_date, 
+         difficulty_level as complexity_level, 
+         deliverables, 
+         location as project_location, 
+         industry_category as industry, 
+         status, 
+         posted_date as created_at
        FROM projects 
-       WHERE (title LIKE ? OR description LIKE ? OR skills_required LIKE ?) 
+       WHERE (title LIKE ? OR description LIKE ? OR required_skills LIKE ?) 
              AND status = 'open'
-       ORDER BY created_at DESC`,
+       ORDER BY posted_date DESC`,
       [searchTerm, searchTerm, searchTerm]
     );
 
