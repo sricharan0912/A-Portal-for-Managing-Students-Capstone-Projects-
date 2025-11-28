@@ -38,71 +38,101 @@ export default function InstructorDashboard() {
   const location = useLocation();
   const navigate = useNavigate();
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [active, setActive] = useState("dashboard");
 
-  // ✅ Sync active state with URL route
-  useEffect(() => {
+  // ✅ Determine active view from URL path
+  const getActiveFromPath = () => {
     const path = location.pathname;
     
-    if (path.includes("/add-student")) {
-      setActive("add-student");
-    } else if (path.includes("/students")) {
-      setActive("students");
-    } else if (path.includes("/create-project")) {
-      setActive("create-project");
-    } else if (path.includes("/projects/")) {
-      setActive("project-details");
-    } else if (path.includes("/projects")) {
-      setActive("projects");
-    } else if (path.includes("/approval")) {
-      setActive("approval");
-    } else if (path.includes("/auto-groups")) {
-      setActive("auto-groups");
-    } else if (path.includes("/create-group")) {
-      setActive("create-group");
-    } else if (path.includes("/manage-groups")) {
-      setActive("manage-groups");
-    } else if (path.includes("/groups")) {
-      setActive("groups");
-    } else if (path.includes("/schedule-evaluation")) {
-      setActive("schedule-evaluation");
-    } else if (path.includes("/evaluations")) {
-      setActive("evaluations");
-    } else if (path.includes("/profile")) {
-      setActive("profile");
-    } else {
-      setActive("dashboard");
-    }
-  }, [location.pathname]);
+    if (path.includes("/add-student")) return "add-student";
+    if (path.includes("/students")) return "students";
+    if (path.includes("/create-project")) return "create-project";
+    if (path.includes("/projects/")) return "project-details";
+    if (path.includes("/projects")) return "projects";
+    if (path.includes("/approval")) return "approval";
+    if (path.includes("/auto-groups")) return "auto-groups";
+    if (path.includes("/create-group")) return "create-group";
+    if (path.includes("/manage-groups")) return "manage-groups";
+    if (path.includes("/groups")) return "groups";
+    if (path.includes("/schedule-evaluation")) return "schedule-evaluation";
+    if (path.includes("/evaluations")) return "evaluations";
+    if (path.includes("/profile")) return "profile";
+    return "dashboard";
+  };
 
-  // Redirect to login if not logged in
+  const active = getActiveFromPath();
+
+  // ✅ Navigate to different views using URL (adds to browser history)
+  const setActive = (view) => {
+    const basePath = "/instructor-dashboard";
+    switch (view) {
+      case "students":
+        navigate(`${basePath}/students`);
+        break;
+      case "add-student":
+        navigate(`${basePath}/add-student`);
+        break;
+      case "projects":
+        navigate(`${basePath}/projects`);
+        break;
+      case "create-project":
+        navigate(`${basePath}/create-project`);
+        break;
+      case "approval":
+        navigate(`${basePath}/approval`);
+        break;
+      case "groups":
+        navigate(`${basePath}/groups`);
+        break;
+      case "manage-groups":
+        navigate(`${basePath}/manage-groups`);
+        break;
+      case "auto-groups":
+        navigate(`${basePath}/auto-groups`);
+        break;
+      case "create-group":
+        navigate(`${basePath}/create-group`);
+        break;
+      case "evaluations":
+        navigate(`${basePath}/evaluations`);
+        break;
+      case "schedule-evaluation":
+        navigate(`${basePath}/schedule-evaluation`);
+        break;
+      case "profile":
+        navigate(`${basePath}/profile`);
+        break;
+      case "dashboard":
+      default:
+        navigate(basePath);
+        break;
+    }
+  };
+
+  // ✅ Redirect if not logged in using useEffect
+  useEffect(() => {
+    if (!instructor || !instructorId) {
+      navigate("/login", { replace: true });
+    }
+  }, [instructor, instructorId, navigate]);
+
+  // Handle logout - ✅ Use navigate with replace
+  const handleLogout = () => {
+    localStorage.removeItem("instructor");
+    localStorage.removeItem("authToken");
+    navigate("/login", { replace: true });
+  };
+
+  // Show loading state while checking auth
   if (!instructor || !instructorId) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-slate-50">
         <div className="text-center">
-          <h1 className="text-2xl font-bold text-slate-900 mb-2">
-            Not Logged In
-          </h1>
-          <p className="text-slate-600 mb-6">
-            Please log in to access the dashboard
-          </p>
-          <a
-            href="/login"
-            className="inline-block rounded-lg bg-blue-600 px-6 py-3 text-white font-semibold hover:bg-blue-700 transition"
-          >
-            Go to Login
-          </a>
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <p className="text-slate-600">Redirecting to login...</p>
         </div>
       </div>
     );
   }
-
-  // Handle logout
-  const handleLogout = () => {
-    localStorage.removeItem("instructor");
-    localStorage.removeItem("authToken");
-    navigate("/login");
-  };
 
   return (
     <div className="flex min-h-screen flex-col bg-slate-50">

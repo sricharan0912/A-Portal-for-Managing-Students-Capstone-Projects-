@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useNavigate, useLocation } from "react-router-dom";
 import DashboardNavbar from "../components/DashboardNavbar";
 import ClientSidebar from "./ClientSidebar";
 import DashboardView from "./DashboardView";
@@ -14,10 +15,13 @@ const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:5050";
 /**
  * ClientDashboard Component
  * Main container for the client dashboard
- * Manages all views: dashboard, projects, teams
- * Handles project CRUD operations
+ * Uses URL-based navigation for proper browser history support
+ * Modal state is also URL-controlled for back button support
  */
 export default function ClientDashboard() {
+  const navigate = useNavigate();
+  const location = useLocation();
+  
   // Get client data from localStorage
   const clientData = localStorage.getItem("client");
   const client = clientData ? JSON.parse(clientData) : null;
@@ -31,78 +35,117 @@ export default function ClientDashboard() {
 
   // UI State
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [active, setActive] = useState("dashboard");
-  const [showForm, setShowForm] = useState(false);
   const [editingProject, setEditingProject] = useState(null);
+
+  // ✅ Determine active view AND modal state from URL path
+  const getStateFromPath = () => {
+    const path = location.pathname;
+    
+    // Check for modal routes first
+    if (path.includes("/projects/new")) {
+      return { active: "projects", showForm: true, isEditing: false };
+    }
+    if (path.includes("/projects/edit/")) {
+      const projectId = path.split("/projects/edit/")[1];
+      return { active: "projects", showForm: true, isEditing: true, projectId };
+    }
+    
+    // Regular routes
+    if (path.includes("/projects")) return { active: "projects", showForm: false };
+    if (path.includes("/teams")) return { active: "teams", showForm: false };
+    return { active: "dashboard", showForm: false };
+  };
   
-  const handleEditProject = (project) => {
-    console.log("📝 Setting editing project in parent:", project);
-    setEditingProject(project);
-    setShowForm(true);
+  const { active, showForm, isEditing, projectId } = getStateFromPath();
+
+  // ✅ Load project data when editing (URL has project ID)
+  useEffect(() => {
+    if (isEditing && projectId && projects.length > 0) {
+      const project = projects.find(p => String(p.id) === String(projectId));
+      if (project) {
+        setEditingProject(project);
+      }
+    } else if (!showForm) {
+      setEditingProject(null);
+    }
+  }, [isEditing, projectId, projects, showForm]);
+
+  // ✅ Navigate to different views using URL (adds to browser history)
+  const setActive = (view) => {
+    const basePath = "/client-dashboard";
+    switch (view) {
+      case "projects":
+        navigate(`${basePath}/projects`);
+        break;
+      case "teams":
+        navigate(`${basePath}/teams`);
+        break;
+      case "dashboard":
+      default:
+        navigate(basePath);
+        break;
+    }
   };
 
-  // Redirect if not logged in
-  if (!client) {
-    return (
-      <div className="flex min-h-screen items-center justify-center bg-slate-50">
-        <div className="text-center">
-          <h1 className="text-2xl font-bold text-slate-900 mb-2">
-            Not Logged In
-          </h1>
-          <p className="text-slate-600 mb-6">
-            Please log in to access the dashboard
-          </p>
-          <a
-            href="/login"
-            className="inline-block rounded-lg bg-blue-600 px-6 py-3 text-white font-semibold hover:bg-blue-700 transition"
-          >
-            Go to Login
-          </a>
-        </div>
-      </div>
-    );
-  }
+  // ✅ Redirect if not logged in using useEffect
+  useEffect(() => {
+    if (!client) {
+      navigate("/login", { replace: true });
+    }
+  }, [client, navigate]);
+  
+  // ✅ Open edit modal - navigates to edit URL
+  const handleEditProject = (project) => {
+    console.log("📝 Opening edit modal for project:", project);
+    setEditingProject(project);
+    navigate(`/client-dashboard/projects/edit/${project.id}`);
+  };
+
+  // ✅ Open create modal - navigates to new URL
+  const handleShowForm = () => {
+    setEditingProject(null);
+    navigate("/client-dashboard/projects/new");
+  };
 
   // Handle logout
   const handleLogout = () => {
     localStorage.removeItem("client");
-    window.location.href = "/login";
+    localStorage.removeItem("authToken");
+    navigate("/login", { replace: true });
   };
 
-  // Handle show form for creating new project
-  const handleShowForm = () => {
-    setEditingProject(null);
-    setShowForm(true);
-  };
-
-  // Handle form close
+  // ✅ Close modal - navigates back to projects list
   const handleFormClose = () => {
-    setShowForm(false);
     setEditingProject(null);
+    navigate("/client-dashboard/projects");
   };
 
   // Handle form save
   const handleFormSave = async () => {
-    setShowForm(false);
     setEditingProject(null);
-    
-    // ✅ Refetch projects after save to ensure UI is up-to-date
     await refetchProjects();
+    navigate("/client-dashboard/projects");
   };
 
-  // ✅ Use the refetch function from useProjects hook
   const refetchProjects = refetch;
 
-  // ✅ UPDATED: Handle new project created with immediate refetch
   const handleProjectCreated = async (newProject) => {
     console.log("🎉 New project created:", newProject);
-    
-    // Add the new project to state immediately for instant feedback
     setProjects((prev) => [...prev, newProject]);
-    
-    // Then refetch all projects to ensure we have complete/latest data
     await refetchProjects();
   };
+
+  // Show loading state while checking auth
+  if (!client) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-slate-50">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <p className="text-slate-600">Redirecting to login...</p>
+        </div>
+      </div>
+    );
+  }
 
   // Animation styles
   const animationStyles = `
@@ -178,11 +221,12 @@ export default function ClientDashboard() {
               loading={loading}
               clientId={clientId}
               onShowForm={handleEditProject}
-              onRefresh={refetchProjects}  // ✅ Pass refetch function
+              onCreateNew={handleShowForm}
+              onRefresh={refetchProjects}
             />
           )}
 
-          {/* Project Form Modal */}
+          {/* Project Form Modal - shown based on URL */}
           {showForm && (
             <ProjectFormModal
               clientId={clientId}
