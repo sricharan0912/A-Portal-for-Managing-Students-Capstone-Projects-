@@ -1,5 +1,6 @@
 // src/Client/ProjectListView.jsx
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import ProjectCard from "../components/ui/ProjectCard";
 import { apiCall } from "../utils/apiHelper";
 
@@ -9,9 +10,10 @@ export default function ProjectListView({
   projects = [],
   setProjects,
   loading = false,
-  onShowForm,      // (project?: object) => void
+  onShowForm,      // (project: object) => void - for editing
   onRefresh,       // optional: () => Promise<void> | void
 }) {
+  const navigate = useNavigate();
   const [deletingId, setDeletingId] = useState(null);
 
   const handleDeleteProject = async (projectId) => {
@@ -43,8 +45,14 @@ export default function ProjectListView({
     }
   };
 
+  // ✅ Edit project - use callback from parent (which navigates to edit URL)
   const handleEditProject = (project) => {
     onShowForm?.(project);
+  };
+
+  // ✅ Create new project - navigate to /new URL
+  const handleCreateProject = () => {
+    navigate("/client-dashboard/projects/new");
   };
 
   const approvedProjects = projects.filter(
@@ -82,7 +90,7 @@ export default function ProjectListView({
         </div>
 
         <button
-          onClick={() => onShowForm?.(null)}
+          onClick={handleCreateProject}
           className="flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white shadow-md transition hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
         >
           <svg

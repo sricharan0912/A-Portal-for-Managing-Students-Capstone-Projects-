@@ -1,13 +1,38 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import { signInWithEmailAndPassword, getIdToken } from "firebase/auth";
 import { auth } from "../firebaseConfig";
 import Navbar from "../components/Navbar";
 
 export default function LoginPage() {
+  const navigate = useNavigate();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [role, setRole] = useState("Client");
   const [loading, setLoading] = useState(false);
+  const [checkingAuth, setCheckingAuth] = useState(true);
+
+  // ✅ Check if user is already logged in - redirect them away from login page
+  useEffect(() => {
+    const client = localStorage.getItem("client");
+    const student = localStorage.getItem("student");
+    const instructor = localStorage.getItem("instructor");
+    const authToken = localStorage.getItem("authToken");
+
+    if (authToken) {
+      if (client) {
+        navigate("/client-dashboard", { replace: true });
+        return;
+      } else if (student) {
+        navigate("/student-dashboard", { replace: true });
+        return;
+      } else if (instructor) {
+        navigate("/instructor-dashboard", { replace: true });
+        return;
+      }
+    }
+    setCheckingAuth(false);
+  }, [navigate]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -52,22 +77,20 @@ export default function LoginPage() {
 
       alert("✅ Login successful!");
 
-      // Verify the response contains the correct data
-      console.log("Client data from backend:", data.client);
-
       // Save user info and token to localStorage
+      // ✅ Use navigate with replace: true to prevent back button returning to login
       if (role === "Client") {
         localStorage.setItem("client", JSON.stringify(data.client));
         localStorage.setItem("authToken", data.token);
-        window.location.href = "/client-dashboard";
+        navigate("/client-dashboard", { replace: true });
       } else if (role === "Student") {
         localStorage.setItem("student", JSON.stringify(data.student));
         localStorage.setItem("authToken", data.token);
-        window.location.href = "/student-dashboard";
+        navigate("/student-dashboard", { replace: true });
       } else {
         localStorage.setItem("instructor", JSON.stringify(data.instructor));
         localStorage.setItem("authToken", data.token);
-        window.location.href = "/instructor-dashboard";
+        navigate("/instructor-dashboard", { replace: true });
       }
     } catch (err) {
       console.error("Login error:", err);
@@ -86,6 +109,15 @@ export default function LoginPage() {
       setLoading(false);
     }
   };
+
+  // Show loading while checking if already authenticated
+  if (checkingAuth) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-slate-50">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col min-h-screen">

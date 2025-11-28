@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useNavigate, useLocation } from "react-router-dom";
 import DashboardNavbar from "../components/DashboardNavbar";
 import StudentSidebar from "./StudentSidebar";
 import StudentDashboardView from "./StudentDashboardView";
@@ -16,10 +17,12 @@ const DRAWER_WIDTH = 280;
 /**
  * StudentDashboard Component
  * Main container for the student dashboard
- * Manages all views: dashboard, browse projects, preferences, group
- * Handles project preferences submission
+ * Uses URL-based navigation for proper browser history support
  */
 export default function StudentDashboard() {
+  const navigate = useNavigate();
+  const location = useLocation();
+
   // Get student data from localStorage
   const studentData = localStorage.getItem("student");
   const student = studentData ? JSON.parse(studentData) : null;
@@ -46,9 +49,46 @@ export default function StudentDashboard() {
 
   // UI State
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [active, setActive] = useState("dashboard");
   const [selectedProjects, setSelectedProjects] = useState([]);
   const [submittingPreferences, setSubmittingPreferences] = useState(false);
+
+  // ✅ Determine active view from URL path
+  const getActiveFromPath = () => {
+    const path = location.pathname;
+    if (path.includes("/browse")) return "browse";
+    if (path.includes("/preferences")) return "preferences";
+    if (path.includes("/group")) return "group";
+    return "dashboard"; // default
+  };
+
+  const active = getActiveFromPath();
+
+  // ✅ Navigate to different views using URL (adds to browser history)
+  const setActive = (view) => {
+    const basePath = "/student-dashboard";
+    switch (view) {
+      case "browse":
+        navigate(`${basePath}/browse`);
+        break;
+      case "preferences":
+        navigate(`${basePath}/preferences`);
+        break;
+      case "group":
+        navigate(`${basePath}/group`);
+        break;
+      case "dashboard":
+      default:
+        navigate(basePath);
+        break;
+    }
+  };
+
+  // ✅ Redirect if not logged in using useEffect
+  useEffect(() => {
+    if (!student) {
+      navigate("/login", { replace: true });
+    }
+  }, [student, navigate]);
 
   // Fetch assigned group on mount
   useEffect(() => {
@@ -83,32 +123,11 @@ export default function StudentDashboard() {
     loadGroup();
   }, [studentId]);
 
-  // Redirect if not logged in
-  if (!student) {
-    return (
-      <div className="flex min-h-screen items-center justify-center bg-slate-50">
-        <div className="text-center">
-          <h1 className="text-2xl font-bold text-slate-900 mb-2">
-            Not Logged In
-          </h1>
-          <p className="text-slate-600 mb-6">
-            Please log in to access the dashboard
-          </p>
-          <a
-            href="/login"
-            className="inline-block rounded-lg bg-blue-600 px-6 py-3 text-white font-semibold hover:bg-blue-700 transition"
-          >
-            Go to Login
-          </a>
-        </div>
-      </div>
-    );
-  }
-
-  // Handle logout
+  // Handle logout - ✅ Use navigate with replace
   const handleLogout = () => {
     localStorage.removeItem("student");
-    window.location.href = "/login";
+    localStorage.removeItem("authToken");
+    navigate("/login", { replace: true });
   };
 
   // Handle project selection/deselection
@@ -154,6 +173,18 @@ export default function StudentDashboard() {
       setSubmittingPreferences(false);
     }
   };
+
+  // Show loading state while checking auth
+  if (!student) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-slate-50">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <p className="text-slate-600">Redirecting to login...</p>
+        </div>
+      </div>
+    );
+  }
 
   // Animation styles
   const animationStyles = `
