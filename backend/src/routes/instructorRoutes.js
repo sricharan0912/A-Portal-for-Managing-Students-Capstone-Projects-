@@ -53,7 +53,7 @@ router.post("/signup", validateInstructorSignup, async (req, res) => {
     const connection = await db.getConnection();
 
     try {
-      // ✅ NEW SCHEMA: Insert into users table
+      // âœ… NEW SCHEMA: Insert into users table
       const [userResult] = await connection.query(
         "INSERT INTO users (email, firebase_uid, role, email_verified, status) VALUES (?, ?, 'instructor', 1, 'active')",
         [email, uid]
@@ -61,7 +61,7 @@ router.post("/signup", validateInstructorSignup, async (req, res) => {
 
       const userId = userResult.insertId;
 
-      // ✅ NEW SCHEMA: Insert into user_profiles table
+      // âœ… NEW SCHEMA: Insert into user_profiles table
       const fullName = `${first_name} ${last_name}`.trim();
       await connection.query(
         `INSERT INTO user_profiles 
@@ -75,7 +75,7 @@ router.post("/signup", validateInstructorSignup, async (req, res) => {
       // Generate JWT token
       const token = generateJWT(uid, email, "instructor", userId);
 
-      // ✅ BACKWARDS COMPATIBLE RESPONSE
+      // âœ… BACKWARDS COMPATIBLE RESPONSE
       res.status(201).json({
         success: true,
         message: "Instructor registered successfully",
@@ -128,7 +128,7 @@ router.post("/login", validateInstructorLogin, async (req, res) => {
 
     const uid = decodedToken.uid;
 
-    // ✅ NEW SCHEMA: Query users + user_profiles
+    // âœ… NEW SCHEMA: Query users + user_profiles
     const [instructors] = await db.query(
       `SELECT u.id, u.email, u.role,
               p.first_name, p.last_name, p.full_name, p.department
@@ -157,7 +157,7 @@ router.post("/login", validateInstructorLogin, async (req, res) => {
     // Generate JWT token
     const token = generateJWT(uid, email, "instructor", instructorId);
 
-    // ✅ BACKWARDS COMPATIBLE RESPONSE
+    // âœ… BACKWARDS COMPATIBLE RESPONSE
     res.json({
       success: true,
       message: "Login successful",
@@ -202,7 +202,7 @@ router.get("/:instructor_id", verifyToken, async (req, res) => {
       });
     }
 
-    // ✅ NEW SCHEMA: Query users + user_profiles
+    // âœ… NEW SCHEMA: Query users + user_profiles
     const [instructors] = await db.query(
       `SELECT u.id, u.email, u.created_at,
               p.first_name, p.last_name, p.full_name, p.department
@@ -286,13 +286,13 @@ router.put("/:instructor_id", verifyToken, async (req, res) => {
     const connection = await db.getConnection();
 
     try {
-      // ✅ NEW SCHEMA: Update users table
+      // âœ… NEW SCHEMA: Update users table
       await connection.query(
         "UPDATE users SET email = ? WHERE id = ?",
         [email, parseInt(instructor_id)]
       );
 
-      // ✅ NEW SCHEMA: Update user_profiles table
+      // âœ… NEW SCHEMA: Update user_profiles table
       const fullName = `${first_name} ${last_name}`.trim();
       const [result] = await connection.query(
         "UPDATE user_profiles SET first_name = ?, last_name = ?, full_name = ?, department = ? WHERE user_id = ?",
@@ -345,7 +345,7 @@ router.delete("/:instructor_id", verifyToken, async (req, res) => {
       });
     }
 
-    // ✅ NEW SCHEMA: Soft delete using deleted_at
+    // âœ… NEW SCHEMA: Soft delete using deleted_at
     const [result] = await db.query(
       "UPDATE users SET deleted_at = NOW(), status = 'inactive' WHERE id = ? AND role = 'instructor'",
       [parseInt(instructor_id)]
@@ -393,20 +393,20 @@ router.get("/:instructor_id/stats", verifyToken, async (req, res) => {
       });
     }
 
-    // ✅ NEW SCHEMA: Get student statistics (count users with role='student')
+    // âœ… NEW SCHEMA: Get student statistics (count users with role='student')
     const [studentStats] = await db.query(
       `SELECT COUNT(*) as total_students 
        FROM users 
        WHERE role = 'student' AND deleted_at IS NULL`
     );
 
-    // Get project statistics
+    // Get project statistics based on approval_status
     const [projectStats] = await db.query(
       `SELECT 
         COUNT(*) as total_projects,
-        SUM(CASE WHEN status = 'open' THEN 1 ELSE 0 END) as open_projects,
-        SUM(CASE WHEN status = 'approved' THEN 1 ELSE 0 END) as approved_projects,
-        SUM(CASE WHEN status = 'closed' THEN 1 ELSE 0 END) as closed_projects
+        SUM(CASE WHEN approval_status = 'pending' THEN 1 ELSE 0 END) as pending_projects,
+        SUM(CASE WHEN approval_status = 'approved' THEN 1 ELSE 0 END) as approved_projects,
+        SUM(CASE WHEN approval_status = 'rejected' THEN 1 ELSE 0 END) as rejected_projects
        FROM projects`
     );
 
@@ -421,9 +421,9 @@ router.get("/:instructor_id/stats", verifyToken, async (req, res) => {
         students: studentStats[0] || { total_students: 0 },
         projects: projectStats[0] || {
           total_projects: 0,
-          open_projects: 0,
+          pending_projects: 0,
           approved_projects: 0,
-          closed_projects: 0,
+          rejected_projects: 0,
         },
         groups: groupStats[0] || { total_groups: 0 },
       },
@@ -444,7 +444,7 @@ router.get("/projects/:id", async (req, res) => {
   try {
     const { id } = req.params;
 
-    // ✅ NEW SCHEMA: Query projects with client info from users + user_profiles
+    // âœ… NEW SCHEMA: Query projects with client info from users + user_profiles
     const [projects] = await db.query(
       `SELECT 
          p.id,

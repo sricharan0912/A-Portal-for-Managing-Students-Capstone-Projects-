@@ -48,12 +48,14 @@ router.get("/", async (req, res) => {
          deliverables, 
          location as project_location, 
          industry_category as industry, 
-         status, 
+         status,
+         approval_status,
+         feedback,
          created_at
        FROM projects 
        ORDER BY created_at DESC`;
     } else {
-      // Students and public see only open projects
+      // Students and public see only approved projects
       query = `SELECT 
          id, 
          owner_id as client_id,
@@ -68,10 +70,11 @@ router.get("/", async (req, res) => {
          deliverables, 
          location as project_location, 
          industry_category as industry, 
-         status, 
+         status,
+         approval_status,
          created_at
        FROM projects 
-       WHERE status = 'open' 
+       WHERE approval_status = 'approved' 
        ORDER BY created_at DESC`;
     }
 
@@ -322,8 +325,8 @@ router.get("/search", async (req, res) => {
          status, 
          created_at
        FROM projects 
-       WHERE (title LIKE ? OR description LIKE ? OR required_skills LIKE ?) 
-             AND status = 'open'
+       WHERE status = 'open' 
+         AND (title LIKE ? OR description LIKE ? OR required_skills LIKE ?)
        ORDER BY created_at DESC`,
       [searchTerm, searchTerm, searchTerm]
     );
@@ -341,15 +344,15 @@ router.get("/search", async (req, res) => {
   }
 });
 
-// ==================== PROJECT CREATION (CLIENT ONLY) ====================
+// ==================== PROJECT CREATE (CLIENT ONLY) ====================
 
 // Create new project (PROTECTED - client only)
 router.post("/", verifyToken, async (req, res) => {
   try {
-    const { 
-      title, description, skills_required, category, team_size, 
-      start_date, end_date, complexity_level, deliverables, 
-      project_location, industry, client_id 
+    const {
+      title, description, skills_required, category, team_size,
+      start_date, end_date, complexity_level, deliverables,
+      project_location, industry, status
     } = req.body;
 
     // Check if user is a client
@@ -360,47 +363,31 @@ router.post("/", verifyToken, async (req, res) => {
       });
     }
 
-    // Validation
-    if (!title || !description || !skills_required) {
+    // Validate required fields
+    if (!title || !description) {
       return res.status(400).json({
         success: false,
-        error: "Title, description, and skills_required are required",
+        error: "Title and description are required",
       });
     }
 
-    // Use client_id from request body or from token
-    const finalClientId = client_id || req.user.clientId;
-
-    // Verify client exists in users table
-    const [clientCheck] = await db.query(
-      "SELECT id FROM users WHERE id = ? AND role = 'client' AND deleted_at IS NULL",
-      [finalClientId]
-    );
-
-    if (clientCheck.length === 0) {
-      return res.status(404).json({
-        success: false,
-        error: "Client not found",
-      });
+    // ✅ Convert skills_required to JSON if provided
+    let skillsJson = null;
+    if (skills_required) {
+      if (typeof skills_required === 'string') {
+        const skillsArray = skills_required.split(',').map(s => s.trim()).filter(s => s);
+        skillsJson = JSON.stringify(skillsArray);
+      } else if (Array.isArray(skills_required)) {
+        skillsJson = JSON.stringify(skills_required);
+      } else {
+        skillsJson = JSON.stringify([skills_required]);
+      }
     }
 
-    // ✅ CONVERT SKILLS_REQUIRED TO JSON ARRAY
-    let skillsJson;
-    if (typeof skills_required === 'string') {
-      // Split by commas if it's a comma-separated string
-      const skillsArray = skills_required.split(',').map(s => s.trim()).filter(s => s);
-      skillsJson = JSON.stringify(skillsArray);
-    } else if (Array.isArray(skills_required)) {
-      skillsJson = JSON.stringify(skills_required);
-    } else {
-      skillsJson = JSON.stringify([skills_required]);
-    }
-
-    // ✅ CONVERT DELIVERABLES TO JSON ARRAY
+    // ✅ Convert deliverables to JSON if provided
     let deliverablesJson = null;
     if (deliverables) {
       if (typeof deliverables === 'string') {
-        // Split by commas or newlines
         const deliverablesArray = deliverables.split(/[,\n]/).map(d => d.trim()).filter(d => d);
         deliverablesJson = JSON.stringify(deliverablesArray);
       } else if (Array.isArray(deliverables)) {
@@ -410,34 +397,26 @@ router.post("/", verifyToken, async (req, res) => {
       }
     }
 
-    // ✅ GENERATE SLUG FROM TITLE (required unique field)
-    const slug = title
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, '-')
-      .replace(/^-+|-+$/g, '')
-      + '-' + Date.now();
-
-    // ✅ NEW SCHEMA: Insert with JSON values and slug
     const [result] = await db.query(
-      `INSERT INTO projects 
-       (owner_id, title, slug, description, required_skills, category, 
-        max_team_size, start_date, end_date, difficulty_level, 
-        deliverables, location, industry_category, status) 
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'open')`,
+      `INSERT INTO projects (
+        owner_id, title, description, required_skills, category,
+        max_team_size, start_date, end_date, difficulty_level,
+        deliverables, location, industry_category, status
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
-        finalClientId,
+        req.user.clientId,
         title,
-        slug,                         // ✅ Added slug (required)
         description,
-        skillsJson,                   // ✅ JSON string
+        skillsJson,
         category || null,
         team_size || null,
         start_date || null,
         end_date || null,
-        complexity_level || 'intermediate',  // ✅ Default value
-        deliverablesJson,             // ✅ JSON string or null
+        complexity_level || null,
+        deliverablesJson,
         project_location || null,
         industry || null,
+        status || "open"
       ]
     );
 
@@ -448,22 +427,32 @@ router.post("/", verifyToken, async (req, res) => {
         id: result.insertId,
         title,
         description,
-        slug,
-      },
+        skills_required,
+        category,
+        team_size,
+        start_date,
+        end_date,
+        complexity_level,
+        deliverables,
+        project_location,
+        industry,
+        status: status || "open",
+        client_id: req.user.clientId,
+        created_at: new Date().toISOString()
+      }
     });
   } catch (err) {
-    console.error("❌ Error creating project:", err);
+    console.error("Error creating project:", err);
     res.status(500).json({
       success: false,
       error: "Failed to create project",
-      details: process.env.NODE_ENV === "development" ? err.message : undefined,
     });
   }
 });
 
-// ==================== PROJECT UPDATE (CLIENT ONLY) ====================
+// ==================== PROJECT UPDATE (CLIENT OR INSTRUCTOR) ====================
 
-// Update project (PROTECTED - client only, must own project)
+// Update project (PROTECTED - client can update own projects, instructor can update status)
 router.put("/:project_id", verifyToken, async (req, res) => {
   try {
     const { project_id } = req.params;
@@ -473,15 +462,17 @@ router.put("/:project_id", verifyToken, async (req, res) => {
       project_location, industry, status, feedback
     } = req.body;
 
-    // Check if user is a client
-    if (req.user.role !== "client") {
+    const userRole = req.user.role;
+
+    // ✅ Allow both clients and instructors
+    if (userRole !== "client" && userRole !== "instructor") {
       return res.status(403).json({
         success: false,
-        error: "Only clients can update projects",
+        error: "Only clients and instructors can update projects",
       });
     }
 
-    // Verify project exists and belongs to this client
+    // Verify project exists
     const [projectCheck] = await db.query(
       "SELECT owner_id FROM projects WHERE id = ?",
       [project_id]
@@ -494,61 +485,89 @@ router.put("/:project_id", verifyToken, async (req, res) => {
       });
     }
 
-    if (projectCheck[0].owner_id !== req.user.clientId) {
-      return res.status(403).json({
-        success: false,
-        error: "You can only update your own projects",
-      });
+    // ✅ Authorization logic based on role
+    if (userRole === "client") {
+      // Clients can only update their own projects
+      if (projectCheck[0].owner_id !== req.user.clientId) {
+        return res.status(403).json({
+          success: false,
+          error: "You can only update your own projects",
+        });
+      }
     }
+    // Instructors can update any project (for approve/reject)
 
     // Build dynamic update query
     const updates = [];
     const values = [];
 
-    if (title !== undefined) { updates.push("title = ?"); values.push(title); }
-    if (description !== undefined) { updates.push("description = ?"); values.push(description); }
-    
-    // ✅ Convert skills_required to JSON if provided
-    if (skills_required !== undefined) {
-      let skillsJson;
-      if (typeof skills_required === 'string') {
-        const skillsArray = skills_required.split(',').map(s => s.trim()).filter(s => s);
-        skillsJson = JSON.stringify(skillsArray);
-      } else if (Array.isArray(skills_required)) {
-        skillsJson = JSON.stringify(skills_required);
-      } else {
-        skillsJson = JSON.stringify([skills_required]);
-      }
-      updates.push("required_skills = ?");
-      values.push(skillsJson);
-    }
-    
-    if (category !== undefined) { updates.push("category = ?"); values.push(category); }
-    if (team_size !== undefined) { updates.push("max_team_size = ?"); values.push(team_size); }
-    if (start_date !== undefined) { updates.push("start_date = ?"); values.push(start_date); }
-    if (end_date !== undefined) { updates.push("end_date = ?"); values.push(end_date); }
-    if (complexity_level !== undefined) { updates.push("difficulty_level = ?"); values.push(complexity_level); }
-    
-    // ✅ Convert deliverables to JSON if provided
-    if (deliverables !== undefined) {
-      let deliverablesJson = null;
-      if (deliverables) {
-        if (typeof deliverables === 'string') {
-          const deliverablesArray = deliverables.split(/[,\n]/).map(d => d.trim()).filter(d => d);
-          deliverablesJson = JSON.stringify(deliverablesArray);
-        } else if (Array.isArray(deliverables)) {
-          deliverablesJson = JSON.stringify(deliverables);
-        } else {
-          deliverablesJson = JSON.stringify([deliverables]);
+    // ✅ For instructors, only allow approval_status updates (and feedback if provided)
+    if (userRole === "instructor") {
+      if (status !== undefined) {
+        // Validate status for instructor (only pending/approved/rejected)
+        const validStatuses = ["pending", "approved", "rejected"];
+        if (!validStatuses.includes(status)) {
+          return res.status(400).json({
+            success: false,
+            error: "Invalid status. Must be: pending, approved, or rejected",
+          });
         }
+        // Use approval_status column, not status
+        updates.push("approval_status = ?");
+        values.push(status);
       }
-      updates.push("deliverables = ?");
-      values.push(deliverablesJson);
+      // Only update feedback if it's a non-empty string
+      if (feedback !== undefined && feedback !== null && feedback.trim() !== "") {
+        updates.push("feedback = ?");
+        values.push(feedback.trim());
+      }
+    } else {
+      // Clients can update all fields
+      if (title !== undefined) { updates.push("title = ?"); values.push(title); }
+      if (description !== undefined) { updates.push("description = ?"); values.push(description); }
+      
+      // ✅ Convert skills_required to JSON if provided
+      if (skills_required !== undefined) {
+        let skillsJson;
+        if (typeof skills_required === 'string') {
+          const skillsArray = skills_required.split(',').map(s => s.trim()).filter(s => s);
+          skillsJson = JSON.stringify(skillsArray);
+        } else if (Array.isArray(skills_required)) {
+          skillsJson = JSON.stringify(skills_required);
+        } else {
+          skillsJson = JSON.stringify([skills_required]);
+        }
+        updates.push("required_skills = ?");
+        values.push(skillsJson);
+      }
+      
+      if (category !== undefined) { updates.push("category = ?"); values.push(category); }
+      if (team_size !== undefined) { updates.push("max_team_size = ?"); values.push(team_size); }
+      if (start_date !== undefined) { updates.push("start_date = ?"); values.push(start_date); }
+      if (end_date !== undefined) { updates.push("end_date = ?"); values.push(end_date); }
+      if (complexity_level !== undefined) { updates.push("difficulty_level = ?"); values.push(complexity_level); }
+      
+      // ✅ Convert deliverables to JSON if provided
+      if (deliverables !== undefined) {
+        let deliverablesJson = null;
+        if (deliverables) {
+          if (typeof deliverables === 'string') {
+            const deliverablesArray = deliverables.split(/[,\n]/).map(d => d.trim()).filter(d => d);
+            deliverablesJson = JSON.stringify(deliverablesArray);
+          } else if (Array.isArray(deliverables)) {
+            deliverablesJson = JSON.stringify(deliverables);
+          } else {
+            deliverablesJson = JSON.stringify([deliverables]);
+          }
+        }
+        updates.push("deliverables = ?");
+        values.push(deliverablesJson);
+      }
+      
+      if (project_location !== undefined) { updates.push("location = ?"); values.push(project_location); }
+      if (industry !== undefined) { updates.push("industry_category = ?"); values.push(industry); }
+      if (status !== undefined) { updates.push("status = ?"); values.push(status); }
     }
-    
-    if (project_location !== undefined) { updates.push("location = ?"); values.push(project_location); }
-    if (industry !== undefined) { updates.push("industry_category = ?"); values.push(industry); }
-    if (status !== undefined) { updates.push("status = ?"); values.push(status); }
 
     if (updates.length === 0) {
       return res.status(400).json({
@@ -678,21 +697,25 @@ router.delete("/:project_id", verifyToken, async (req, res) => {
 
 // ==================== PROJECT DETAILS & PREFERENCES ====================
 
-// Get project details with preferences (PROTECTED - client only)
+// Get project details with preferences (PROTECTED - client or instructor)
 router.get("/:project_id/details", verifyToken, async (req, res) => {
   try {
     const { project_id } = req.params;
 
-    // Check if user is a client
-    if (req.user.role !== "client") {
+    // ✅ Allow both clients and instructors
+    if (req.user.role !== "client" && req.user.role !== "instructor") {
       return res.status(403).json({
         success: false,
-        error: "Only clients can view project details",
+        error: "Only clients and instructors can view project details",
       });
     }
 
-    const [projects] = await db.query(
-      `SELECT 
+    let query;
+    let params;
+
+    if (req.user.role === "client") {
+      // Clients can only see their own projects
+      query = `SELECT 
          id, 
          owner_id as client_id,
          title, 
@@ -709,9 +732,32 @@ router.get("/:project_id/details", verifyToken, async (req, res) => {
          status, 
          created_at
        FROM projects
-       WHERE id = ? AND owner_id = ?`,
-      [project_id, req.user.clientId]
-    );
+       WHERE id = ? AND owner_id = ?`;
+      params = [project_id, req.user.clientId];
+    } else {
+      // Instructors can see any project
+      query = `SELECT 
+         id, 
+         owner_id as client_id,
+         title, 
+         description, 
+         required_skills as skills_required, 
+         category, 
+         max_team_size as team_size, 
+         start_date, 
+         end_date, 
+         difficulty_level as complexity_level, 
+         deliverables, 
+         location as project_location, 
+         industry_category as industry, 
+         status, 
+         created_at
+       FROM projects
+       WHERE id = ?`;
+      params = [project_id];
+    }
+
+    const [projects] = await db.query(query, params);
 
     if (projects.length === 0) {
       return res.status(404).json({
@@ -768,20 +814,20 @@ router.get("/:project_id/details", verifyToken, async (req, res) => {
   }
 });
 
-// Get preferences for a specific project (PROTECTED - client only)
+// Get preferences for a specific project (PROTECTED - client or instructor)
 router.get("/:project_id/preferences", verifyToken, async (req, res) => {
   try {
     const { project_id } = req.params;
 
-    // Check if user is a client
-    if (req.user.role !== "client") {
+    // ✅ Allow both clients and instructors
+    if (req.user.role !== "client" && req.user.role !== "instructor") {
       return res.status(403).json({
         success: false,
-        error: "Only clients can view preferences",
+        error: "Only clients and instructors can view preferences",
       });
     }
 
-    // Verify project exists and belongs to this client
+    // Verify project exists
     const [projectCheck] = await db.query(
       "SELECT owner_id FROM projects WHERE id = ?",
       [project_id]
@@ -794,7 +840,8 @@ router.get("/:project_id/preferences", verifyToken, async (req, res) => {
       });
     }
 
-    if (projectCheck[0].owner_id !== req.user.clientId) {
+    // If client, verify they own the project
+    if (req.user.role === "client" && projectCheck[0].owner_id !== req.user.clientId) {
       return res.status(403).json({
         success: false,
         error: "You can only view preferences for your own projects",
