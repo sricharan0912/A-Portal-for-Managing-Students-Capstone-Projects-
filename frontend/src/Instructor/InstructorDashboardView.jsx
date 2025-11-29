@@ -1,10 +1,12 @@
 import React, { useEffect, useState } from "react";
+import { useLocation } from "react-router-dom";
 import { getInstructorStats } from "../utils/apiHelper";
 
 /**
  * InstructorDashboardView Component
  */
 export default function InstructorDashboardView({ instructorId }) {
+  const location = useLocation();
   const [stats, setStats] = useState({
     totalStudents: 0,
     activeProjects: 0,
@@ -16,6 +18,7 @@ export default function InstructorDashboardView({ instructorId }) {
   const [announcements, setAnnouncements] = useState([]);
   const [loading, setLoading] = useState(true);
 
+  // Refresh stats when navigating back to dashboard or when instructorId changes
   useEffect(() => {
     const fetchStats = async () => {
       if (!instructorId) {
@@ -25,14 +28,15 @@ export default function InstructorDashboardView({ instructorId }) {
       }
 
       try {
+        setLoading(true);
         const res = await getInstructorStats(instructorId);
         const data = res.data || {};
 
         // Map backend response structure to frontend expectations
         setStats({
           totalStudents: data.students?.total_students || 0,
-          activeProjects: data.projects?.open_projects || 0,
-          pendingEvaluations: 0, // TODO: Add evaluations to backend
+          activeProjects: data.projects?.approved_projects || 0,
+          pendingEvaluations: data.projects?.pending_projects || 0,
           totalGroups: data.groups?.total_groups || 0,
         });
 
@@ -48,7 +52,7 @@ export default function InstructorDashboardView({ instructorId }) {
     };
 
     fetchStats();
-  }, [instructorId]);
+  }, [instructorId, location.pathname]); // Re-fetch when path changes (navigating back)
 
   if (loading) {
     return (
@@ -62,7 +66,7 @@ export default function InstructorDashboardView({ instructorId }) {
     <div className="space-y-8">
       {/* Welcome Header */}
       <div className="bg-gradient-to-r from-blue-700 to-blue-800 text-white rounded-xl p-6 shadow-md">
-        <h2 className="text-3xl font-bold">Welcome back, Instructor 👩‍🏫</h2>
+        <h2 className="text-3xl font-bold">Welcome back, Instructor!</h2>
         <p className="mt-2 text-blue-100 text-sm">
           Manage students, review projects, and monitor ongoing evaluations all in one place.
         </p>
@@ -72,7 +76,7 @@ export default function InstructorDashboardView({ instructorId }) {
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <StatCard label="Total Students" count={stats.totalStudents} color="blue" />
         <StatCard label="Active Projects" count={stats.activeProjects} color="green" />
-        <StatCard label="Pending Evaluations" count={stats.pendingEvaluations} color="yellow" />
+        <StatCard label="Pending Approval" count={stats.pendingEvaluations} color="yellow" />
         <StatCard label="Total Groups" count={stats.totalGroups} color="indigo" />
       </div>
 

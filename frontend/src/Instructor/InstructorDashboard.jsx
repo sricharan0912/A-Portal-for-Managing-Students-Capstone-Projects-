@@ -1,4 +1,3 @@
-// src/instructor/InstructorDashboard.jsx
 import { useState, useEffect } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import DashboardNavbar from "../components/DashboardNavbar";
@@ -6,8 +5,6 @@ import InstructorSidebar from "./InstructorSidebar";
 import InstructorDashboardView from "./InstructorDashboardView";
 import ProjectApprovalView from "./ProjectApprovalView";
 import AssignGroupsView from "./AssignGroupsView";
-
-// Newly added imports for the new instructor sections
 import StudentsView from "./StudentsView";
 import AddStudentForm from "./AddStudentForm";
 import ProjectsView from "./ProjectsView";
