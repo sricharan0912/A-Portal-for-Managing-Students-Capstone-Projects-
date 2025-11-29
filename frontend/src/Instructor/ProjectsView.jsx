@@ -58,6 +58,35 @@ export default function ProjectsView({ instructorId }) {
     );
   }, [searchTerm, projects]);
 
+  // Helper function to get display status from approval_status
+  const getStatusDisplay = (project) => {
+    const approvalStatus = project.approval_status;
+    
+    if (approvalStatus === "approved") {
+      return { label: "approved", className: "bg-green-100 text-green-700" };
+    }
+    if (approvalStatus === "rejected") {
+      return { label: "rejected", className: "bg-red-100 text-red-700" };
+    }
+    if (approvalStatus === "pending") {
+      return { label: "pending", className: "bg-yellow-100 text-yellow-700" };
+    }
+    
+    // Fallback to status column if approval_status not set
+    const status = project.status;
+    if (status === "approved" || status === "completed") {
+      return { label: status, className: "bg-green-100 text-green-700" };
+    }
+    if (status === "open" || status === "draft" || status === "pending_approval") {
+      return { label: status, className: "bg-yellow-100 text-yellow-700" };
+    }
+    if (status === "cancelled") {
+      return { label: status, className: "bg-red-100 text-red-700" };
+    }
+    
+    return { label: status || "unknown", className: "bg-slate-100 text-slate-700" };
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -113,23 +142,6 @@ export default function ProjectsView({ instructorId }) {
               </svg>
             </span>
           </div>
-
-          {/* Create Project Button */}
-          <button
-            onClick={() => navigate("/instructor-dashboard/create-project")}
-            className="inline-flex items-center gap-2 rounded-lg bg-blue-700 px-4 py-2 text-sm font-medium text-white hover:bg-blue-600 focus:ring-2 focus:ring-blue-300 transition"
-          >
-            <svg
-              className="h-4 w-4"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-            >
-              <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
-            </svg>
-            Create Project
-          </button>
         </div>
       </div>
 
@@ -154,66 +166,61 @@ export default function ProjectsView({ instructorId }) {
       {/* Project Cards */}
       {filteredProjects.length > 0 ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-6">
-          {filteredProjects.map((project) => (
-            <div
-              key={project.id}
-              className="rounded-xl border border-slate-200 bg-white shadow-sm hover:shadow-md transition flex flex-col justify-between"
-            >
-              <div className="p-5 space-y-3">
-                <div className="flex justify-between items-start">
-                  <h3 className="text-lg font-semibold text-slate-800">
-                    {project.title}
-                  </h3>
-                  <span
-                    className={`text-xs px-2 py-1 rounded-full font-medium ${
-                      project.status === "approved"
-                        ? "bg-green-100 text-green-700"
-                        : project.status === "open"
-                        ? "bg-yellow-100 text-yellow-700"
-                        : project.status === "rejected"
-                        ? "bg-red-100 text-red-700"
-                        : "bg-slate-100 text-slate-700"
-                    }`}
-                  >
-                    {project.status}
-                  </span>
+          {filteredProjects.map((project) => {
+            const statusDisplay = getStatusDisplay(project);
+            return (
+              <div
+                key={project.id}
+                className="rounded-xl border border-slate-200 bg-white shadow-sm hover:shadow-md transition flex flex-col justify-between"
+              >
+                <div className="p-5 space-y-3">
+                  <div className="flex justify-between items-start">
+                    <h3 className="text-lg font-semibold text-slate-800">
+                      {project.title}
+                    </h3>
+                    <span
+                      className={`text-xs px-2 py-1 rounded-full font-medium capitalize ${statusDisplay.className}`}
+                    >
+                      {statusDisplay.label}
+                    </span>
+                  </div>
+                  <p className="text-sm text-slate-600 line-clamp-3">
+                    {project.description || "No description provided."}
+                  </p>
+                  <div className="flex flex-wrap gap-2 mt-2">
+                    {project.category && (
+                      <span className="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded">
+                        {project.category}
+                      </span>
+                    )}
+                    {project.complexity_level && (
+                      <span className="text-xs bg-purple-100 text-purple-700 px-2 py-1 rounded">
+                        {project.complexity_level}
+                      </span>
+                    )}
+                    {project.team_size && (
+                      <span className="text-xs bg-slate-100 text-slate-700 px-2 py-1 rounded">
+                        Team: {project.team_size}
+                      </span>
+                    )}
+                  </div>
                 </div>
-                <p className="text-sm text-slate-600 line-clamp-3">
-                  {project.description || "No description provided."}
-                </p>
-                <div className="flex flex-wrap gap-2 mt-2">
-                  {project.category && (
-                    <span className="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded">
-                      {project.category}
-                    </span>
-                  )}
-                  {project.complexity_level && (
-                    <span className="text-xs bg-purple-100 text-purple-700 px-2 py-1 rounded">
-                      {project.complexity_level}
-                    </span>
-                  )}
-                  {project.team_size && (
-                    <span className="text-xs bg-slate-100 text-slate-700 px-2 py-1 rounded">
-                      Team: {project.team_size}
-                    </span>
-                  )}
-                </div>
-              </div>
 
-              {/* Actions - REMOVED ID DISPLAY */}
-              <div className="flex justify-end items-center border-t border-slate-100 px-5 py-3 bg-slate-50 rounded-b-xl">
-                <button
-                  onClick={() => {
-                    console.log("Navigating to project:", project.id);
-                    navigate(`/instructor-dashboard/projects/${project.id}`);
-                  }}
-                  className="text-blue-700 hover:text-blue-900 text-sm font-medium"
-                >
-                  View Details
-                </button>
+                {/* Actions */}
+                <div className="flex justify-end items-center border-t border-slate-100 px-5 py-3 bg-slate-50 rounded-b-xl">
+                  <button
+                    onClick={() => {
+                      console.log("Navigating to project:", project.id);
+                      navigate(`/instructor-dashboard/projects/${project.id}`);
+                    }}
+                    className="text-blue-700 hover:text-blue-900 text-sm font-medium"
+                  >
+                    View Details
+                  </button>
+                </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       ) : (
         projects.length > 0 && (

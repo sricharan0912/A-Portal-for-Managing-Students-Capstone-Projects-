@@ -1,5 +1,3 @@
-// src/hooks/useProjects.js
-// :contentReference[oaicite:0]{index=0}
 import { useEffect, useRef, useState, useCallback } from "react";
 import { apiCall } from "../utils/apiHelper";
 
