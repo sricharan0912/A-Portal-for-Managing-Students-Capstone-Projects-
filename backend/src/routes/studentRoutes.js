@@ -22,8 +22,9 @@ router.post("/signup", validateStudentSignup, async (req, res) => {
   try {
     const { email, idToken, first_name, last_name } = req.body;
 
+    // Check if email already exists
     const [existing] = await db.query(
-      "SELECT id FROM students WHERE email = ?",
+      "SELECT id FROM users WHERE email = ?",
       [email]
     );
 
@@ -47,25 +48,47 @@ router.post("/signup", validateStudentSignup, async (req, res) => {
       });
     }
 
-    const [result] = await db.query(
-      "INSERT INTO students (first_name, last_name, email, firebase_uid) VALUES (?, ?, ?, ?)",
-      [first_name, last_name, email, uid]
-    );
+    const connection = await db.getConnection();
 
-    const studentId = result.insertId;
-    const token = generateJWT(uid, email, "student", studentId);
+    try {
+      // âœ… NEW SCHEMA: Insert into users table
+      const [userResult] = await connection.query(
+        "INSERT INTO users (email, firebase_uid, role, email_verified, status) VALUES (?, ?, 'student', 1, 'active')",
+        [email, uid]
+      );
 
-    res.status(201).json({
-      success: true,
-      message: "Student registered successfully",
-      token,
-      student: {
-        id: studentId,
-        first_name,
-        last_name,
-        email,
-      },
-    });
+      const userId = userResult.insertId;
+
+      // âœ… NEW SCHEMA: Insert into user_profiles table
+      const fullName = `${first_name} ${last_name}`.trim();
+      await connection.query(
+        `INSERT INTO user_profiles 
+         (user_id, first_name, last_name, full_name) 
+         VALUES (?, ?, ?, ?)`,
+        [userId, first_name, last_name, fullName]
+      );
+
+      connection.release();
+
+      // Generate JWT token
+      const token = generateJWT(uid, email, "student", userId);
+
+      // âœ… BACKWARDS COMPATIBLE RESPONSE
+      res.status(201).json({
+        success: true,
+        message: "Student registered successfully",
+        token,
+        student: {
+          id: userId,           // Numeric ID
+          first_name,
+          last_name,
+          email,
+        },
+      });
+    } catch (err) {
+      connection.release();
+      throw err;
+    }
   } catch (err) {
     console.error("Signup error:", err);
 
@@ -103,8 +126,13 @@ router.post("/login", validateStudentLogin, async (req, res) => {
 
     const uid = decodedToken.uid;
 
+    // âœ… NEW SCHEMA: Query users + user_profiles
     const [students] = await db.query(
-      "SELECT id, first_name, last_name, email FROM students WHERE email = ?",
+      `SELECT u.id, u.email, u.role,
+              p.first_name, p.last_name, p.full_name
+       FROM users u
+       LEFT JOIN user_profiles p ON u.id = p.user_id
+       WHERE u.email = ? AND u.role = 'student' AND u.deleted_at IS NULL`,
       [email]
     );
 
@@ -118,8 +146,16 @@ router.post("/login", validateStudentLogin, async (req, res) => {
     const student = students[0];
     const studentId = student.id;
 
+    // Update last_login_at
+    await db.query(
+      "UPDATE users SET last_login_at = NOW() WHERE id = ?",
+      [studentId]
+    );
+
+    // Generate JWT token
     const token = generateJWT(uid, email, "student", studentId);
 
+    // âœ… BACKWARDS COMPATIBLE RESPONSE
     res.json({
       success: true,
       message: "Login successful",
@@ -143,17 +179,32 @@ router.post("/login", validateStudentLogin, async (req, res) => {
 
 // ==================== STATIC ROUTES (MUST BE BEFORE PARAMETERIZED ROUTES) ====================
 
-// ✅ NEW: Get all students (for instructor/admin to view all students)
+// âœ… Get all students (for instructor/admin to view all students)
 // IMPORTANT: This MUST come before /:student_id routes
 router.get("/", verifyToken, verifyRole(["instructor", "admin"]), async (req, res) => {
   try {
+    // âœ… NEW SCHEMA: Query users + user_profiles
     const [students] = await db.query(
-      "SELECT id, first_name, last_name, email, created_at FROM students ORDER BY created_at DESC"
+      `SELECT u.id, u.email, u.created_at,
+              p.first_name, p.last_name, p.full_name
+       FROM users u
+       LEFT JOIN user_profiles p ON u.id = p.user_id
+       WHERE u.role = 'student' AND u.deleted_at IS NULL
+       ORDER BY u.created_at DESC`
     );
+
+    // Format for backwards compatibility
+    const formattedStudents = students.map(student => ({
+      id: student.id,
+      first_name: student.first_name,
+      last_name: student.last_name,
+      email: student.email,
+      created_at: student.created_at,
+    }));
 
     res.json({
       success: true,
-      data: students,
+      data: formattedStudents,
     });
   } catch (err) {
     console.error("Error fetching all students:", err);
@@ -168,12 +219,27 @@ router.get("/", verifyToken, verifyRole(["instructor", "admin"]), async (req, re
 // IMPORTANT: This MUST come before /:student_id routes
 router.get("/projects", async (req, res) => {
   try {
+    // ✅ Query projects that have been approved by instructor
     const [projects] = await db.query(
-      `SELECT id, client_id, title, description, skills_required, category, 
-              team_size, start_date, end_date, complexity_level, deliverables, 
-              project_location, industry, status, created_at
+      `SELECT 
+         id,
+         owner_id as client_id,
+         title,
+         description,
+         required_skills as skills_required,
+         category,
+         max_team_size as team_size,
+         start_date,
+         end_date,
+         difficulty_level as complexity_level,
+         deliverables,
+         location as project_location,
+         industry_category as industry,
+         status,
+         approval_status,
+         created_at
        FROM projects 
-       WHERE status = 'open' 
+       WHERE approval_status = 'approved' 
        ORDER BY created_at DESC`
     );
 
@@ -218,8 +284,13 @@ router.get("/:student_id", verifyToken, async (req, res) => {
       });
     }
 
+    // âœ… NEW SCHEMA: Query users + user_profiles
     const [students] = await db.query(
-      "SELECT id, first_name, last_name, email, created_at FROM students WHERE id = ?",
+      `SELECT u.id, u.email, u.created_at,
+              p.first_name, p.last_name, p.full_name
+       FROM users u
+       LEFT JOIN user_profiles p ON u.id = p.user_id
+       WHERE u.id = ? AND u.role = 'student' AND u.deleted_at IS NULL`,
       [parseInt(student_id)]
     );
 
@@ -230,9 +301,17 @@ router.get("/:student_id", verifyToken, async (req, res) => {
       });
     }
 
+    const student = students[0];
+
     res.json({
       success: true,
-      data: students[0],
+      data: {
+        id: student.id,
+        first_name: student.first_name,
+        last_name: student.last_name,
+        email: student.email,
+        created_at: student.created_at,
+      },
     });
   } catch (err) {
     console.error("Error fetching student:", err);
@@ -271,8 +350,9 @@ router.put("/:student_id", verifyToken, async (req, res) => {
       });
     }
 
+    // Check if email already exists (excluding current student)
     const [existingEmail] = await db.query(
-      "SELECT id FROM students WHERE email = ? AND id != ?",
+      "SELECT id FROM users WHERE email = ? AND id != ? AND deleted_at IS NULL",
       [email, parseInt(student_id)]
     );
 
@@ -283,22 +363,39 @@ router.put("/:student_id", verifyToken, async (req, res) => {
       });
     }
 
-    const [result] = await db.query(
-      "UPDATE students SET first_name = ?, last_name = ?, email = ? WHERE id = ?",
-      [first_name, last_name, email, parseInt(student_id)]
-    );
+    const connection = await db.getConnection();
 
-    if (result.affectedRows === 0) {
-      return res.status(404).json({
-        success: false,
-        error: "Student not found",
+    try {
+      // âœ… NEW SCHEMA: Update users table
+      await connection.query(
+        "UPDATE users SET email = ? WHERE id = ?",
+        [email, parseInt(student_id)]
+      );
+
+      // âœ… NEW SCHEMA: Update user_profiles table
+      const fullName = `${first_name} ${last_name}`.trim();
+      const [result] = await connection.query(
+        "UPDATE user_profiles SET first_name = ?, last_name = ?, full_name = ? WHERE user_id = ?",
+        [first_name, last_name, fullName, parseInt(student_id)]
+      );
+
+      connection.release();
+
+      if (result.affectedRows === 0) {
+        return res.status(404).json({
+          success: false,
+          error: "Student not found",
+        });
+      }
+
+      res.json({
+        success: true,
+        message: "Student profile updated successfully",
       });
+    } catch (err) {
+      connection.release();
+      throw err;
     }
-
-    res.json({
-      success: true,
-      message: "Student profile updated successfully",
-    });
   } catch (err) {
     console.error("Error updating student:", err);
     res.status(500).json({
@@ -320,7 +417,7 @@ router.delete("/:student_id", verifyToken, async (req, res) => {
       });
     }
 
-    // Only students can delete their own profile, or admins
+    // Only students can delete their own account, or admins
     if (parseInt(student_id) !== req.user.studentId && req.user.role !== "admin") {
       return res.status(403).json({
         success: false,
@@ -328,45 +425,23 @@ router.delete("/:student_id", verifyToken, async (req, res) => {
       });
     }
 
-    // Get database connection for transaction
-    const connection = await db.getConnection();
+    // âœ… NEW SCHEMA: Soft delete using deleted_at
+    const [result] = await db.query(
+      "UPDATE users SET deleted_at = NOW(), status = 'inactive' WHERE id = ? AND role = 'student'",
+      [parseInt(student_id)]
+    );
 
-    try {
-      // Delete student preferences first (foreign key constraint)
-      await connection.query(
-        "DELETE FROM student_preferences WHERE student_id = ?",
-        [parseInt(student_id)]
-      );
-
-      // Delete student from groups
-      await connection.query(
-        "DELETE FROM group_members WHERE student_id = ?",
-        [parseInt(student_id)]
-      );
-
-      // Delete student
-      const [result] = await connection.query(
-        "DELETE FROM students WHERE id = ?",
-        [parseInt(student_id)]
-      );
-
-      connection.release();
-
-      if (result.affectedRows === 0) {
-        return res.status(404).json({
-          success: false,
-          error: "Student not found",
-        });
-      }
-
-      res.json({
-        success: true,
-        message: "Student account deleted successfully",
+    if (result.affectedRows === 0) {
+      return res.status(404).json({
+        success: false,
+        error: "Student not found",
       });
-    } catch (err) {
-      connection.release();
-      throw err;
     }
+
+    res.json({
+      success: true,
+      message: "Student account deleted successfully",
+    });
   } catch (err) {
     console.error("Error deleting student:", err);
     res.status(500).json({
@@ -376,7 +451,7 @@ router.delete("/:student_id", verifyToken, async (req, res) => {
   }
 });
 
-// ==================== PREFERENCES ====================
+// ==================== STUDENT PREFERENCES ====================
 
 // Get student's submitted preferences (PROTECTED)
 router.get("/:student_id/preferences", verifyToken, async (req, res) => {
@@ -402,11 +477,24 @@ router.get("/:student_id/preferences", verifyToken, async (req, res) => {
       });
     }
 
+    // ✅ Query with correct column name: preference_rank
     const [preferences] = await db.query(
-      `SELECT sp.id, sp.student_id, sp.project_id, sp.preference_rank, 
-              p.title, p.description, p.category, p.complexity_level, 
-              p.skills_required, p.team_size, p.start_date, p.end_date,
-              p.project_location, p.deliverables, p.industry
+      `SELECT 
+         sp.student_id, 
+         sp.project_id, 
+         sp.preference_rank,
+         sp.updated_at,
+         p.title, 
+         p.description, 
+         p.category, 
+         p.difficulty_level as complexity_level,
+         p.required_skills as skills_required,
+         p.max_team_size as team_size,
+         p.start_date, 
+         p.end_date,
+         p.location as project_location,
+         p.deliverables, 
+         p.industry_category as industry
        FROM student_preferences sp
        JOIN projects p ON sp.project_id = p.id
        WHERE sp.student_id = ?
@@ -414,9 +502,25 @@ router.get("/:student_id/preferences", verifyToken, async (req, res) => {
       [parseInt(student_id)]
     );
 
+    // Get the most recent updated_at timestamp
+    const lastUpdated = preferences.length > 0 
+      ? preferences.reduce((latest, pref) => 
+          pref.updated_at > latest ? pref.updated_at : latest, 
+          preferences[0].updated_at
+        )
+      : null;
+
+    // Get deadline from database
+    const [deadlineResult] = await db.query(
+      `SELECT setting_value FROM app_settings WHERE setting_key = 'preference_deadline'`
+    );
+    const deadline = deadlineResult.length > 0 ? deadlineResult[0].setting_value : null;
+
     res.json({
       success: true,
       data: preferences,
+      lastUpdated,
+      deadline,
     });
   } catch (err) {
     console.error("Error fetching preferences:", err);
@@ -448,6 +552,23 @@ router.post("/:student_id/preferences", verifyToken, async (req, res) => {
       });
     }
 
+    // Check deadline from database
+    const [deadlineResult] = await db.query(
+      `SELECT setting_value FROM app_settings WHERE setting_key = 'preference_deadline'`
+    );
+    const deadline = deadlineResult.length > 0 ? deadlineResult[0].setting_value : null;
+    
+    if (deadline) {
+      const deadlineDate = new Date(deadline);
+      const now = new Date();
+      if (now > deadlineDate) {
+        return res.status(400).json({
+          success: false,
+          error: "The deadline for submitting preferences has passed",
+        });
+      }
+    }
+
     if (!Array.isArray(preferences) || preferences.length === 0) {
       return res.status(400).json({
         success: false,
@@ -471,6 +592,7 @@ router.post("/:student_id/preferences", verifyToken, async (req, res) => {
       }
     }
 
+    // Validate all projects exist
     for (const pref of preferences) {
       const [project] = await db.query(
         "SELECT id FROM projects WHERE id = ?",
@@ -488,11 +610,13 @@ router.post("/:student_id/preferences", verifyToken, async (req, res) => {
     const connection = await db.getConnection();
 
     try {
+      // Delete existing preferences
       await connection.query(
         "DELETE FROM student_preferences WHERE student_id = ?",
         [parseInt(student_id)]
       );
 
+      // ✅ Insert with correct column name: preference_rank
       for (const pref of preferences) {
         await connection.query(
           "INSERT INTO student_preferences (student_id, project_id, preference_rank) VALUES (?, ?, ?)",
@@ -590,12 +714,25 @@ router.get("/:student_id/group", verifyToken, async (req, res) => {
       });
     }
 
+    // âœ… NEW SCHEMA: Query with column aliases for backwards compatibility
     const [groupData] = await db.query(
-      `SELECT sg.id, sg.group_number, sg.project_id,
-              p.id as project_id, p.title, p.description, p.category,
-              p.skills_required, p.complexity_level, p.team_size,
-              p.start_date, p.end_date, p.project_location, 
-              p.deliverables, p.industry, p.status
+      `SELECT 
+         sg.id, 
+         sg.group_number, 
+         sg.project_id,
+         p.id as project_id, 
+         p.title, 
+         p.description, 
+         p.category,
+         p.required_skills as skills_required,
+         p.difficulty_level as complexity_level,
+         p.max_team_size as team_size,
+         p.start_date, 
+         p.end_date, 
+         p.location as project_location,
+         p.deliverables, 
+         p.industry_category as industry,
+         p.status
        FROM group_members gm
        JOIN student_groups sg ON gm.group_id = sg.id
        JOIN projects p ON sg.project_id = p.id
@@ -663,12 +800,14 @@ router.get("/:student_id/group/members", verifyToken, async (req, res) => {
 
     const groupId = groupData[0].group_id;
 
+    // âœ… NEW SCHEMA: Query users + user_profiles for group members
     const [members] = await db.query(
-      `SELECT gm.student_id, s.first_name, s.last_name, s.email 
+      `SELECT gm.student_id, p.first_name, p.last_name, u.email 
        FROM group_members gm
-       JOIN students s ON gm.student_id = s.id
+       JOIN users u ON gm.student_id = u.id
+       LEFT JOIN user_profiles p ON u.id = p.user_id
        WHERE gm.group_id = ?
-       ORDER BY s.first_name ASC`,
+       ORDER BY p.first_name ASC`,
       [groupId]
     );
 

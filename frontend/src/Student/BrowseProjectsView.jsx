@@ -147,7 +147,19 @@ export default function BrowseProjectsView({
                 {project.skills_required && (
                   <p className="text-xs text-slate-500 mb-3 line-clamp-1">
                     <span className="font-medium">Skills:</span>{" "}
-                    {project.skills_required}
+                    {(() => {
+                      if (Array.isArray(project.skills_required)) {
+                        return project.skills_required.join(', ');
+                      } else if (typeof project.skills_required === 'string') {
+                        try {
+                          const parsed = JSON.parse(project.skills_required);
+                          return Array.isArray(parsed) ? parsed.join(', ') : project.skills_required;
+                        } catch {
+                          return project.skills_required;
+                        }
+                      }
+                      return '';
+                    })()}
                   </p>
                 )}
 
@@ -335,16 +347,28 @@ export default function BrowseProjectsView({
                       </h5>
                     </div>
                     <div className="flex flex-wrap gap-2">
-                      {viewingProject.skills_required
-                        .split(",")
-                        .map((skill, idx) => (
+                      {(() => {
+                        // Handle skills_required as JSON array, string, or null
+                        let skills = [];
+                        if (Array.isArray(viewingProject.skills_required)) {
+                          skills = viewingProject.skills_required;
+                        } else if (typeof viewingProject.skills_required === 'string') {
+                          try {
+                            const parsed = JSON.parse(viewingProject.skills_required);
+                            skills = Array.isArray(parsed) ? parsed : viewingProject.skills_required.split(',');
+                          } catch {
+                            skills = viewingProject.skills_required.split(',');
+                          }
+                        }
+                        return skills.map((skill, idx) => (
                           <span
                             key={idx}
                             className="inline-block bg-blue-100 text-blue-700 px-3 py-1 rounded-full text-xs font-medium"
                           >
-                            {skill.trim()}
+                            {typeof skill === 'string' ? skill.trim() : skill}
                           </span>
-                        ))}
+                        ));
+                      })()}
                     </div>
                   </div>
                 )}
@@ -468,7 +492,19 @@ export default function BrowseProjectsView({
                   </div>
                   <div className="bg-green-50 border border-green-200 rounded-lg p-4">
                     <p className="text-slate-700 leading-relaxed whitespace-pre-line">
-                      {viewingProject.deliverables}
+                      {(() => {
+                        if (Array.isArray(viewingProject.deliverables)) {
+                          return viewingProject.deliverables.join('\n• ');
+                        } else if (typeof viewingProject.deliverables === 'string') {
+                          try {
+                            const parsed = JSON.parse(viewingProject.deliverables);
+                            return Array.isArray(parsed) ? '• ' + parsed.join('\n• ') : viewingProject.deliverables;
+                          } catch {
+                            return viewingProject.deliverables;
+                          }
+                        }
+                        return '';
+                      })()}
                     </p>
                   </div>
                 </section>
