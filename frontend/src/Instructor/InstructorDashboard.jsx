@@ -16,6 +16,7 @@ import CreateGroupForm from "./CreateGroupForm";
 import EvaluationsView from "./EvaluationsView";
 import ScheduleEvaluationForm from "./ScheduleEvaluationForm";
 import ProfileSettingsView from "./ProfileSettingsView";
+import CourseSettingsView from "./CourseSettingsView";
 
 const NAVBAR_HEIGHT = 64;
 const DRAWER_WIDTH = 280;
@@ -52,6 +53,7 @@ export default function InstructorDashboard() {
     if (path.includes("/groups")) return "groups";
     if (path.includes("/schedule-evaluation")) return "schedule-evaluation";
     if (path.includes("/evaluations")) return "evaluations";
+    if (path.includes("/settings")) return "settings";
     if (path.includes("/profile")) return "profile";
     return "dashboard";
   };
@@ -95,8 +97,14 @@ export default function InstructorDashboard() {
       case "schedule-evaluation":
         navigate(`${basePath}/schedule-evaluation`);
         break;
+      case "settings":
+        navigate(`${basePath}/settings`);
+        break;
       case "profile":
         navigate(`${basePath}/profile`);
+        break;
+      case "logout":
+        handleLogout();
         break;
       case "dashboard":
       default:
@@ -161,12 +169,12 @@ export default function InstructorDashboard() {
         }}
       >
         <main className="mx-auto max-w-7xl pb-8">
-          {/* Existing sections - now with instructorId prop */}
+          {/* Existing sections */}
           {active === "dashboard" && <InstructorDashboardView instructorId={instructorId} />}
           {active === "approval" && <ProjectApprovalView instructorId={instructorId} />}
           {active === "groups" && <AssignGroupsView instructorId={instructorId} />}
 
-          {/* New sections - now with instructorId prop */}
+          {/* New sections */}
           {active === "students" && <StudentsView instructorId={instructorId} />}
           {active === "add-student" && <AddStudentForm instructorId={instructorId} />}
           {active === "projects" && <ProjectsView instructorId={instructorId} />}
@@ -177,6 +185,7 @@ export default function InstructorDashboard() {
           {active === "create-group" && <CreateGroupForm instructorId={instructorId} />}
           {active === "evaluations" && <EvaluationsView instructorId={instructorId} />}
           {active === "schedule-evaluation" && <ScheduleEvaluationForm instructorId={instructorId} />}
+          {active === "settings" && <CourseSettingsView />}
           {active === "profile" && <ProfileSettingsView instructorId={instructorId} />}
         </main>
       </div>

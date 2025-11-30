@@ -3,15 +3,17 @@ import { apiCall } from "../utils/apiHelper";
 
 /**
  * Custom hook to fetch and manage student project preferences
- * Handles loading state, errors, and data normalization
+ * Handles loading state, errors, data normalization, and deadline info
  *
  * @param {number} studentId - The numeric student ID
- * @returns {object} { preferences, setPreferences, loading, error, submitPreferences }
+ * @returns {object} { preferences, setPreferences, loading, error, submitPreferences, lastUpdated, deadline }
  */
 export const useStudentPreferences = (studentId) => {
   const [preferences, setPreferences] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [lastUpdated, setLastUpdated] = useState(null);
+  const [deadline, setDeadline] = useState(null);
 
   // Fetch preferences on mount or when studentId changes
   useEffect(() => {
@@ -34,13 +36,21 @@ export const useStudentPreferences = (studentId) => {
 
         console.log("useStudentPreferences: Preferences data received:", data);
 
-        // Handle response format { success: true, data: [...] }
+        // Handle response format { success: true, data: [...], lastUpdated, deadline }
         if (Array.isArray(data)) {
           // Direct array response
           setPreferences(data);
         } else if (data && data.data && Array.isArray(data.data)) {
           // { success: true, data: [...] } format
           setPreferences(data.data);
+          
+          // Extract lastUpdated and deadline if present
+          if (data.lastUpdated) {
+            setLastUpdated(data.lastUpdated);
+          }
+          if (data.deadline) {
+            setDeadline(data.deadline);
+          }
         } else if (data && Array.isArray(data.preferences)) {
           // { preferences: [...] } format
           setPreferences(data.preferences);
@@ -89,12 +99,20 @@ export const useStudentPreferences = (studentId) => {
         { method: "GET" }
       );
 
-      // Handle response format { success: true, data: [...] }
+      // Handle response format { success: true, data: [...], lastUpdated, deadline }
       if (Array.isArray(updatedData)) {
         setPreferences(updatedData);
       } else if (updatedData && updatedData.data && Array.isArray(updatedData.data)) {
         // { success: true, data: [...] } format
         setPreferences(updatedData.data);
+        
+        // Update lastUpdated and deadline if present
+        if (updatedData.lastUpdated) {
+          setLastUpdated(updatedData.lastUpdated);
+        }
+        if (updatedData.deadline) {
+          setDeadline(updatedData.deadline);
+        }
       } else if (updatedData && Array.isArray(updatedData.preferences)) {
         // { preferences: [...] } format
         setPreferences(updatedData.preferences);
@@ -117,5 +135,7 @@ export const useStudentPreferences = (studentId) => {
     loading,
     error,
     submitPreferences,
+    lastUpdated,
+    deadline,
   };
 };

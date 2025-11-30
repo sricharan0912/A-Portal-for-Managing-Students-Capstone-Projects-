@@ -34,12 +34,14 @@ export default function StudentDashboard() {
   const { projects, loading: projectsLoading, error: projectsError } =
     useStudentProjects();
 
-  // Fetch and manage preferences using custom hook
+  // Fetch and manage preferences using custom hook (includes deadline)
   const {
     preferences,
     loading: preferencesLoading,
     error: preferencesError,
     submitPreferences,
+    lastUpdated: preferencesLastUpdated,
+    deadline: preferencesDeadline,
   } = useStudentPreferences(studentId);
 
   // Fetch assigned group
@@ -256,7 +258,7 @@ export default function StudentDashboard() {
             />
           )}
 
-          {/* Preferences View */}
+          {/* Preferences View - with deadline and lastUpdated */}
           {active === "preferences" && (
             <PreferencesView
               projects={projects}
@@ -265,6 +267,8 @@ export default function StudentDashboard() {
               onSelectProject={handleSelectProject}
               onSubmitPreferences={handleSubmitPreferences}
               loading={submittingPreferences}
+              deadline={preferencesDeadline}
+              lastUpdated={preferencesLastUpdated}
             />
           )}
 

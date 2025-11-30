@@ -18,12 +18,10 @@ const generateJWT = (uid, email, role, instructorId) => {
 // ==================== AUTHENTICATION ====================
 
 // Instructor Signup with Firebase
-// IMPORTANT: Frontend creates Firebase user first, backend only verifies token
 router.post("/signup", validateInstructorSignup, async (req, res) => {
   try {
     const { email, first_name, last_name, idToken } = req.body;
 
-    // Check if email already exists in database
     const [existing] = await db.query(
       "SELECT id FROM users WHERE email = ?",
       [email]
@@ -36,7 +34,6 @@ router.post("/signup", validateInstructorSignup, async (req, res) => {
       });
     }
 
-    // Verify the Firebase ID token that frontend sent
     let decodedToken;
     try {
       decodedToken = await auth.verifyIdToken(idToken);
@@ -49,19 +46,15 @@ router.post("/signup", validateInstructorSignup, async (req, res) => {
     }
 
     const uid = decodedToken.uid;
-
     const connection = await db.getConnection();
 
     try {
-      // âœ… NEW SCHEMA: Insert into users table
       const [userResult] = await connection.query(
         "INSERT INTO users (email, firebase_uid, role, email_verified, status) VALUES (?, ?, 'instructor', 1, 'active')",
         [email, uid]
       );
 
       const userId = userResult.insertId;
-
-      // âœ… NEW SCHEMA: Insert into user_profiles table
       const fullName = `${first_name} ${last_name}`.trim();
       await connection.query(
         `INSERT INTO user_profiles 
@@ -72,16 +65,14 @@ router.post("/signup", validateInstructorSignup, async (req, res) => {
 
       connection.release();
 
-      // Generate JWT token
       const token = generateJWT(uid, email, "instructor", userId);
 
-      // âœ… BACKWARDS COMPATIBLE RESPONSE
       res.status(201).json({
         success: true,
         message: "Instructor registered successfully",
         token,
         instructor: {
-          id: userId,          // Numeric ID
+          id: userId,
           first_name,
           last_name,
           email,
@@ -94,7 +85,6 @@ router.post("/signup", validateInstructorSignup, async (req, res) => {
   } catch (err) {
     console.error("Signup error:", err);
 
-    // Handle database duplicate entry error
     if (err.code === "ER_DUP_ENTRY") {
       return res.status(400).json({
         success: false,
@@ -114,7 +104,6 @@ router.post("/login", validateInstructorLogin, async (req, res) => {
   try {
     const { email, idToken } = req.body;
 
-    // Verify Firebase ID token
     let decodedToken;
     try {
       decodedToken = await auth.verifyIdToken(idToken);
@@ -128,7 +117,6 @@ router.post("/login", validateInstructorLogin, async (req, res) => {
 
     const uid = decodedToken.uid;
 
-    // âœ… NEW SCHEMA: Query users + user_profiles
     const [instructors] = await db.query(
       `SELECT u.id, u.email, u.role,
               p.first_name, p.last_name, p.full_name, p.department
@@ -148,16 +136,13 @@ router.post("/login", validateInstructorLogin, async (req, res) => {
     const instructor = instructors[0];
     const instructorId = instructor.id;
 
-    // Update last_login_at
     await db.query(
       "UPDATE users SET last_login_at = NOW() WHERE id = ?",
       [instructorId]
     );
 
-    // Generate JWT token
     const token = generateJWT(uid, email, "instructor", instructorId);
 
-    // âœ… BACKWARDS COMPATIBLE RESPONSE
     res.json({
       success: true,
       message: "Login successful",
@@ -172,10 +157,129 @@ router.post("/login", validateInstructorLogin, async (req, res) => {
     });
   } catch (err) {
     console.error("Login error:", err);
-
     res.status(401).json({
       success: false,
       error: "Authentication failed",
+    });
+  }
+});
+
+// ==================== SETTINGS ====================
+
+// Get all settings (PROTECTED - instructors only)
+router.get("/settings/all", verifyToken, async (req, res) => {
+  try {
+    if (req.user.role !== "instructor" && req.user.role !== "admin") {
+      return res.status(403).json({
+        success: false,
+        error: "Unauthorized access",
+      });
+    }
+
+    const [settings] = await db.query(
+      `SELECT setting_key, setting_value, description, updated_at 
+       FROM app_settings`
+    );
+
+    const settingsObj = {};
+    settings.forEach(s => {
+      settingsObj[s.setting_key] = {
+        value: s.setting_value,
+        description: s.description,
+        updated_at: s.updated_at,
+      };
+    });
+
+    res.json({
+      success: true,
+      data: settingsObj,
+    });
+  } catch (err) {
+    console.error("Error fetching settings:", err);
+    res.status(500).json({
+      success: false,
+      error: "Failed to fetch settings",
+    });
+  }
+});
+
+// Get preference deadline (PUBLIC - students need this)
+router.get("/settings/preference-deadline", async (req, res) => {
+  try {
+    const [settings] = await db.query(
+      `SELECT setting_value FROM app_settings WHERE setting_key = 'preference_deadline'`
+    );
+
+    res.json({
+      success: true,
+      data: {
+        deadline: settings.length > 0 ? settings[0].setting_value : null,
+      },
+    });
+  } catch (err) {
+    console.error("Error fetching deadline:", err);
+    res.status(500).json({
+      success: false,
+      error: "Failed to fetch deadline",
+    });
+  }
+});
+
+// Update a setting (PROTECTED - instructors only)
+router.put("/settings/:key", verifyToken, async (req, res) => {
+  try {
+    const { key } = req.params;
+    const { value } = req.body;
+
+    if (req.user.role !== "instructor" && req.user.role !== "admin") {
+      return res.status(403).json({
+        success: false,
+        error: "Unauthorized access",
+      });
+    }
+
+    const allowedSettings = ["preference_deadline"];
+    if (!allowedSettings.includes(key)) {
+      return res.status(400).json({
+        success: false,
+        error: "Invalid setting key",
+      });
+    }
+
+    if (key === "preference_deadline" && value) {
+      const date = new Date(value);
+      if (isNaN(date.getTime())) {
+        return res.status(400).json({
+          success: false,
+          error: "Invalid date format",
+        });
+      }
+    }
+
+    const [result] = await db.query(
+      `UPDATE app_settings 
+       SET setting_value = ?, updated_by = ?
+       WHERE setting_key = ?`,
+      [value || null, req.user.instructorId, key]
+    );
+
+    if (result.affectedRows === 0) {
+      await db.query(
+        `INSERT INTO app_settings (setting_key, setting_value, updated_by) 
+         VALUES (?, ?, ?)`,
+        [key, value || null, req.user.instructorId]
+      );
+    }
+
+    res.json({
+      success: true,
+      message: "Setting updated successfully",
+    });
+  } catch (err) {
+    console.error("Error updating setting:", err);
+    res.status(500).json({
+      success: false,
+      error: "Failed to update setting",
     });
   }
 });
@@ -194,7 +298,6 @@ router.get("/:instructor_id", verifyToken, async (req, res) => {
       });
     }
 
-    // Authorization check - instructor can only access their own profile or admin
     if (parseInt(instructor_id) !== req.user.instructorId && req.user.role !== "admin") {
       return res.status(403).json({
         success: false,
@@ -202,7 +305,6 @@ router.get("/:instructor_id", verifyToken, async (req, res) => {
       });
     }
 
-    // âœ… NEW SCHEMA: Query users + user_profiles
     const [instructors] = await db.query(
       `SELECT u.id, u.email, u.created_at,
               p.first_name, p.last_name, p.full_name, p.department
@@ -254,7 +356,6 @@ router.put("/:instructor_id", verifyToken, async (req, res) => {
       });
     }
 
-    // Authorization check
     if (parseInt(instructor_id) !== req.user.instructorId && req.user.role !== "admin") {
       return res.status(403).json({
         success: false,
@@ -262,7 +363,6 @@ router.put("/:instructor_id", verifyToken, async (req, res) => {
       });
     }
 
-    // Validation
     if (!first_name || !last_name || !email) {
       return res.status(400).json({
         success: false,
@@ -270,7 +370,6 @@ router.put("/:instructor_id", verifyToken, async (req, res) => {
       });
     }
 
-    // Check if email already exists (excluding current instructor)
     const [existingEmail] = await db.query(
       "SELECT id FROM users WHERE email = ? AND id != ? AND deleted_at IS NULL",
       [email, parseInt(instructor_id)]
@@ -286,13 +385,11 @@ router.put("/:instructor_id", verifyToken, async (req, res) => {
     const connection = await db.getConnection();
 
     try {
-      // âœ… NEW SCHEMA: Update users table
       await connection.query(
         "UPDATE users SET email = ? WHERE id = ?",
         [email, parseInt(instructor_id)]
       );
 
-      // âœ… NEW SCHEMA: Update user_profiles table
       const fullName = `${first_name} ${last_name}`.trim();
       const [result] = await connection.query(
         "UPDATE user_profiles SET first_name = ?, last_name = ?, full_name = ?, department = ? WHERE user_id = ?",
@@ -337,7 +434,6 @@ router.delete("/:instructor_id", verifyToken, async (req, res) => {
       });
     }
 
-    // Authorization check
     if (parseInt(instructor_id) !== req.user.instructorId && req.user.role !== "admin") {
       return res.status(403).json({
         success: false,
@@ -345,7 +441,6 @@ router.delete("/:instructor_id", verifyToken, async (req, res) => {
       });
     }
 
-    // âœ… NEW SCHEMA: Soft delete using deleted_at
     const [result] = await db.query(
       "UPDATE users SET deleted_at = NOW(), status = 'inactive' WHERE id = ? AND role = 'instructor'",
       [parseInt(instructor_id)]
@@ -385,7 +480,6 @@ router.get("/:instructor_id/stats", verifyToken, async (req, res) => {
       });
     }
 
-    // Authorization check
     if (parseInt(instructor_id) !== req.user.instructorId && req.user.role !== "admin") {
       return res.status(403).json({
         success: false,
@@ -393,14 +487,12 @@ router.get("/:instructor_id/stats", verifyToken, async (req, res) => {
       });
     }
 
-    // âœ… NEW SCHEMA: Get student statistics (count users with role='student')
     const [studentStats] = await db.query(
       `SELECT COUNT(*) as total_students 
        FROM users 
        WHERE role = 'student' AND deleted_at IS NULL`
     );
 
-    // Get project statistics based on approval_status
     const [projectStats] = await db.query(
       `SELECT 
         COUNT(*) as total_projects,
@@ -410,7 +502,6 @@ router.get("/:instructor_id/stats", verifyToken, async (req, res) => {
        FROM projects`
     );
 
-    // Get group statistics
     const [groupStats] = await db.query(
       `SELECT COUNT(DISTINCT id) as total_groups FROM student_groups`
     );
@@ -444,7 +535,6 @@ router.get("/projects/:id", async (req, res) => {
   try {
     const { id } = req.params;
 
-    // âœ… NEW SCHEMA: Query projects with client info from users + user_profiles
     const [projects] = await db.query(
       `SELECT 
          p.id,
