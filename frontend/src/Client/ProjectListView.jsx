@@ -1,5 +1,4 @@
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
 import ProjectCard from "../components/ui/ProjectCard";
 import { apiCall } from "../utils/apiHelper";
 
@@ -9,57 +8,51 @@ export default function ProjectListView({
   projects = [],
   setProjects,
   loading = false,
-  onShowForm,      // (project: object) => void - for editing
+  onShowForm,      // (project?: object) => void
   onRefresh,       // optional: () => Promise<void> | void
 }) {
-  const navigate = useNavigate();
   const [deletingId, setDeletingId] = useState(null);
 
   const handleDeleteProject = async (projectId) => {
     if (!window.confirm("Are you sure you want to delete this project?")) return;
 
-    console.log("🗑️ Deleting project:", projectId);
+    console.log("ðŸ—‘ï¸ Deleting project:", projectId);
     
     try {
       setDeletingId(projectId);
       const response = await apiCall(`${API_BASE_URL}/projects/${projectId}`, { method: "DELETE" });
 
-      console.log("✅ Project deleted successfully:", response);
+      console.log("âœ… Project deleted successfully:", response);
 
       // If parent provides a refetch, prefer that (single source of truth)
       if (typeof onRefresh === "function") {
-        console.log("🔄 Calling onRefresh to update UI...");
+        console.log("ðŸ”„ Calling onRefresh to update UI...");
         await onRefresh();
-        console.log("✅ UI refreshed");
+        console.log("âœ… UI refreshed");
       } else {
-        console.log("📝 Updating local state (fallback)...");
+        console.log("ðŸ“ Updating local state (fallback)...");
         // Fallback: update local list
         setProjects((prev) => prev.filter((p) => p.id !== projectId));
       }
     } catch (err) {
-      console.error("❌ Error deleting project:", err);
+      console.error("âŒ Error deleting project:", err);
       alert(`Error deleting project: ${err?.message || "Unknown error"}`);
     } finally {
       setDeletingId(null);
     }
   };
 
-  // ✅ Edit project - use callback from parent (which navigates to edit URL)
   const handleEditProject = (project) => {
     onShowForm?.(project);
   };
 
-  // ✅ Create new project - navigate to /new URL
-  const handleCreateProject = () => {
-    navigate("/client-dashboard/projects/new");
-  };
-
+  // ✅ Filter by approval_status (not status)
   const approvedProjects = projects.filter(
-    (p) => p.status === "approved" || p.status === "closed"
+    (p) => p.approval_status === "approved"
   );
-  const rejectedProjects = projects.filter((p) => p.status === "rejected");
+  const rejectedProjects = projects.filter((p) => p.approval_status === "rejected");
   const pendingProjects = projects.filter(
-    (p) => p.status === "open" || !p.status || p.status === "pending"
+    (p) => p.approval_status === "pending" || !p.approval_status
   );
 
   return (
@@ -89,7 +82,7 @@ export default function ProjectListView({
         </div>
 
         <button
-          onClick={handleCreateProject}
+          onClick={() => onShowForm?.(null)}
           className="flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white shadow-md transition hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
         >
           <svg

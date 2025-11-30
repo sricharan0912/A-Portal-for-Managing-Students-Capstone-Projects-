@@ -8,6 +8,20 @@ import QuickStats from "../components/ui/QuickStats";
  * @param {function} onNavigate - Function to navigate to other sections
  */
 export default function DashboardView({ projects = [], onNavigate }) {
+  // Helper function to get status display info
+  const getStatusInfo = (project) => {
+    const status = project.approval_status || "pending";
+    switch (status) {
+      case "approved":
+        return { label: "Approved", bgColor: "bg-green-100", textColor: "text-green-700" };
+      case "rejected":
+        return { label: "Rejected", bgColor: "bg-red-100", textColor: "text-red-700" };
+      case "pending":
+      default:
+        return { label: "Pending", bgColor: "bg-yellow-100", textColor: "text-yellow-700" };
+    }
+  };
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -70,44 +84,40 @@ export default function DashboardView({ projects = [], onNavigate }) {
             Recent Projects
           </h3>
           <div className="space-y-3">
-            {projects.slice(0, 3).map((project) => (
-              <div
-                key={project.id}
-                className="flex items-start justify-between rounded-lg border border-slate-100 p-4 hover:bg-slate-50 transition"
-              >
-                <div className="flex-1 min-w-0">
-                  <h4 className="font-semibold text-slate-800 truncate">
-                    {project.title}
-                  </h4>
-                  <p className="text-sm text-slate-600 line-clamp-1 mt-1">
-                    {project.description}
-                  </p>
-                  <div className="flex gap-2 mt-2 flex-wrap">
-                    <span className="inline-block text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded">
-                      {project.category || "Uncategorized"}
-                    </span>
-                    <span
-                      className={`inline-block text-xs px-2 py-1 rounded font-medium ${
-                        project.status === "open"
-                          ? "bg-yellow-100 text-yellow-700"
-                          : project.status === "approved" ||
-                            project.status === "closed"
-                          ? "bg-green-100 text-green-700"
-                          : "bg-red-100 text-red-700"
-                      }`}
-                    >
-                      {project.status || "open"}
-                    </span>
-                  </div>
-                </div>
-                <button
-                  onClick={() => onNavigate("projects")}
-                  className="ml-4 text-blue-600 hover:text-blue-700 font-medium text-sm whitespace-nowrap"
+            {projects.slice(0, 3).map((project) => {
+              const statusInfo = getStatusInfo(project);
+              return (
+                <div
+                  key={project.id}
+                  className="flex items-start justify-between rounded-lg border border-slate-100 p-4 hover:bg-slate-50 transition"
                 >
-                  Manage
-                </button>
-              </div>
-            ))}
+                  <div className="flex-1 min-w-0">
+                    <h4 className="font-semibold text-slate-800 truncate">
+                      {project.title}
+                    </h4>
+                    <p className="text-sm text-slate-600 line-clamp-1 mt-1">
+                      {project.description}
+                    </p>
+                    <div className="flex gap-2 mt-2 flex-wrap">
+                      <span className="inline-block text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded">
+                        {project.category || "Uncategorized"}
+                      </span>
+                      <span
+                        className={`inline-block text-xs px-2 py-1 rounded font-medium ${statusInfo.bgColor} ${statusInfo.textColor}`}
+                      >
+                        {statusInfo.label}
+                      </span>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => onNavigate("projects")}
+                    className="ml-4 text-blue-600 hover:text-blue-700 font-medium text-sm whitespace-nowrap"
+                  >
+                    Manage
+                  </button>
+                </div>
+              );
+            })}
           </div>
         </section>
       )}
