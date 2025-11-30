@@ -5,13 +5,13 @@
  * @param {array} projects - Array of project objects
  */
 export default function QuickStats({ projects = [] }) {
-  // Calculate statistics
+  // Calculate statistics using approval_status
   const totalProjects = projects.length;
-  const activeAndCompleted = projects.filter(
-    (p) => p.status === "approved" || p.status === "closed"
+  const approvedProjects = projects.filter(
+    (p) => p.approval_status === "approved"
   ).length;
   const pendingProjects = projects.filter(
-    (p) => p.status === "open" || !p.status
+    (p) => p.approval_status === "pending" || !p.approval_status
   ).length;
 
   const stats = [
@@ -38,9 +38,9 @@ export default function QuickStats({ projects = [] }) {
       ),
     },
     {
-      id: "active",
-      label: "Active & Completed",
-      value: activeAndCompleted,
+      id: "approved",
+      label: "Approved",
+      value: approvedProjects,
       bgColor: "bg-green-100",
       iconColor: "text-green-600",
       icon: (
@@ -61,7 +61,7 @@ export default function QuickStats({ projects = [] }) {
     },
     {
       id: "pending",
-      label: "Pending Proposals",
+      label: "Pending Approval",
       value: pendingProjects,
       bgColor: "bg-yellow-100",
       iconColor: "text-yellow-600",

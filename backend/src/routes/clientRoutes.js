@@ -62,7 +62,7 @@ router.post("/signup", validateClientSignup, async (req, res) => {
     const connection = await db.getConnection();
 
     try {
-      // ✅ NEW SCHEMA: Insert into users table
+      // âœ… NEW SCHEMA: Insert into users table
       const [userResult] = await connection.query(
         "INSERT INTO users (email, firebase_uid, role, email_verified, status) VALUES (?, ?, 'client', 1, 'active')",
         [email, uid]
@@ -70,7 +70,7 @@ router.post("/signup", validateClientSignup, async (req, res) => {
 
       const userId = userResult.insertId;
 
-      // ✅ NEW SCHEMA: Insert into user_profiles table
+      // âœ… NEW SCHEMA: Insert into user_profiles table
       await connection.query(
         `INSERT INTO user_profiles 
          (user_id, first_name, last_name, full_name, organization_name, website) 
@@ -83,7 +83,7 @@ router.post("/signup", validateClientSignup, async (req, res) => {
       // Generate JWT token
       const token = generateJWT(uid, email, "client", userId);
 
-      // ✅ BACKWARDS COMPATIBLE RESPONSE
+      // âœ… BACKWARDS COMPATIBLE RESPONSE
       res.status(201).json({
         success: true,
         message: "Client registered successfully",
@@ -137,7 +137,7 @@ router.post("/login", validateClientLogin, async (req, res) => {
 
     const uid = decodedToken.uid;
 
-    // ✅ NEW SCHEMA: Query users + user_profiles
+    // âœ… NEW SCHEMA: Query users + user_profiles
     const [users] = await db.query(
       `SELECT u.id, u.email, u.role, 
               p.first_name, p.last_name, p.full_name, p.organization_name
@@ -166,7 +166,7 @@ router.post("/login", validateClientLogin, async (req, res) => {
     // Generate JWT token
     const token = generateJWT(uid, email, "client", clientId);
 
-    // ✅ BACKWARDS COMPATIBLE RESPONSE
+    // âœ… BACKWARDS COMPATIBLE RESPONSE
     res.json({
       success: true,
       message: "Login successful",
@@ -212,7 +212,7 @@ router.get("/:client_id", verifyToken, async (req, res) => {
       });
     }
 
-    // ✅ NEW SCHEMA: Query users + user_profiles
+    // âœ… NEW SCHEMA: Query users + user_profiles
     const [clients] = await db.query(
       `SELECT u.id, u.email, u.created_at,
               p.first_name, p.last_name, p.full_name, 
@@ -301,7 +301,7 @@ router.put("/:client_id", verifyToken, async (req, res) => {
       });
     }
 
-    // ✅ NEW SCHEMA: Update user_profiles table
+    // âœ… NEW SCHEMA: Update user_profiles table
     const [result] = await db.query(
       `UPDATE user_profiles 
        SET first_name = ?, last_name = ?, full_name = ?, 
@@ -353,7 +353,7 @@ router.delete("/:client_id", verifyToken, async (req, res) => {
     const connection = await db.getConnection();
 
     try {
-      // ✅ NEW SCHEMA: Soft delete using deleted_at
+      // âœ… NEW SCHEMA: Soft delete using deleted_at
       const [result] = await connection.query(
         "UPDATE users SET deleted_at = NOW(), status = 'inactive' WHERE id = ? AND role = 'client'",
         [parseInt(client_id)]
@@ -424,10 +424,12 @@ router.get("/:client_id/projects", verifyToken, async (req, res) => {
          location as project_location,
          industry_category as industry,
          status,
-         posted_date as created_at
+         approval_status,
+         instructor_feedback,
+         created_at
        FROM projects 
        WHERE owner_id = ? 
-       ORDER BY posted_date DESC`,
+       ORDER BY created_at DESC`,
       [parseInt(client_id)]
     );
 
@@ -467,9 +469,9 @@ router.get("/:client_id/stats", verifyToken, async (req, res) => {
     const [stats] = await db.query(
       `SELECT 
         COUNT(*) as total_projects,
-        SUM(CASE WHEN status = 'open' THEN 1 ELSE 0 END) as open_projects,
-        SUM(CASE WHEN status = 'approved' THEN 1 ELSE 0 END) as approved_projects,
-        SUM(CASE WHEN status = 'closed' THEN 1 ELSE 0 END) as closed_projects
+        SUM(CASE WHEN approval_status = 'pending' THEN 1 ELSE 0 END) as pending_projects,
+        SUM(CASE WHEN approval_status = 'approved' THEN 1 ELSE 0 END) as approved_projects,
+        SUM(CASE WHEN approval_status = 'rejected' THEN 1 ELSE 0 END) as rejected_projects
        FROM projects 
        WHERE owner_id = ?`,
       [parseInt(client_id)]
@@ -489,9 +491,9 @@ router.get("/:client_id/stats", verifyToken, async (req, res) => {
       data: {
         projects: stats[0] || {
           total_projects: 0,
-          open_projects: 0,
+          pending_projects: 0,
           approved_projects: 0,
-          closed_projects: 0,
+          rejected_projects: 0,
         },
         preferences: prefStats[0] || {
           interested_students: 0,
