@@ -1,7 +1,7 @@
 import express from "express";
 import db from "../../db.js";
 import { verifyToken, verifyRole } from "../middleware/authMiddleware.js";
-console.log("✅ projectRoutes.js is loading");
+console.log("âœ… projectRoutes.js is loading");
 const router = express.Router();
 
 // ==================== PROJECT LISTING ====================
@@ -33,7 +33,7 @@ router.get("/", async (req, res) => {
     // Build query based on user role
     let query;
     if (userRole === "instructor" || userRole === "admin") {
-      // Instructors and admins see ALL projects
+      // Instructors and admins see ALL projects with approval status
       query = `SELECT 
          id, 
          owner_id as client_id,
@@ -50,7 +50,7 @@ router.get("/", async (req, res) => {
          industry_category as industry, 
          status,
          approval_status,
-         feedback,
+         instructor_feedback,
          created_at
        FROM projects 
        ORDER BY created_at DESC`;
@@ -129,6 +129,8 @@ router.get("/client/:client_id", verifyToken, async (req, res) => {
          location as project_location, 
          industry_category as industry, 
          status, 
+         approval_status,
+         instructor_feedback,
          created_at
        FROM projects 
        WHERE owner_id = ?
@@ -325,8 +327,8 @@ router.get("/search", async (req, res) => {
          status, 
          created_at
        FROM projects 
-       WHERE status = 'open' 
-         AND (title LIKE ? OR description LIKE ? OR required_skills LIKE ?)
+       WHERE (title LIKE ? OR description LIKE ? OR required_skills LIKE ?) 
+             AND status = 'open'
        ORDER BY created_at DESC`,
       [searchTerm, searchTerm, searchTerm]
     );
@@ -344,15 +346,15 @@ router.get("/search", async (req, res) => {
   }
 });
 
-// ==================== PROJECT CREATE (CLIENT ONLY) ====================
+// ==================== PROJECT CREATION (CLIENT ONLY) ====================
 
 // Create new project (PROTECTED - client only)
 router.post("/", verifyToken, async (req, res) => {
   try {
-    const {
-      title, description, skills_required, category, team_size,
-      start_date, end_date, complexity_level, deliverables,
-      project_location, industry, status
+    const { 
+      title, description, skills_required, category, team_size, 
+      start_date, end_date, complexity_level, deliverables, 
+      project_location, industry, client_id 
     } = req.body;
 
     // Check if user is a client
@@ -363,31 +365,47 @@ router.post("/", verifyToken, async (req, res) => {
       });
     }
 
-    // Validate required fields
-    if (!title || !description) {
+    // Validation
+    if (!title || !description || !skills_required) {
       return res.status(400).json({
         success: false,
-        error: "Title and description are required",
+        error: "Title, description, and skills_required are required",
       });
     }
 
-    // ✅ Convert skills_required to JSON if provided
-    let skillsJson = null;
-    if (skills_required) {
-      if (typeof skills_required === 'string') {
-        const skillsArray = skills_required.split(',').map(s => s.trim()).filter(s => s);
-        skillsJson = JSON.stringify(skillsArray);
-      } else if (Array.isArray(skills_required)) {
-        skillsJson = JSON.stringify(skills_required);
-      } else {
-        skillsJson = JSON.stringify([skills_required]);
-      }
+    // Use client_id from request body or from token
+    const finalClientId = client_id || req.user.clientId;
+
+    // Verify client exists in users table
+    const [clientCheck] = await db.query(
+      "SELECT id FROM users WHERE id = ? AND role = 'client' AND deleted_at IS NULL",
+      [finalClientId]
+    );
+
+    if (clientCheck.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: "Client not found",
+      });
     }
 
-    // ✅ Convert deliverables to JSON if provided
+    // âœ… CONVERT SKILLS_REQUIRED TO JSON ARRAY
+    let skillsJson;
+    if (typeof skills_required === 'string') {
+      // Split by commas if it's a comma-separated string
+      const skillsArray = skills_required.split(',').map(s => s.trim()).filter(s => s);
+      skillsJson = JSON.stringify(skillsArray);
+    } else if (Array.isArray(skills_required)) {
+      skillsJson = JSON.stringify(skills_required);
+    } else {
+      skillsJson = JSON.stringify([skills_required]);
+    }
+
+    // âœ… CONVERT DELIVERABLES TO JSON ARRAY
     let deliverablesJson = null;
     if (deliverables) {
       if (typeof deliverables === 'string') {
+        // Split by commas or newlines
         const deliverablesArray = deliverables.split(/[,\n]/).map(d => d.trim()).filter(d => d);
         deliverablesJson = JSON.stringify(deliverablesArray);
       } else if (Array.isArray(deliverables)) {
@@ -397,26 +415,34 @@ router.post("/", verifyToken, async (req, res) => {
       }
     }
 
+    // âœ… GENERATE SLUG FROM TITLE (required unique field)
+    const slug = title
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '')
+      + '-' + Date.now();
+
+    // âœ… NEW SCHEMA: Insert with JSON values and slug
     const [result] = await db.query(
-      `INSERT INTO projects (
-        owner_id, title, description, required_skills, category,
-        max_team_size, start_date, end_date, difficulty_level,
-        deliverables, location, industry_category, status
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO projects 
+       (owner_id, title, slug, description, required_skills, category, 
+        max_team_size, start_date, end_date, difficulty_level, 
+        deliverables, location, industry_category, status) 
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'open')`,
       [
-        req.user.clientId,
+        finalClientId,
         title,
+        slug,                         // âœ… Added slug (required)
         description,
-        skillsJson,
+        skillsJson,                   // âœ… JSON string
         category || null,
         team_size || null,
         start_date || null,
         end_date || null,
-        complexity_level || null,
-        deliverablesJson,
+        complexity_level || 'intermediate',  // âœ… Default value
+        deliverablesJson,             // âœ… JSON string or null
         project_location || null,
         industry || null,
-        status || "open"
       ]
     );
 
@@ -427,32 +453,22 @@ router.post("/", verifyToken, async (req, res) => {
         id: result.insertId,
         title,
         description,
-        skills_required,
-        category,
-        team_size,
-        start_date,
-        end_date,
-        complexity_level,
-        deliverables,
-        project_location,
-        industry,
-        status: status || "open",
-        client_id: req.user.clientId,
-        created_at: new Date().toISOString()
-      }
+        slug,
+      },
     });
   } catch (err) {
-    console.error("Error creating project:", err);
+    console.error("âŒ Error creating project:", err);
     res.status(500).json({
       success: false,
       error: "Failed to create project",
+      details: process.env.NODE_ENV === "development" ? err.message : undefined,
     });
   }
 });
 
-// ==================== PROJECT UPDATE (CLIENT OR INSTRUCTOR) ====================
+// ==================== PROJECT UPDATE (CLIENT ONLY) ====================
 
-// Update project (PROTECTED - client can update own projects, instructor can update status)
+// Update project (PROTECTED - client only, must own project)
 router.put("/:project_id", verifyToken, async (req, res) => {
   try {
     const { project_id } = req.params;
@@ -462,17 +478,15 @@ router.put("/:project_id", verifyToken, async (req, res) => {
       project_location, industry, status, feedback
     } = req.body;
 
-    const userRole = req.user.role;
-
-    // ✅ Allow both clients and instructors
-    if (userRole !== "client" && userRole !== "instructor") {
+    // Check if user is a client
+    if (req.user.role !== "client") {
       return res.status(403).json({
         success: false,
-        error: "Only clients and instructors can update projects",
+        error: "Only clients can update projects",
       });
     }
 
-    // Verify project exists
+    // Verify project exists and belongs to this client
     const [projectCheck] = await db.query(
       "SELECT owner_id FROM projects WHERE id = ?",
       [project_id]
@@ -485,89 +499,61 @@ router.put("/:project_id", verifyToken, async (req, res) => {
       });
     }
 
-    // ✅ Authorization logic based on role
-    if (userRole === "client") {
-      // Clients can only update their own projects
-      if (projectCheck[0].owner_id !== req.user.clientId) {
-        return res.status(403).json({
-          success: false,
-          error: "You can only update your own projects",
-        });
-      }
+    if (projectCheck[0].owner_id !== req.user.clientId) {
+      return res.status(403).json({
+        success: false,
+        error: "You can only update your own projects",
+      });
     }
-    // Instructors can update any project (for approve/reject)
 
     // Build dynamic update query
     const updates = [];
     const values = [];
 
-    // ✅ For instructors, only allow approval_status updates (and feedback if provided)
-    if (userRole === "instructor") {
-      if (status !== undefined) {
-        // Validate status for instructor (only pending/approved/rejected)
-        const validStatuses = ["pending", "approved", "rejected"];
-        if (!validStatuses.includes(status)) {
-          return res.status(400).json({
-            success: false,
-            error: "Invalid status. Must be: pending, approved, or rejected",
-          });
-        }
-        // Use approval_status column, not status
-        updates.push("approval_status = ?");
-        values.push(status);
+    if (title !== undefined) { updates.push("title = ?"); values.push(title); }
+    if (description !== undefined) { updates.push("description = ?"); values.push(description); }
+    
+    // âœ… Convert skills_required to JSON if provided
+    if (skills_required !== undefined) {
+      let skillsJson;
+      if (typeof skills_required === 'string') {
+        const skillsArray = skills_required.split(',').map(s => s.trim()).filter(s => s);
+        skillsJson = JSON.stringify(skillsArray);
+      } else if (Array.isArray(skills_required)) {
+        skillsJson = JSON.stringify(skills_required);
+      } else {
+        skillsJson = JSON.stringify([skills_required]);
       }
-      // Only update feedback if it's a non-empty string
-      if (feedback !== undefined && feedback !== null && feedback.trim() !== "") {
-        updates.push("feedback = ?");
-        values.push(feedback.trim());
-      }
-    } else {
-      // Clients can update all fields
-      if (title !== undefined) { updates.push("title = ?"); values.push(title); }
-      if (description !== undefined) { updates.push("description = ?"); values.push(description); }
-      
-      // ✅ Convert skills_required to JSON if provided
-      if (skills_required !== undefined) {
-        let skillsJson;
-        if (typeof skills_required === 'string') {
-          const skillsArray = skills_required.split(',').map(s => s.trim()).filter(s => s);
-          skillsJson = JSON.stringify(skillsArray);
-        } else if (Array.isArray(skills_required)) {
-          skillsJson = JSON.stringify(skills_required);
-        } else {
-          skillsJson = JSON.stringify([skills_required]);
-        }
-        updates.push("required_skills = ?");
-        values.push(skillsJson);
-      }
-      
-      if (category !== undefined) { updates.push("category = ?"); values.push(category); }
-      if (team_size !== undefined) { updates.push("max_team_size = ?"); values.push(team_size); }
-      if (start_date !== undefined) { updates.push("start_date = ?"); values.push(start_date); }
-      if (end_date !== undefined) { updates.push("end_date = ?"); values.push(end_date); }
-      if (complexity_level !== undefined) { updates.push("difficulty_level = ?"); values.push(complexity_level); }
-      
-      // ✅ Convert deliverables to JSON if provided
-      if (deliverables !== undefined) {
-        let deliverablesJson = null;
-        if (deliverables) {
-          if (typeof deliverables === 'string') {
-            const deliverablesArray = deliverables.split(/[,\n]/).map(d => d.trim()).filter(d => d);
-            deliverablesJson = JSON.stringify(deliverablesArray);
-          } else if (Array.isArray(deliverables)) {
-            deliverablesJson = JSON.stringify(deliverables);
-          } else {
-            deliverablesJson = JSON.stringify([deliverables]);
-          }
-        }
-        updates.push("deliverables = ?");
-        values.push(deliverablesJson);
-      }
-      
-      if (project_location !== undefined) { updates.push("location = ?"); values.push(project_location); }
-      if (industry !== undefined) { updates.push("industry_category = ?"); values.push(industry); }
-      if (status !== undefined) { updates.push("status = ?"); values.push(status); }
+      updates.push("required_skills = ?");
+      values.push(skillsJson);
     }
+    
+    if (category !== undefined) { updates.push("category = ?"); values.push(category); }
+    if (team_size !== undefined) { updates.push("max_team_size = ?"); values.push(team_size); }
+    if (start_date !== undefined) { updates.push("start_date = ?"); values.push(start_date); }
+    if (end_date !== undefined) { updates.push("end_date = ?"); values.push(end_date); }
+    if (complexity_level !== undefined) { updates.push("difficulty_level = ?"); values.push(complexity_level); }
+    
+    // âœ… Convert deliverables to JSON if provided
+    if (deliverables !== undefined) {
+      let deliverablesJson = null;
+      if (deliverables) {
+        if (typeof deliverables === 'string') {
+          const deliverablesArray = deliverables.split(/[,\n]/).map(d => d.trim()).filter(d => d);
+          deliverablesJson = JSON.stringify(deliverablesArray);
+        } else if (Array.isArray(deliverables)) {
+          deliverablesJson = JSON.stringify(deliverables);
+        } else {
+          deliverablesJson = JSON.stringify([deliverables]);
+        }
+      }
+      updates.push("deliverables = ?");
+      values.push(deliverablesJson);
+    }
+    
+    if (project_location !== undefined) { updates.push("location = ?"); values.push(project_location); }
+    if (industry !== undefined) { updates.push("industry_category = ?"); values.push(industry); }
+    if (status !== undefined) { updates.push("status = ?"); values.push(status); }
 
     if (updates.length === 0) {
       return res.status(400).json({
@@ -697,25 +683,21 @@ router.delete("/:project_id", verifyToken, async (req, res) => {
 
 // ==================== PROJECT DETAILS & PREFERENCES ====================
 
-// Get project details with preferences (PROTECTED - client or instructor)
+// Get project details with preferences (PROTECTED - client only)
 router.get("/:project_id/details", verifyToken, async (req, res) => {
   try {
     const { project_id } = req.params;
 
-    // ✅ Allow both clients and instructors
-    if (req.user.role !== "client" && req.user.role !== "instructor") {
+    // Check if user is a client
+    if (req.user.role !== "client") {
       return res.status(403).json({
         success: false,
-        error: "Only clients and instructors can view project details",
+        error: "Only clients can view project details",
       });
     }
 
-    let query;
-    let params;
-
-    if (req.user.role === "client") {
-      // Clients can only see their own projects
-      query = `SELECT 
+    const [projects] = await db.query(
+      `SELECT 
          id, 
          owner_id as client_id,
          title, 
@@ -732,32 +714,9 @@ router.get("/:project_id/details", verifyToken, async (req, res) => {
          status, 
          created_at
        FROM projects
-       WHERE id = ? AND owner_id = ?`;
-      params = [project_id, req.user.clientId];
-    } else {
-      // Instructors can see any project
-      query = `SELECT 
-         id, 
-         owner_id as client_id,
-         title, 
-         description, 
-         required_skills as skills_required, 
-         category, 
-         max_team_size as team_size, 
-         start_date, 
-         end_date, 
-         difficulty_level as complexity_level, 
-         deliverables, 
-         location as project_location, 
-         industry_category as industry, 
-         status, 
-         created_at
-       FROM projects
-       WHERE id = ?`;
-      params = [project_id];
-    }
-
-    const [projects] = await db.query(query, params);
+       WHERE id = ? AND owner_id = ?`,
+      [project_id, req.user.clientId]
+    );
 
     if (projects.length === 0) {
       return res.status(404).json({
@@ -814,20 +773,20 @@ router.get("/:project_id/details", verifyToken, async (req, res) => {
   }
 });
 
-// Get preferences for a specific project (PROTECTED - client or instructor)
+// Get preferences for a specific project (PROTECTED - client only)
 router.get("/:project_id/preferences", verifyToken, async (req, res) => {
   try {
     const { project_id } = req.params;
 
-    // ✅ Allow both clients and instructors
-    if (req.user.role !== "client" && req.user.role !== "instructor") {
+    // Check if user is a client
+    if (req.user.role !== "client") {
       return res.status(403).json({
         success: false,
-        error: "Only clients and instructors can view preferences",
+        error: "Only clients can view preferences",
       });
     }
 
-    // Verify project exists
+    // Verify project exists and belongs to this client
     const [projectCheck] = await db.query(
       "SELECT owner_id FROM projects WHERE id = ?",
       [project_id]
@@ -840,8 +799,7 @@ router.get("/:project_id/preferences", verifyToken, async (req, res) => {
       });
     }
 
-    // If client, verify they own the project
-    if (req.user.role === "client" && projectCheck[0].owner_id !== req.user.clientId) {
+    if (projectCheck[0].owner_id !== req.user.clientId) {
       return res.status(403).json({
         success: false,
         error: "You can only view preferences for your own projects",
@@ -872,6 +830,78 @@ router.get("/:project_id/preferences", verifyToken, async (req, res) => {
     res.status(500).json({
       success: false,
       error: "Failed to fetch preferences",
+    });
+  }
+});
+
+// ==================== INSTRUCTOR APPROVAL ====================
+
+// Approve or reject a project (PROTECTED - instructor only)
+router.put("/:project_id/approval", verifyToken, async (req, res) => {
+  try {
+    const { project_id } = req.params;
+    const { approval_status, feedback } = req.body;
+
+    // Check if user is an instructor
+    if (req.user.role !== "instructor" && req.user.role !== "admin") {
+      return res.status(403).json({
+        success: false,
+        error: "Only instructors can approve or reject projects",
+      });
+    }
+
+    // Validate approval_status
+    if (!approval_status || !["approved", "rejected"].includes(approval_status)) {
+      return res.status(400).json({
+        success: false,
+        error: "approval_status must be 'approved' or 'rejected'",
+      });
+    }
+
+    // Verify project exists
+    const [projectCheck] = await db.query(
+      "SELECT id, title FROM projects WHERE id = ?",
+      [project_id]
+    );
+
+    if (projectCheck.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: "Project not found",
+      });
+    }
+
+    // Update project approval status and feedback
+    const updateFields = ["approval_status = ?", "approved_by = ?", "approved_at = NOW()"];
+    const updateValues = [approval_status, req.user.instructorId];
+
+    // Add feedback if provided (especially for rejections)
+    if (feedback) {
+      updateFields.push("instructor_feedback = ?");
+      updateValues.push(feedback);
+    }
+
+    updateValues.push(project_id);
+
+    await db.query(
+      `UPDATE projects SET ${updateFields.join(", ")} WHERE id = ?`,
+      updateValues
+    );
+
+    res.json({
+      success: true,
+      message: `Project ${approval_status} successfully`,
+      data: {
+        project_id: parseInt(project_id),
+        approval_status,
+        feedback: feedback || null,
+      },
+    });
+  } catch (err) {
+    console.error("Error updating project approval:", err);
+    res.status(500).json({
+      success: false,
+      error: "Failed to update project approval",
     });
   }
 });
