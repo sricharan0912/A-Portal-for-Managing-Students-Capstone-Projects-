@@ -77,23 +77,23 @@ export const getInstructorStats = async (instructorId) =>
 export const getPendingProjects = async () =>
   apiCall("/projects?status=open", { method: "GET" });
 
-// Approve project
-export const approveProject = async (projectId) =>
-  apiCall(`/projects/${projectId}`, {
+// Approve project (instructor only)
+export const approveProject = async (projectId, feedback = "") =>
+  apiCall(`/projects/${projectId}/approval`, {
     method: "PUT",
-    body: JSON.stringify({ status: "approved" }),
+    body: JSON.stringify({ approval_status: "approved", feedback }),
   });
 
-// Reject project
-export const rejectProject = async (projectId) =>
-  apiCall(`/projects/${projectId}`, {
+// Reject project with feedback (instructor only)
+export const rejectProject = async (projectId, feedback = "") =>
+  apiCall(`/projects/${projectId}/approval`, {
     method: "PUT",
-    body: JSON.stringify({ status: "rejected" }),
+    body: JSON.stringify({ approval_status: "rejected", feedback }),
   });
 
 // Run grouping algorithm
 export const runGroupingAlgorithm = async () =>
-  apiCall("/instructor/assign-groups", { method: "POST" });
+  apiCall("/instructors/assign-groups", { method: "POST" });
 
 // Get all students (instructors can see all students in the system)
 export const getInstructorStudents = async (instructorId) =>
@@ -131,23 +131,31 @@ export const createNewProject = async (projectData) =>
 
 // Get list of all groups
 export const getInstructorGroups = async () =>
-  apiCall("/groups", { method: "GET" });  // Changed from /instructor/groups to /groups
+  apiCall("/instructors/groups", { method: "GET" });
 
 // Auto assign students to groups (run algorithm)
 export const autoAssignGroups = async () =>
-  apiCall("/instructor/auto-assign-groups", { method: "POST" });
+  apiCall("/instructors/auto-assign-groups", { method: "POST" });
 
-// Confirm or finalize auto-generated groups
+// Preview group formation without saving
+export const previewGroups = async () =>
+  apiCall("/instructors/preview-groups", { method: "POST" });
+
+// Clear all groups
+export const clearAllGroups = async () =>
+  apiCall("/instructors/groups", { method: "DELETE" });
+
+// Confirm or finalize auto-generated groups (deprecated - use autoAssignGroups)
 export const confirmAutoGroups = async () =>
-  apiCall("/instructor/confirm-auto-groups", { method: "POST" });
+  apiCall("/instructors/auto-assign-groups", { method: "POST" });
 
-// Get auto group formation statistics
+// Get auto group formation statistics (included in autoAssignGroups response)
 export const getAutoGroupStats = async () =>
-  apiCall("/instructor/auto-group-stats", { method: "GET" });
+  apiCall("/instructors/groups", { method: "GET" });
 
 // Rerun the auto grouping algorithm again
 export const rerunAutoGrouping = async () =>
-  apiCall("/instructor/rerun-auto-grouping", { method: "POST" });
+  apiCall("/instructors/auto-assign-groups", { method: "POST" });
 
 // Create a new group manually
 export const createNewGroup = async (groupData) =>
