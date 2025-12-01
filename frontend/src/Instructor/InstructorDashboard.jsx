@@ -172,7 +172,7 @@ export default function InstructorDashboard() {
           {/* Existing sections */}
           {active === "dashboard" && <InstructorDashboardView instructorId={instructorId} />}
           {active === "approval" && <ProjectApprovalView instructorId={instructorId} />}
-          {active === "groups" && <AssignGroupsView instructorId={instructorId} />}
+          {active === "groups" && <GroupsView instructorId={instructorId} />}
 
           {/* New sections */}
           {active === "students" && <StudentsView instructorId={instructorId} />}
