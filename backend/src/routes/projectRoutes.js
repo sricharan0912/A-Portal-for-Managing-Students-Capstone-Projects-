@@ -33,27 +33,35 @@ router.get("/", async (req, res) => {
     // Build query based on user role
     let query;
     if (userRole === "instructor" || userRole === "admin") {
-      // Instructors and admins see ALL projects with approval status
+      // Instructors and admins see ALL projects with client info
       query = `SELECT 
-         id, 
-         owner_id as client_id,
-         title, 
-         description, 
-         required_skills as skills_required, 
-         category, 
-         max_team_size as team_size, 
-         start_date, 
-         end_date, 
-         difficulty_level as complexity_level, 
-         deliverables, 
-         location as project_location, 
-         industry_category as industry, 
-         status,
-         approval_status,
-         instructor_feedback,
-         created_at
-       FROM projects 
-       ORDER BY created_at DESC`;
+         p.id, 
+         p.owner_id as client_id,
+         p.title, 
+         p.description, 
+         p.required_skills as skills_required, 
+         p.category, 
+         p.max_team_size as team_size, 
+         p.start_date, 
+         p.end_date, 
+         p.difficulty_level as complexity_level, 
+         p.deliverables, 
+         p.location as project_location, 
+         p.industry_category as industry, 
+         p.status,
+         p.approval_status,
+         p.instructor_feedback,
+         p.created_at,
+         u.email as client_email,
+         up.first_name as client_first_name,
+         up.last_name as client_last_name,
+         up.full_name as client_name,
+         up.organization_name as client_organization,
+         up.website as client_website
+       FROM projects p
+       LEFT JOIN users u ON p.owner_id = u.id
+       LEFT JOIN user_profiles up ON u.id = up.user_id
+       ORDER BY p.created_at DESC`;
     } else {
       // Students and public see only approved projects
       query = `SELECT 

@@ -1,3 +1,4 @@
+// src/pages/InstructorDashboard/ProjectDetailsView.jsx
 import React, { useEffect, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { apiCall } from "../utils/apiHelper";
@@ -202,6 +203,58 @@ export default function ProjectDetailsView() {
             <p className="text-sm text-slate-800">{project.team_size || "4"} members</p>
           </div>
         </div>
+
+        {/* Client Information */}
+        {(project.client_name || project.client_organization || project.client_email) && (
+          <div>
+            <p className="text-xs font-medium text-slate-500 mb-2">Client Information</p>
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 space-y-2">
+              {(project.client_name || project.client_first_name) && (
+                <div className="flex items-center gap-2">
+                  <svg className="h-4 w-4 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                  </svg>
+                  <span className="text-sm font-medium text-slate-700">
+                    {project.client_name || `${project.client_first_name || ''} ${project.client_last_name || ''}`.trim()}
+                  </span>
+                </div>
+              )}
+              {project.client_organization && (
+                <div className="flex items-center gap-2">
+                  <svg className="h-4 w-4 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                  </svg>
+                  <span className="text-sm text-slate-600">{project.client_organization}</span>
+                </div>
+              )}
+              {project.client_email && (
+                <div className="flex items-center gap-2">
+                  <svg className="h-4 w-4 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                  </svg>
+                  <a href={`mailto:${project.client_email}`} className="text-sm text-blue-600 hover:underline">
+                    {project.client_email}
+                  </a>
+                </div>
+              )}
+              {project.client_website && (
+                <div className="flex items-center gap-2">
+                  <svg className="h-4 w-4 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9" />
+                  </svg>
+                  <a 
+                    href={project.client_website.startsWith('http') ? project.client_website : `https://${project.client_website}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-sm text-blue-600 hover:underline"
+                  >
+                    {project.client_website}
+                  </a>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
 
         {/* Description */}
         <div>
