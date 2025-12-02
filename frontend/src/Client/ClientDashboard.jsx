@@ -4,6 +4,7 @@ import ClientSidebar from "./ClientSidebar";
 import DashboardView from "./DashboardView";
 import ProjectListView from "./ProjectListView";
 import ProjectFormModal from "./ProjectFormModal";
+import ClientEvaluationsView from "./ClientEvaluationsView";
 import { useClientId } from "../hooks/useClientId";
 import { useProjects } from "../hooks/useProjects";
 
@@ -14,7 +15,7 @@ const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:5050";
 /**
  * ClientDashboard Component
  * Main container for the client dashboard
- * Manages all views: dashboard, projects, teams
+ * Manages all views: dashboard, projects, teams, evaluations
  * Handles project CRUD operations
  */
 export default function ClientDashboard() {
@@ -35,10 +36,9 @@ export default function ClientDashboard() {
   const [showForm, setShowForm] = useState(false);
   const [editingProject, setEditingProject] = useState(null);
   
-  // Handle edit/create project - safely handles null for new projects
   const handleEditProject = (project) => {
-    console.log("Opening edit modal for project:", project?.id || "NEW");
-    setEditingProject(project); // Can be null for new project
+    console.log("🔏 Setting editing project in parent:", project);
+    setEditingProject(project);
     setShowForm(true);
   };
 
@@ -87,21 +87,19 @@ export default function ClientDashboard() {
     setShowForm(false);
     setEditingProject(null);
     
-    // Refetch projects after save to ensure UI is up-to-date
+    // ✅ Refetch projects after save to ensure UI is up-to-date
     await refetchProjects();
   };
 
-  // Use the refetch function from useProjects hook
+  // ✅ Use the refetch function from useProjects hook
   const refetchProjects = refetch;
 
-  // Handle new project created with immediate refetch
+  // ✅ UPDATED: Handle new project created with immediate refetch
   const handleProjectCreated = async (newProject) => {
-    console.log("New project created:", newProject);
+    console.log("🎉 New project created:", newProject);
     
     // Add the new project to state immediately for instant feedback
-    if (newProject) {
-      setProjects((prev) => [...prev, newProject]);
-    }
+    setProjects((prev) => [...prev, newProject]);
     
     // Then refetch all projects to ensure we have complete/latest data
     await refetchProjects();
@@ -181,7 +179,7 @@ export default function ClientDashboard() {
               loading={loading}
               clientId={clientId}
               onShowForm={handleEditProject}
-              onRefresh={refetchProjects}
+              onRefresh={refetchProjects}  // ✅ Pass refetch function
             />
           )}
 
@@ -198,6 +196,9 @@ export default function ClientDashboard() {
 
           {/* Teams View */}
           {active === "teams" && <TeamsView />}
+
+          {/* Evaluations View */}
+          {active === "evaluations" && <ClientEvaluationsView />}
         </main>
       </div>
 
