@@ -27,7 +27,7 @@ router.get("/", verifyToken, async (req, res) => {
         ORDER BY e.scheduled_date DESC, e.scheduled_time DESC
       `;
     } else if (role === "student") {
-      // Students see evaluations for their groups
+      // Students see evaluations for their groups OR global evaluations (no group_id)
       query = `
         SELECT 
           e.*,
@@ -39,11 +39,12 @@ router.get("/", verifyToken, async (req, res) => {
         WHERE e.group_id IN (
           SELECT group_id FROM group_members WHERE student_id = ? AND status = 'active'
         )
+        OR e.group_id IS NULL
         ORDER BY e.scheduled_date DESC, e.scheduled_time DESC
       `;
       params = [studentId];
     } else if (role === "client") {
-      // Clients see evaluations for their projects
+      // Clients see evaluations for their projects OR global evaluations (no project_id)
       query = `
         SELECT 
           e.*,
@@ -53,6 +54,7 @@ router.get("/", verifyToken, async (req, res) => {
         LEFT JOIN student_groups sg ON e.group_id = sg.id
         LEFT JOIN projects p ON e.project_id = p.id
         WHERE p.owner_id = ?
+        OR e.project_id IS NULL
         ORDER BY e.scheduled_date DESC, e.scheduled_time DESC
       `;
       params = [clientId];

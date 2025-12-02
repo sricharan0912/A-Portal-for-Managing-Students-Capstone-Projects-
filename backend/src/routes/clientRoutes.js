@@ -510,4 +510,79 @@ router.get("/:client_id/stats", verifyToken, async (req, res) => {
   }
 });
 
+// ==================== GET TEAMS FOR CLIENT'S PROJECTS ====================
+
+/**
+ * GET /clients/:client_id/teams
+ * Get all student groups/teams assigned to this client's projects
+ */
+router.get("/:client_id/teams", verifyToken, async (req, res) => {
+  try {
+    const { client_id } = req.params;
+
+    console.log("📋 Fetching teams for client:", client_id);
+
+    // Get all groups assigned to client's projects with member info
+    const [teams] = await db.query(
+      `SELECT 
+        sg.id as group_id,
+        sg.group_name,
+        sg.group_number,
+        sg.status as group_status,
+        sg.created_at as group_created_at,
+        p.id as project_id,
+        p.title as project_title,
+        p.status as project_status,
+        p.category,
+        p.difficulty_level
+      FROM student_groups sg
+      INNER JOIN projects p ON sg.project_id = p.id
+      WHERE p.owner_id = ?
+      ORDER BY p.title, sg.group_number`,
+      [client_id]
+    );
+
+    console.log("Found teams:", teams.length);
+
+    // Get members for each group
+    const teamsWithMembers = await Promise.all(
+      teams.map(async (team) => {
+        const [members] = await db.query(
+          `SELECT 
+            u.id,
+            up.first_name,
+            up.last_name,
+            CONCAT(up.first_name, ' ', up.last_name) as full_name,
+            u.email,
+            gm.role,
+            gm.joined_at
+          FROM group_members gm
+          INNER JOIN users u ON gm.student_id = u.id
+          LEFT JOIN user_profiles up ON u.id = up.user_id
+          WHERE gm.group_id = ? AND gm.status = 'active'
+          ORDER BY gm.role DESC, up.first_name`,
+          [team.group_id]
+        );
+
+        return {
+          ...team,
+          members: members,
+          member_count: members.length,
+        };
+      })
+    );
+
+    res.json({
+      success: true,
+      data: teamsWithMembers,
+    });
+  } catch (err) {
+    console.error("Error fetching client teams:", err);
+    res.status(500).json({
+      success: false,
+      error: "Failed to fetch teams",
+    });
+  }
+});
+
 export default router;

@@ -260,13 +260,25 @@ export default function ProjectFormModal({
                 value={category}
                 onChange={(e) => setCategory(e.target.value)}
               >
-                <option value="">Select a category</option>
+                <option value="">Select a category</option> 
                 <option value="Web Development">Web Development</option>
                 <option value="Mobile App">Mobile App</option>
                 <option value="Data Science">Data Science</option>
                 <option value="Machine Learning">Machine Learning</option>
+                <option value="Artificial Intelligence">Artificial Intelligence</option>
                 <option value="UI/UX Design">UI/UX Design</option>
                 <option value="Cloud Infrastructure">Cloud Infrastructure</option>
+                <option value="DevOps">DevOps</option>
+                <option value="Cybersecurity">Cybersecurity</option>
+                <option value="Blockchain">Blockchain</option>
+                <option value="IoT">IoT (Internet of Things)</option>
+                <option value="Game Development">Game Development</option>
+                <option value="AR/VR">AR/VR</option>
+                <option value="Database Systems">Database Systems</option>
+                <option value="API Development">API Development</option>
+                <option value="Automation">Automation</option>
+                <option value="Embedded Systems">Embedded Systems</option>
+                <option value="Research">Research</option>
                 <option value="Other">Other</option>
               </select>
             </div>
@@ -291,6 +303,21 @@ export default function ProjectFormModal({
                 <option value="E-commerce">E-commerce</option>
                 <option value="Technology">Technology</option>
                 <option value="Entertainment">Entertainment</option>
+                <option value="Retail">Retail</option>
+                <option value="Manufacturing">Manufacturing</option>
+                <option value="Real Estate">Real Estate</option>
+                <option value="Transportation">Transportation</option>
+                <option value="Logistics">Logistics</option>  
+                <option value="Agriculture">Agriculture</option>
+                <option value="Energy">Energy</option>
+                <option value="Government">Government</option>
+                <option value="Non-Profit">Non-Profit</option>
+                <option value="Legal">Legal</option>
+                <option value="Media">Media</option>
+                <option value="Telecommunications">Telecommunications</option>
+                <option value="Hospitality">Hospitality</option>
+                <option value="Sports">Sports</option>
+                <option value="Social Impact">Social Impact</option>
                 <option value="Other">Other</option>
               </select>
             </div>

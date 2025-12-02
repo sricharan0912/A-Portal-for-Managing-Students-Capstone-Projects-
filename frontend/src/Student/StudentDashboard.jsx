@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useNavigate, useLocation } from "react-router-dom";
 import DashboardNavbar from "../components/DashboardNavbar";
 import StudentSidebar from "./StudentSidebar";
 import StudentDashboardView from "./StudentDashboardView";
@@ -14,13 +15,18 @@ import { apiCall } from "../utils/apiHelper";
 const NAVBAR_HEIGHT = 64;
 const DRAWER_WIDTH = 280;
 
+// Valid views for URL routing
+const VALID_VIEWS = ["dashboard", "browse", "preferences", "group", "evaluations"];
+
 /**
  * StudentDashboard Component
  * Main container for the student dashboard
- * Manages all views: dashboard, browse projects, preferences, group, evaluations
- * Handles project preferences submission
+ * Uses URL-based navigation for proper back button support
  */
 export default function StudentDashboard() {
+  const navigate = useNavigate();
+  const location = useLocation();
+
   // Get student data from localStorage
   const studentData = localStorage.getItem("student");
   const student = studentData ? JSON.parse(studentData) : null;
@@ -44,14 +50,32 @@ export default function StudentDashboard() {
 
   // Fetch assigned group
   const [assignedGroup, setAssignedGroup] = useState(null);
+  const [groupMembers, setGroupMembers] = useState([]);
   const [groupLoading, setGroupLoading] = useState(false);
   const [groupError, setGroupError] = useState(null);
 
   // UI State
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [active, setActive] = useState("dashboard");
   const [selectedProjects, setSelectedProjects] = useState([]);
   const [submittingPreferences, setSubmittingPreferences] = useState(false);
+
+  // Get active view from URL query parameter
+  const getActiveFromURL = () => {
+    const params = new URLSearchParams(location.search);
+    const view = params.get("view");
+    return VALID_VIEWS.includes(view) ? view : "dashboard";
+  };
+
+  const active = getActiveFromURL();
+
+  // Navigate to a view by updating URL
+  const setActive = (view) => {
+    if (view === "dashboard") {
+      navigate("/student-dashboard");
+    } else {
+      navigate(`/student-dashboard?view=${view}`);
+    }
+  };
 
   // Fetch assigned group on mount
   useEffect(() => {
@@ -67,13 +91,30 @@ export default function StudentDashboard() {
           studentId
         );
 
-        const data = await apiCall(
+        const response = await apiCall(
           `http://localhost:5050/students/${studentId}/group`,
           { method: "GET" }
         );
 
-        console.log("StudentDashboard: Group data received:", data);
-        setAssignedGroup(data);
+        console.log("StudentDashboard: Group data received:", response);
+        // Extract the actual data from the response
+        const groupData = response.data || null;
+        setAssignedGroup(groupData);
+
+        // If group exists, also fetch group members
+        if (groupData) {
+          try {
+            const membersResponse = await apiCall(
+              `http://localhost:5050/students/${studentId}/group/members`,
+              { method: "GET" }
+            );
+            console.log("StudentDashboard: Group members received:", membersResponse);
+            setGroupMembers(membersResponse.data || []);
+          } catch (membersErr) {
+            console.error("Error fetching group members:", membersErr);
+            setGroupMembers([]);
+          }
+        }
       } catch (err) {
         console.error("StudentDashboard: Error fetching group:", err);
         setGroupError(err.message);
@@ -246,6 +287,7 @@ export default function StudentDashboard() {
           {active === "group" && (
             <GroupView
               assignedGroup={assignedGroup}
+              groupMembers={groupMembers}
               loading={groupLoading}
             />
           )}
