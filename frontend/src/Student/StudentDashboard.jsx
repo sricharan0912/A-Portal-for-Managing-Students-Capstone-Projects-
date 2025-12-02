@@ -92,7 +92,7 @@ export default function StudentDashboard() {
         );
 
         const response = await apiCall(
-          `http://localhost:5050/students/${studentId}/group`,
+          `https://a-portal-for-managing-students-capstone-projects-production.up.railway.app/students/${studentId}/group`,
           { method: "GET" }
         );
 
@@ -105,7 +105,7 @@ export default function StudentDashboard() {
         if (groupData) {
           try {
             const membersResponse = await apiCall(
-              `http://localhost:5050/students/${studentId}/group/members`,
+              `https://a-portal-for-managing-students-capstone-projects-production.up.railway.app/students/${studentId}/group/members`,
               { method: "GET" }
             );
             console.log("StudentDashboard: Group members received:", membersResponse);

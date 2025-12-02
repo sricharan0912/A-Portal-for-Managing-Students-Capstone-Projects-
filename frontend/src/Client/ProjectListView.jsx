@@ -2,7 +2,7 @@ import { useState } from "react";
 import ProjectCard from "../components/ui/ProjectCard";
 import { apiCall } from "../utils/apiHelper";
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:5050";
+const API_BASE_URL = import.meta.env.VITE_API_URL || "https://a-portal-for-managing-students-capstone-projects-production.up.railway.app";
 
 export default function ProjectListView({
   projects = [],

@@ -20,7 +20,7 @@ export const useStudentProjects = () => {
 
         console.log("useStudentProjects: Fetching available projects");
 
-        const data = await apiCall("http://localhost:5050/students/projects", {
+        const data = await apiCall("https://a-portal-for-managing-students-capstone-projects-production.up.railway.app/students/projects", {
           method: "GET",
         });
 

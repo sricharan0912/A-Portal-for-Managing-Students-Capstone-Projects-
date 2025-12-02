@@ -30,7 +30,7 @@ export const useStudentPreferences = (studentId) => {
         console.log("useStudentPreferences: Fetching preferences for studentId:", studentId);
 
         const data = await apiCall(
-          `http://localhost:5050/students/${studentId}/preferences`,
+          `https://a-portal-for-managing-students-capstone-projects-production.up.railway.app/students/${studentId}/preferences`,
           { method: "GET" }
         );
 
@@ -84,7 +84,7 @@ export const useStudentPreferences = (studentId) => {
       );
 
       const response = await apiCall(
-        `http://localhost:5050/students/${studentId}/preferences`,
+        `https://a-portal-for-managing-students-capstone-projects-production.up.railway.app/students/${studentId}/preferences`,
         {
           method: "POST",
           body: JSON.stringify({ preferences: preferencesData }),
@@ -95,7 +95,7 @@ export const useStudentPreferences = (studentId) => {
 
       // Refresh preferences after submission
       const updatedData = await apiCall(
-        `http://localhost:5050/students/${studentId}/preferences`,
+        `https://a-portal-for-managing-students-capstone-projects-production.up.railway.app/students/${studentId}/preferences`,
         { method: "GET" }
       );
 
