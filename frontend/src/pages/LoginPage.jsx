@@ -4,6 +4,9 @@ import { signInWithEmailAndPassword, getIdToken } from "firebase/auth";
 import { auth } from "../firebaseConfig";
 import Navbar from "../components/Navbar";
 
+// Use environment variable or production URL as fallback
+const API_URL = import.meta.env.VITE_API_URL || "https://a-portal-for-managing-students-capstone-projects-production.up.railway.app";
+
 export default function LoginPage() {
   const navigate = useNavigate();
   const [email, setEmail] = useState("");
@@ -56,10 +59,10 @@ export default function LoginPage() {
 
       const endpoint =
         role === "Client"
-          ? "http://localhost:5050/clients/login"
+          ? `${API_URL}/clients/login`
           : role === "Student"
-          ? "http://localhost:5050/students/login"
-          : "http://localhost:5050/instructors/login";
+          ? `${API_URL}/students/login`
+          : `${API_URL}/instructors/login`;
 
       console.log("Sending login request to:", endpoint);
 
