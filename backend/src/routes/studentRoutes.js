@@ -221,27 +221,26 @@ router.get("/projects", async (req, res) => {
   try {
     // ✅ Query projects that have been approved by instructor
     const [projects] = await db.query(
-      `SELECT 
-         id,
-         owner_id as client_id,
-         title,
-         description,
-         required_skills as skills_required,
-         category,
-         max_team_size as team_size,
-         start_date,
-         end_date,
-         difficulty_level as complexity_level,
-         deliverables,
-         location as project_location,
-         industry_category as industry,
-         status,
-         approval_status,
-         created_at
-       FROM projects 
-       WHERE approval_status = 'approved' 
-       ORDER BY created_at DESC`
-    );
+    `SELECT 
+       id,
+       owner_id as client_id,
+       title,
+       description,
+       required_skills as skills_required,
+       category,
+       max_team_size as team_size,
+       start_date,
+       end_date,
+       difficulty_level as complexity_level,
+       deliverables,
+       location as project_location,
+       industry_category as industry,
+       status,
+       created_at
+    FROM projects 
+    WHERE status = 'open' 
+    ORDER BY created_at DESC`
+  );
 
     res.json({
       success: true,
