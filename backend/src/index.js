@@ -29,6 +29,7 @@ import clientRoutes from "./routes/clientRoutes.js";
 import studentRoutes from "./routes/studentRoutes.js";
 import instructorRoutes from "./routes/instructorRoutes.js";
 import projectRoutes from "./routes/projectRoutes.js";
+import evaluationRoutes from "./routes/evaluationRoutes.js";
 
 // ==================== EXPRESS APP SETUP ====================
 
@@ -153,6 +154,9 @@ app.use("/students", studentRoutes);
 
 // Instructor routes
 app.use("/instructors", instructorRoutes);
+
+// Evaluation routes
+app.use("/evaluations", evaluationRoutes);
 
 // ==================== 404 HANDLER ====================
 
