@@ -12,7 +12,7 @@ import { useProjects } from "../hooks/useProjects";
 
 const NAVBAR_HEIGHT = 64;
 const DRAWER_WIDTH = 280;
-const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:5050";
+const API_BASE_URL = import.meta.env.VITE_API_URL || "https://a-portal-for-managing-students-capstone-projects-production.up.railway.app";
 
 // Valid views for URL routing
 const VALID_VIEWS = ["dashboard", "projects", "teams", "evaluations"];

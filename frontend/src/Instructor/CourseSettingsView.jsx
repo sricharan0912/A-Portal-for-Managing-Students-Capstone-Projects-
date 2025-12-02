@@ -24,7 +24,7 @@ export default function CourseSettingsView() {
       try {
         setLoading(true);
         const data = await apiCall(
-          "http://localhost:5050/instructors/settings/all",
+          "https://a-portal-for-managing-students-capstone-projects-production.up.railway.app/instructors/settings/all",
           { method: "GET" }
         );
 
@@ -65,7 +65,7 @@ export default function CourseSettingsView() {
       }
 
       await apiCall(
-        "http://localhost:5050/instructors/settings/preference_deadline",
+        "https://a-portal-for-managing-students-capstone-projects-production.up.railway.app/instructors/settings/preference_deadline",
         {
           method: "PUT",
           body: JSON.stringify({ value: deadlineValue }),
@@ -106,7 +106,7 @@ export default function CourseSettingsView() {
       setSuccess(null);
 
       await apiCall(
-        "http://localhost:5050/instructors/settings/preference_deadline",
+        "https://a-portal-for-managing-students-capstone-projects-production.up.railway.app/instructors/settings/preference_deadline",
         {
           method: "PUT",
           body: JSON.stringify({ value: null }),
