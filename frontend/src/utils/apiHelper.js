@@ -1,4 +1,5 @@
-const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:5050";
+// const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:5050";
+const API_BASE_URL = import.meta.env.VITE_API_URL || "https://a-portal-for-managing-students-capstone-projects-production.up.railway.app";
 
 function buildUrl(url) {
   if (/^https?:\/\//i.test(url)) return url; // allow absolute URLs
