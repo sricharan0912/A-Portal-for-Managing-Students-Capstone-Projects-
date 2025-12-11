@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import { useState } from "react";
 import { 
   updatePassword, 
   reauthenticateWithCredential,
@@ -7,12 +7,12 @@ import {
 import { auth } from "../firebaseConfig";
 
 /**
- * Instructor → Profile Settings Page
- * Shows profile info and change password
+ * StudentProfileSettingsView Component
+ * Allows students to view profile info and change password
  */
-export default function ProfileSettingsView() {
-  const instructorData = localStorage.getItem("instructor");
-  const instructor = instructorData ? JSON.parse(instructorData) : null;
+export default function StudentProfileSettingsView() {
+  const studentData = localStorage.getItem("student");
+  const student = studentData ? JSON.parse(studentData) : null;
 
   // Password change state
   const [currentPassword, setCurrentPassword] = useState("");
@@ -118,13 +118,13 @@ export default function ProfileSettingsView() {
           <div className="bg-slate-50 rounded-lg p-4">
             <p className="text-xs text-slate-500 uppercase tracking-wide mb-1">Full Name</p>
             <p className="text-sm font-medium text-slate-800">
-              {instructor?.first_name} {instructor?.last_name}
+              {student?.first_name} {student?.last_name}
             </p>
           </div>
 
           <div className="bg-slate-50 rounded-lg p-4">
             <p className="text-xs text-slate-500 uppercase tracking-wide mb-1">Email</p>
-            <p className="text-sm font-medium text-slate-800">{instructor?.email}</p>
+            <p className="text-sm font-medium text-slate-800">{student?.email}</p>
           </div>
 
           <div className="bg-slate-50 rounded-lg p-4">
@@ -166,7 +166,7 @@ export default function ProfileSettingsView() {
           </div>
         )}
 
-        <form onSubmit={handleChangePassword} className="space-y-4 max-w-md">
+        <form onSubmit={handleChangePassword} className="space-y-4">
           {/* Current Password */}
           <div>
             <label htmlFor="currentPassword" className="block text-sm font-medium text-slate-700 mb-1">
@@ -272,7 +272,7 @@ export default function ProfileSettingsView() {
             <button
               type="submit"
               disabled={loading}
-              className="rounded-lg bg-blue-600 px-6 py-2.5 text-sm font-semibold text-white hover:bg-blue-700 focus:ring-2 focus:ring-blue-300 transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+              className="w-full sm:w-auto rounded-lg bg-blue-600 px-6 py-2.5 text-sm font-semibold text-white hover:bg-blue-700 focus:ring-2 focus:ring-blue-300 transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
             >
               {loading ? (
                 <>
@@ -283,7 +283,12 @@ export default function ProfileSettingsView() {
                   Changing Password...
                 </>
               ) : (
-                "Change Password"
+                <>
+                  <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  Change Password
+                </>
               )}
             </button>
           </div>

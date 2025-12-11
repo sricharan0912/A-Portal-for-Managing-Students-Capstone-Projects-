@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import { useState } from "react";
 import { 
   updatePassword, 
   reauthenticateWithCredential,
@@ -7,12 +7,12 @@ import {
 import { auth } from "../firebaseConfig";
 
 /**
- * Instructor → Profile Settings Page
- * Shows profile info and change password
+ * ClientProfileSettingsView Component
+ * Allows clients to view profile info and change password
  */
-export default function ProfileSettingsView() {
-  const instructorData = localStorage.getItem("instructor");
-  const instructor = instructorData ? JSON.parse(instructorData) : null;
+export default function ClientProfileSettingsView() {
+  const clientData = localStorage.getItem("client");
+  const client = clientData ? JSON.parse(clientData) : null;
 
   // Password change state
   const [currentPassword, setCurrentPassword] = useState("");
@@ -118,13 +118,13 @@ export default function ProfileSettingsView() {
           <div className="bg-slate-50 rounded-lg p-4">
             <p className="text-xs text-slate-500 uppercase tracking-wide mb-1">Full Name</p>
             <p className="text-sm font-medium text-slate-800">
-              {instructor?.first_name} {instructor?.last_name}
+              {client?.first_name} {client?.last_name}
             </p>
           </div>
 
           <div className="bg-slate-50 rounded-lg p-4">
             <p className="text-xs text-slate-500 uppercase tracking-wide mb-1">Email</p>
-            <p className="text-sm font-medium text-slate-800">{instructor?.email}</p>
+            <p className="text-sm font-medium text-slate-800">{client?.email}</p>
           </div>
 
           <div className="bg-slate-50 rounded-lg p-4">
