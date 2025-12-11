@@ -32,7 +32,7 @@ export default function ProjectCard({ project, onEdit, onDelete, isDeleting }) {
   };
 
   // Check if project can be edited (only pending projects)
-  const canEdit = project.approval_status === "pending" || !project.approval_status;
+  const canEdit = true;
 
   return (
     <div className="rounded-lg border border-slate-200 bg-slate-50 p-4 transition hover:bg-white hover:shadow-sm">
