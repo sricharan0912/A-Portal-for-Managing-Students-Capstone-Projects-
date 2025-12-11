@@ -21,6 +21,18 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
   const [checkingAuth, setCheckingAuth] = useState(true);
+  
+  // Toast notification state
+  const [toast, setToast] = useState({ show: false, type: "", message: "" });
+
+  // Show toast notification
+  const showToast = (type, message) => {
+    setToast({ show: true, type, message });
+    // Auto-hide after 4 seconds for errors, 2 seconds for success
+    if (type === "error") {
+      setTimeout(() => setToast({ show: false, type: "", message: "" }), 4000);
+    }
+  };
 
   // Check if user is already logged in - redirect them away from login page
   useEffect(() => {
@@ -73,36 +85,37 @@ export default function LoginPage() {
       const data = await response.json();
 
       if (!response.ok) {
-        // User doesn't exist with this role - suggest signup
-        alert(`No ${role.toLowerCase()} account found with this email. Please sign up first or select a different role.`);
+        showToast("error", `No ${role.toLowerCase()} account found with this email. Please sign up first or select a different role.`);
         return;
       }
 
-      alert("✅ Login successful!");
+      showToast("success", "Login successful! Redirecting...");
 
       // Save user info and token to localStorage
-      if (role === "Client") {
-        localStorage.setItem("client", JSON.stringify(data.client));
-        localStorage.setItem("authToken", data.token);
-        navigate("/client-dashboard", { replace: true });
-      } else if (role === "Student") {
-        localStorage.setItem("student", JSON.stringify(data.student));
-        localStorage.setItem("authToken", data.token);
-        navigate("/student-dashboard", { replace: true });
-      } else {
-        localStorage.setItem("instructor", JSON.stringify(data.instructor));
-        localStorage.setItem("authToken", data.token);
-        navigate("/instructor-dashboard", { replace: true });
-      }
+      setTimeout(() => {
+        if (role === "Client") {
+          localStorage.setItem("client", JSON.stringify(data.client));
+          localStorage.setItem("authToken", data.token);
+          navigate("/client-dashboard", { replace: true });
+        } else if (role === "Student") {
+          localStorage.setItem("student", JSON.stringify(data.student));
+          localStorage.setItem("authToken", data.token);
+          navigate("/student-dashboard", { replace: true });
+        } else {
+          localStorage.setItem("instructor", JSON.stringify(data.instructor));
+          localStorage.setItem("authToken", data.token);
+          navigate("/instructor-dashboard", { replace: true });
+        }
+      }, 1000);
     } catch (err) {
       console.error("Google login error:", err);
       
       if (err.code === "auth/popup-closed-by-user") {
         // User closed the popup - do nothing
       } else if (err.code === "auth/account-exists-with-different-credential") {
-        alert("An account already exists with this email using a different sign-in method. Try email/password login.");
+        showToast("error", "An account already exists with this email using a different sign-in method. Try email/password login.");
       } else {
-        alert(err.message || "Google login failed. Please try again.");
+        showToast("error", err.message || "Google login failed. Please try again.");
       }
     } finally {
       setGoogleLoading(false);
@@ -114,20 +127,17 @@ export default function LoginPage() {
     setLoading(true);
 
     if (!email || !password) {
-      alert("Email and password are required");
+      showToast("error", "Email and password are required");
       setLoading(false);
       return;
     }
 
     try {
       // Step 1: Sign in with Firebase
-      console.log("Signing in with Firebase...");
       const userCredential = await signInWithEmailAndPassword(auth, email, password);
-      console.log("Firebase sign in successful");
       
       // Step 2: Get Firebase ID token
       const idToken = await getIdToken(userCredential.user);
-      console.log("ID token obtained");
 
       const endpoint =
         role === "Client"
@@ -135,8 +145,6 @@ export default function LoginPage() {
           : role === "Student"
           ? `${API_URL}/students/login`
           : `${API_URL}/instructors/login`;
-
-      console.log("Sending login request to:", endpoint);
 
       // Step 3: Send token to backend
       const response = await fetch(endpoint, {
@@ -146,41 +154,40 @@ export default function LoginPage() {
       });
 
       const data = await response.json();
-      console.log("Backend response:", data);
 
       if (!response.ok) throw new Error(data.error || "Login failed");
 
-      alert("✅ Login successful!");
+      showToast("success", "Login successful! Redirecting...");
 
-      // Save user info and token to localStorage
-      // Use navigate with replace: true to prevent back button returning to login
-      if (role === "Client") {
-        localStorage.setItem("client", JSON.stringify(data.client));
-        localStorage.setItem("authToken", data.token);
-        navigate("/client-dashboard", { replace: true });
-      } else if (role === "Student") {
-        localStorage.setItem("student", JSON.stringify(data.student));
-        localStorage.setItem("authToken", data.token);
-        navigate("/student-dashboard", { replace: true });
-      } else {
-        localStorage.setItem("instructor", JSON.stringify(data.instructor));
-        localStorage.setItem("authToken", data.token);
-        navigate("/instructor-dashboard", { replace: true });
-      }
+      // Save user info and token to localStorage with slight delay for UX
+      setTimeout(() => {
+        if (role === "Client") {
+          localStorage.setItem("client", JSON.stringify(data.client));
+          localStorage.setItem("authToken", data.token);
+          navigate("/client-dashboard", { replace: true });
+        } else if (role === "Student") {
+          localStorage.setItem("student", JSON.stringify(data.student));
+          localStorage.setItem("authToken", data.token);
+          navigate("/student-dashboard", { replace: true });
+        } else {
+          localStorage.setItem("instructor", JSON.stringify(data.instructor));
+          localStorage.setItem("authToken", data.token);
+          navigate("/instructor-dashboard", { replace: true });
+        }
+      }, 1000);
     } catch (err) {
       console.error("Login error:", err);
       
       // Handle Firebase specific errors
       if (err.code === "auth/user-not-found") {
-        alert("User not found. Please sign up first.");
+        showToast("error", "User not found. Please sign up first.");
       } else if (err.code === "auth/wrong-password") {
-        alert("Incorrect password.");
+        showToast("error", "Incorrect password.");
       } else if (err.code === "auth/invalid-credential") {
-        alert("Invalid email or password.");
+        showToast("error", "Invalid email or password.");
       } else {
-        alert(err.message || "Login failed. Please try again.");
+        showToast("error", err.message || "Login failed. Please try again.");
       }
-    } finally {
       setLoading(false);
     }
   };
@@ -198,6 +205,36 @@ export default function LoginPage() {
     <div className="flex flex-col min-h-screen">
       <Navbar />
       <div className="bg-blue-900 h-40 w-full"></div>
+
+      {/* Toast Notification */}
+      {toast.show && (
+        <div className="fixed top-20 left-1/2 -translate-x-1/2 z-50 animate-slideDown">
+          <div className={`flex items-center gap-3 px-6 py-4 rounded-lg shadow-lg ${
+            toast.type === "success" 
+              ? "bg-green-600 text-white" 
+              : "bg-red-600 text-white"
+          }`}>
+            {toast.type === "success" ? (
+              <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+            ) : (
+              <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+            )}
+            <span className="font-medium">{toast.message}</span>
+            <button 
+              onClick={() => setToast({ show: false, type: "", message: "" })}
+              className="ml-2 hover:opacity-80"
+            >
+              <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Login Form */}
       <div className="flex-grow flex justify-center -mt-24">
@@ -325,6 +362,17 @@ export default function LoginPage() {
           </div>
         </div>
       </div>
+
+      {/* Animation styles */}
+      <style>{`
+        @keyframes slideDown {
+          from { opacity: 0; transform: translate(-50%, -20px); }
+          to { opacity: 1; transform: translate(-50%, 0); }
+        }
+        .animate-slideDown {
+          animation: slideDown 0.3s ease-out;
+        }
+      `}</style>
     </div>
   );
 }
