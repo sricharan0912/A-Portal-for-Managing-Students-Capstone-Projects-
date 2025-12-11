@@ -3,7 +3,7 @@ import { createUserWithEmailAndPassword, getIdToken, deleteUser } from "firebase
 import { auth } from "../firebaseConfig";
 import Navbar from "../components/Navbar";
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "https://a-portal-for-managing-students-capstone-projects-production.up.railway.app";
+const API_BASE_URL = import.meta.env.VITE_API_URL || "https://a-portal-for-managing-students-capstone-projects-production.up.railway.app";
 
 export default function SignupPage() {
   const [role, setRole] = useState("Student");

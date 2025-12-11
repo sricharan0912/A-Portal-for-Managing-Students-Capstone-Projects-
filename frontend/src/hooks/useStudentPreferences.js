@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
 import { apiCall } from "../utils/apiHelper";
 
+const API_URL = import.meta.env.VITE_API_URL || "https://a-portal-for-managing-students-capstone-projects-production.up.railway.app";
+
 /**
  * Custom hook to fetch and manage student project preferences
  * Handles loading state, errors, data normalization, and deadline info
@@ -30,7 +32,7 @@ export const useStudentPreferences = (studentId) => {
         console.log("useStudentPreferences: Fetching preferences for studentId:", studentId);
 
         const data = await apiCall(
-          `https://a-portal-for-managing-students-capstone-projects-production.up.railway.app/students/${studentId}/preferences`,
+          `${API_URL}/students/${studentId}/preferences`,
           { method: "GET" }
         );
 
@@ -84,7 +86,7 @@ export const useStudentPreferences = (studentId) => {
       );
 
       const response = await apiCall(
-        `https://a-portal-for-managing-students-capstone-projects-production.up.railway.app/students/${studentId}/preferences`,
+        `${API_URL}/students/${studentId}/preferences`,
         {
           method: "POST",
           body: JSON.stringify({ preferences: preferencesData }),
@@ -95,7 +97,7 @@ export const useStudentPreferences = (studentId) => {
 
       // Refresh preferences after submission
       const updatedData = await apiCall(
-        `https://a-portal-for-managing-students-capstone-projects-production.up.railway.app/students/${studentId}/preferences`,
+        `${API_URL}/students/${studentId}/preferences`,
         { method: "GET" }
       );
 
