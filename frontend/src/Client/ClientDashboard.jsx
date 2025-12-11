@@ -1,31 +1,24 @@
 import { useState, useEffect } from "react";
-import { useNavigate, useLocation } from "react-router-dom";
 import DashboardNavbar from "../components/DashboardNavbar";
 import ClientSidebar from "./ClientSidebar";
 import DashboardView from "./DashboardView";
 import ProjectListView from "./ProjectListView";
 import ProjectFormModal from "./ProjectFormModal";
-import ClientEvaluationsView from "./ClientEvaluationsView";
-import ClientTeamsView from "./ClientTeamsView";
+import ClientProfileSettingsView from "./ClientProfileSettingsView";
 import { useClientId } from "../hooks/useClientId";
 import { useProjects } from "../hooks/useProjects";
 
 const NAVBAR_HEIGHT = 64;
 const DRAWER_WIDTH = 280;
-const API_BASE_URL = import.meta.env.VITE_API_URL || "https://a-portal-for-managing-students-capstone-projects-production.up.railway.app";
-
-// Valid views for URL routing
-const VALID_VIEWS = ["dashboard", "projects", "teams", "evaluations"];
+const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:5050";
 
 /**
  * ClientDashboard Component
  * Main container for the client dashboard
- * Uses URL-based navigation for proper back button support
+ * Manages all views: dashboard, projects, teams, settings
+ * Handles project CRUD operations
  */
 export default function ClientDashboard() {
-  const navigate = useNavigate();
-  const location = useLocation();
-
   // Get client data from localStorage
   const clientData = localStorage.getItem("client");
   const client = clientData ? JSON.parse(clientData) : null;
@@ -39,29 +32,12 @@ export default function ClientDashboard() {
 
   // UI State
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [active, setActive] = useState("dashboard");
   const [showForm, setShowForm] = useState(false);
   const [editingProject, setEditingProject] = useState(null);
-
-  // Get active view from URL query parameter
-  const getActiveFromURL = () => {
-    const params = new URLSearchParams(location.search);
-    const view = params.get("view");
-    return VALID_VIEWS.includes(view) ? view : "dashboard";
-  };
-
-  const active = getActiveFromURL();
-
-  // Navigate to a view by updating URL
-  const setActive = (view) => {
-    if (view === "dashboard") {
-      navigate("/client-dashboard");
-    } else {
-      navigate(`/client-dashboard?view=${view}`);
-    }
-  };
-
+  
   const handleEditProject = (project) => {
-    console.log("🔏 Setting editing project in parent:", project);
+    console.log("🔧 Setting editing project in parent:", project);
     setEditingProject(project);
     setShowForm(true);
   };
@@ -138,6 +114,40 @@ export default function ClientDashboard() {
     .form-enter { animation: fadeInSlideDown 400ms ease-out forwards; }
   `;
 
+  // Teams view placeholder
+  const TeamsView = () => (
+    <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+      <h3 className="mb-1 text-base font-semibold text-slate-800">My Teams</h3>
+      <p className="mb-4 text-sm text-slate-500">
+        This section will show teams assigned to your projects.
+      </p>
+      <div className="rounded-md border border-dashed border-slate-200 p-6 text-center text-sm text-slate-500">
+        No teams yet
+        <br />
+        <span className="text-xs">
+          Teams will appear here when projects are assigned.
+        </span>
+      </div>
+    </section>
+  );
+
+  // Evaluations view placeholder
+  const EvaluationsView = () => (
+    <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+      <h3 className="mb-1 text-base font-semibold text-slate-800">Evaluations</h3>
+      <p className="mb-4 text-sm text-slate-500">
+        View and manage evaluations for your project teams.
+      </p>
+      <div className="rounded-md border border-dashed border-slate-200 p-6 text-center text-sm text-slate-500">
+        No evaluations yet
+        <br />
+        <span className="text-xs">
+          Evaluations will appear here when scheduled.
+        </span>
+      </div>
+    </section>
+  );
+
   return (
     <div className="flex min-h-screen flex-col bg-slate-50">
       <style>{animationStyles}</style>
@@ -146,7 +156,7 @@ export default function ClientDashboard() {
       <DashboardNavbar
         role="client"
         title="Client Dashboard"
-        userName={client?.name}
+        userName={client?.first_name || client?.name}
         onMenuClick={() => setSidebarOpen((s) => !s)}
         onLogout={handleLogout}
       />
@@ -202,10 +212,13 @@ export default function ClientDashboard() {
           )}
 
           {/* Teams View */}
-          {active === "teams" && <ClientTeamsView clientId={clientId} />}
+          {active === "teams" && <TeamsView />}
 
           {/* Evaluations View */}
-          {active === "evaluations" && <ClientEvaluationsView />}
+          {active === "evaluations" && <EvaluationsView />}
+
+          {/* Profile Settings View */}
+          {active === "settings" && <ClientProfileSettingsView />}
         </main>
       </div>
 
