@@ -16,6 +16,16 @@ const generateJWT = (uid, email, role, instructorId) => {
   );
 };
 
+// Generate a random temporary password
+function generateTempPassword(length = 10) {
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789';
+  let password = '';
+  for (let i = 0; i < length; i++) {
+    password += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  return password;
+}
+
 // ==================== AUTHENTICATION ====================
 
 // Instructor Signup with Firebase
@@ -285,6 +295,138 @@ router.put("/settings/:key", verifyToken, async (req, res) => {
   }
 });
 
+// ==================== ADD STUDENT (INSTRUCTOR) ====================
+
+// Add student with temporary password (PROTECTED - Instructor only)
+router.post("/add-student", verifyToken, async (req, res) => {
+  try {
+    // Verify instructor role
+    if (req.user.role !== "instructor" && req.user.role !== "admin") {
+      return res.status(403).json({
+        success: false,
+        error: "Access denied. Instructor role required.",
+      });
+    }
+
+    const { first_name, last_name, email } = req.body;
+
+    // Validate required fields
+    if (!first_name || !last_name || !email) {
+      return res.status(400).json({
+        success: false,
+        error: "First name, last name, and email are required",
+      });
+    }
+
+    // Check if email already exists in database
+    const [existing] = await db.query(
+      "SELECT id FROM users WHERE email = ?",
+      [email.trim().toLowerCase()]
+    );
+
+    if (existing.length > 0) {
+      return res.status(400).json({
+        success: false,
+        error: "A user with this email already exists",
+      });
+    }
+
+    // Generate temporary password
+    const tempPassword = generateTempPassword(10);
+
+    // Create Firebase user with temporary password
+    let firebaseUser;
+    try {
+      firebaseUser = await auth.createUser({
+        email: email.trim().toLowerCase(),
+        password: tempPassword,
+        displayName: `${first_name} ${last_name}`.trim(),
+        emailVerified: false,
+      });
+    } catch (firebaseErr) {
+      console.error("Firebase user creation failed:", firebaseErr);
+      
+      // Handle specific Firebase errors
+      if (firebaseErr.code === 'auth/email-already-exists') {
+        return res.status(400).json({
+          success: false,
+          error: "This email is already registered in Firebase. The student may need to reset their password.",
+        });
+      }
+      
+      return res.status(500).json({
+        success: false,
+        error: "Failed to create Firebase account: " + firebaseErr.message,
+      });
+    }
+
+    const connection = await db.getConnection();
+
+    try {
+      // Insert into users table
+      const [userResult] = await connection.query(
+        `INSERT INTO users (email, firebase_uid, role, email_verified, status, created_at) 
+         VALUES (?, ?, 'student', 0, 'active', NOW())`,
+        [email.trim().toLowerCase(), firebaseUser.uid]
+      );
+
+      const userId = userResult.insertId;
+
+      // Insert into user_profiles table
+      const fullName = `${first_name} ${last_name}`.trim();
+      await connection.query(
+        `INSERT INTO user_profiles 
+         (user_id, first_name, last_name, full_name) 
+         VALUES (?, ?, ?, ?)`,
+        [userId, first_name.trim(), last_name.trim(), fullName]
+      );
+
+      connection.release();
+
+      console.log(`✅ Student added by instructor: ${email}`);
+
+      res.status(201).json({
+        success: true,
+        message: "Student added successfully",
+        tempPassword: tempPassword,
+        student: {
+          id: userId,
+          first_name: first_name.trim(),
+          last_name: last_name.trim(),
+          email: email.trim().toLowerCase(),
+        },
+      });
+
+    } catch (dbErr) {
+      connection.release();
+      
+      // If database insert fails, try to delete the Firebase user we created
+      try {
+        await auth.deleteUser(firebaseUser.uid);
+      } catch (deleteErr) {
+        console.error("Failed to cleanup Firebase user:", deleteErr);
+      }
+      
+      throw dbErr;
+    }
+
+  } catch (err) {
+    console.error("Error adding student:", err);
+    
+    if (err.code === "ER_DUP_ENTRY") {
+      return res.status(400).json({
+        success: false,
+        error: "This email is already registered",
+      });
+    }
+    
+    res.status(500).json({
+      success: false,
+      error: "Failed to add student: " + err.message,
+    });
+  }
+});
+
 // ==================== GROUP FORMATION ====================
 // NOTE: These routes MUST be defined BEFORE /:instructor_id routes
 // to prevent Express from treating "groups" as an instructor ID
@@ -470,6 +612,80 @@ router.post("/auto-assign-groups", verifyToken, async (req, res) => {
   }
 });
 
+// Preview group formation without saving (PROTECTED - Instructor only)
+router.post("/preview-groups", verifyToken, async (req, res) => {
+  try {
+    if (req.user.role !== "instructor" && req.user.role !== "admin") {
+      return res.status(403).json({
+        success: false,
+        error: "Access denied. Instructor role required.",
+      });
+    }
+
+    // 1. Fetch all students with their preferences
+    const [studentsData] = await db.query(`
+      SELECT 
+        u.id,
+        up.full_name as name,
+        u.email
+      FROM users u
+      JOIN user_profiles up ON u.id = up.user_id
+      WHERE u.role = 'student' AND u.deleted_at IS NULL
+    `);
+
+    // Fetch preferences for each student
+    const students = await Promise.all(
+      studentsData.map(async (student) => {
+        const [prefs] = await db.query(`
+          SELECT project_id, preference_rank
+          FROM student_preferences
+          WHERE student_id = ?
+          ORDER BY preference_rank ASC
+        `, [student.id]);
+
+        return {
+          id: student.id,
+          name: student.name || student.email,
+          preferences: prefs.map(p => p.project_id)
+        };
+      })
+    );
+
+    // 2. Fetch all approved projects
+    const [projects] = await db.query(`
+      SELECT 
+        id,
+        title,
+        max_team_size
+      FROM projects
+      WHERE approval_status = 'approved'
+    `);
+
+    if (projects.length === 0) {
+      return res.status(400).json({
+        success: false,
+        error: "No approved projects available for assignment",
+      });
+    }
+
+    // 3. Run the algorithm (preview only - don't save)
+    const result = runGroupFormationAlgorithm(students, projects);
+
+    res.json({
+      success: true,
+      preview: true,
+      data: result,
+    });
+
+  } catch (err) {
+    console.error("Error in preview groups:", err);
+    res.status(500).json({
+      success: false,
+      error: "Failed to preview group formation: " + err.message,
+    });
+  }
+});
+
 // Clear all groups (PROTECTED - Instructor only)
 router.delete("/groups", verifyToken, async (req, res) => {
   try {
@@ -492,10 +708,10 @@ router.delete("/groups", verifyToken, async (req, res) => {
         success: true,
         message: "All groups cleared successfully",
       });
-    } catch (dbError) {
+    } catch (err) {
       await connection.rollback();
       connection.release();
-      throw dbError;
+      throw err;
     }
   } catch (err) {
     console.error("Error clearing groups:", err);
@@ -506,9 +722,11 @@ router.delete("/groups", verifyToken, async (req, res) => {
   }
 });
 
-// Get algorithm preview (dry run without saving)
-router.post("/preview-groups", verifyToken, async (req, res) => {
+// Get a specific group by ID (PROTECTED - Instructor only)
+router.get("/groups/:group_id", verifyToken, async (req, res) => {
   try {
+    const { group_id } = req.params;
+
     if (req.user.role !== "instructor" && req.user.role !== "admin") {
       return res.status(403).json({
         success: false,
@@ -516,406 +734,58 @@ router.post("/preview-groups", verifyToken, async (req, res) => {
       });
     }
 
-    // Fetch students with preferences
-    const [studentsData] = await db.query(`
+    const [groups] = await db.query(`
       SELECT 
-        u.id,
-        up.full_name as name,
-        u.email
-      FROM users u
-      JOIN user_profiles up ON u.id = up.user_id
-      WHERE u.role = 'student'
-    `);
+        sg.id,
+        sg.group_name as name,
+        sg.project_id,
+        sg.status,
+        sg.created_at,
+        p.title as project_title,
+        p.description as project_description,
+        p.category as project_category
+      FROM student_groups sg
+      LEFT JOIN projects p ON sg.project_id = p.id
+      WHERE sg.id = ?
+    `, [group_id]);
 
-    const students = await Promise.all(
-      studentsData.map(async (student) => {
-        const [prefs] = await db.query(`
-          SELECT project_id, preference_rank
-          FROM student_preferences
-          WHERE student_id = ?
-          ORDER BY preference_rank ASC
-        `, [student.id]);
-
-        return {
-          id: student.id,
-          name: student.name || student.email,
-          preferences: prefs.map(p => p.project_id)
-        };
-      })
-    );
-
-    // Fetch approved projects
-    const [projects] = await db.query(`
-      SELECT id, title, max_team_size
-      FROM projects
-      WHERE approval_status = 'approved'
-    `);
-
-    // Run algorithm without saving
-    const result = runGroupFormationAlgorithm(students, projects);
-
-    res.json({
-      success: true,
-      preview: true,
-      data: result,
-    });
-
-  } catch (err) {
-    console.error("Error in preview groups:", err);
-    res.status(500).json({
-      success: false,
-      error: "Failed to preview groups: " + err.message,
-    });
-  }
-});
-
-// ==================== MANUAL GROUP MANAGEMENT ====================
-
-// Get unassigned students (not in any group)
-router.get("/unassigned-students", verifyToken, async (req, res) => {
-  try {
-    if (req.user.role !== "instructor" && req.user.role !== "admin") {
-      return res.status(403).json({
+    if (groups.length === 0) {
+      return res.status(404).json({
         success: false,
-        error: "Access denied. Instructor role required.",
+        error: "Group not found",
       });
     }
 
-    const [students] = await db.query(`
+    const group = groups[0];
+
+    // Fetch members
+    const [members] = await db.query(`
       SELECT 
-        u.id,
-        u.email,
-        up.full_name as name
-      FROM users u
+        gm.student_id,
+        up.full_name as student_name,
+        u.email as student_email,
+        sp.preference_rank,
+        gm.joined_at
+      FROM group_members gm
+      JOIN users u ON gm.student_id = u.id
       LEFT JOIN user_profiles up ON u.id = up.user_id
-      WHERE u.role = 'student'
-        AND u.id NOT IN (SELECT student_id FROM group_members WHERE status = 'active')
-      ORDER BY up.full_name
-    `);
+      LEFT JOIN student_preferences sp ON sp.student_id = gm.student_id AND sp.project_id = ?
+      WHERE gm.group_id = ?
+    `, [group.project_id, group_id]);
 
     res.json({
       success: true,
-      data: students,
+      data: {
+        ...group,
+        members,
+        member_count: members.length
+      },
     });
   } catch (err) {
-    console.error("Error fetching unassigned students:", err);
+    console.error("Error fetching group:", err);
     res.status(500).json({
       success: false,
-      error: "Failed to fetch unassigned students",
-    });
-  }
-});
-
-// Get all students (for group management)
-router.get("/all-students", verifyToken, async (req, res) => {
-  try {
-    if (req.user.role !== "instructor" && req.user.role !== "admin") {
-      return res.status(403).json({
-        success: false,
-        error: "Access denied. Instructor role required.",
-      });
-    }
-
-    const [students] = await db.query(`
-      SELECT 
-        u.id,
-        u.email,
-        up.full_name as name,
-        gm.group_id,
-        sg.group_name as current_group_name
-      FROM users u
-      LEFT JOIN user_profiles up ON u.id = up.user_id
-      LEFT JOIN group_members gm ON u.id = gm.student_id AND gm.status = 'active'
-      LEFT JOIN student_groups sg ON gm.group_id = sg.id
-      WHERE u.role = 'student'
-      ORDER BY up.full_name
-    `);
-
-    res.json({
-      success: true,
-      data: students,
-    });
-  } catch (err) {
-    console.error("Error fetching all students:", err);
-    res.status(500).json({
-      success: false,
-      error: "Failed to fetch students",
-    });
-  }
-});
-
-// Create a new group manually
-router.post("/groups/create", verifyToken, async (req, res) => {
-  try {
-    if (req.user.role !== "instructor" && req.user.role !== "admin") {
-      return res.status(403).json({
-        success: false,
-        error: "Access denied. Instructor role required.",
-      });
-    }
-
-    const { project_id, group_name, student_ids } = req.body;
-
-    if (!project_id) {
-      return res.status(400).json({
-        success: false,
-        error: "Project ID is required",
-      });
-    }
-
-    const connection = await db.getConnection();
-    try {
-      await connection.beginTransaction();
-
-      // Create the group
-      const [result] = await connection.query(
-        `INSERT INTO student_groups (group_name, project_id, status, formation_method, created_at)
-         VALUES (?, ?, 'active', 'manual', NOW())`,
-        [group_name || `Group for Project ${project_id}`, project_id]
-      );
-
-      const groupId = result.insertId;
-
-      // Add students if provided
-      if (student_ids && student_ids.length > 0) {
-        for (const studentId of student_ids) {
-          // Remove from existing group first
-          await connection.query(
-            `UPDATE group_members SET status = 'inactive', left_at = NOW() 
-             WHERE student_id = ? AND status = 'active'`,
-            [studentId]
-          );
-          
-          // Add to new group
-          await connection.query(
-            `INSERT INTO group_members (group_id, student_id, role, status, joined_at)
-             VALUES (?, ?, 'member', 'active', NOW())`,
-            [groupId, studentId]
-          );
-        }
-      }
-
-      await connection.commit();
-      connection.release();
-
-      res.json({
-        success: true,
-        message: "Group created successfully",
-        data: { id: groupId },
-      });
-
-    } catch (dbError) {
-      await connection.rollback();
-      connection.release();
-      throw dbError;
-    }
-
-  } catch (err) {
-    console.error("Error creating group:", err);
-    res.status(500).json({
-      success: false,
-      error: "Failed to create group: " + err.message,
-    });
-  }
-});
-
-// Update a group (rename)
-router.put("/groups/:group_id", verifyToken, async (req, res) => {
-  try {
-    if (req.user.role !== "instructor" && req.user.role !== "admin") {
-      return res.status(403).json({
-        success: false,
-        error: "Access denied. Instructor role required.",
-      });
-    }
-
-    const { group_id } = req.params;
-    const { group_name, project_id, status } = req.body;
-
-    const updates = [];
-    const values = [];
-
-    if (group_name) {
-      updates.push("group_name = ?");
-      values.push(group_name);
-    }
-    if (project_id) {
-      updates.push("project_id = ?");
-      values.push(project_id);
-    }
-    if (status) {
-      updates.push("status = ?");
-      values.push(status);
-    }
-
-    if (updates.length === 0) {
-      return res.status(400).json({
-        success: false,
-        error: "No fields to update",
-      });
-    }
-
-    values.push(group_id);
-
-    await db.query(
-      `UPDATE student_groups SET ${updates.join(", ")}, updated_at = NOW() WHERE id = ?`,
-      values
-    );
-
-    res.json({
-      success: true,
-      message: "Group updated successfully",
-    });
-
-  } catch (err) {
-    console.error("Error updating group:", err);
-    res.status(500).json({
-      success: false,
-      error: "Failed to update group",
-    });
-  }
-});
-
-// Delete a specific group
-router.delete("/groups/:group_id", verifyToken, async (req, res) => {
-  try {
-    if (req.user.role !== "instructor" && req.user.role !== "admin") {
-      return res.status(403).json({
-        success: false,
-        error: "Access denied. Instructor role required.",
-      });
-    }
-
-    const { group_id } = req.params;
-
-    const connection = await db.getConnection();
-    try {
-      await connection.beginTransaction();
-
-      // Remove all members from the group
-      await connection.query(
-        "DELETE FROM group_members WHERE group_id = ?",
-        [group_id]
-      );
-
-      // Delete the group
-      await connection.query(
-        "DELETE FROM student_groups WHERE id = ?",
-        [group_id]
-      );
-
-      await connection.commit();
-      connection.release();
-
-      res.json({
-        success: true,
-        message: "Group deleted successfully",
-      });
-
-    } catch (dbError) {
-      await connection.rollback();
-      connection.release();
-      throw dbError;
-    }
-
-  } catch (err) {
-    console.error("Error deleting group:", err);
-    res.status(500).json({
-      success: false,
-      error: "Failed to delete group",
-    });
-  }
-});
-
-// Add a student to a group
-router.post("/groups/:group_id/members", verifyToken, async (req, res) => {
-  try {
-    if (req.user.role !== "instructor" && req.user.role !== "admin") {
-      return res.status(403).json({
-        success: false,
-        error: "Access denied. Instructor role required.",
-      });
-    }
-
-    const { group_id } = req.params;
-    const { student_id } = req.body;
-
-    if (!student_id) {
-      return res.status(400).json({
-        success: false,
-        error: "Student ID is required",
-      });
-    }
-
-    const connection = await db.getConnection();
-    try {
-      await connection.beginTransaction();
-
-      // Remove from any existing active group
-      await connection.query(
-        `UPDATE group_members SET status = 'inactive', left_at = NOW() 
-         WHERE student_id = ? AND status = 'active'`,
-        [student_id]
-      );
-
-      // Add to new group
-      await connection.query(
-        `INSERT INTO group_members (group_id, student_id, role, status, joined_at)
-         VALUES (?, ?, 'member', 'active', NOW())`,
-        [group_id, student_id]
-      );
-
-      await connection.commit();
-      connection.release();
-
-      res.json({
-        success: true,
-        message: "Student added to group successfully",
-      });
-
-    } catch (dbError) {
-      await connection.rollback();
-      connection.release();
-      throw dbError;
-    }
-
-  } catch (err) {
-    console.error("Error adding student to group:", err);
-    res.status(500).json({
-      success: false,
-      error: "Failed to add student to group",
-    });
-  }
-});
-
-// Remove a student from a group
-router.delete("/groups/:group_id/members/:student_id", verifyToken, async (req, res) => {
-  try {
-    if (req.user.role !== "instructor" && req.user.role !== "admin") {
-      return res.status(403).json({
-        success: false,
-        error: "Access denied. Instructor role required.",
-      });
-    }
-
-    const { group_id, student_id } = req.params;
-
-    await db.query(
-      `UPDATE group_members SET status = 'inactive', left_at = NOW() 
-       WHERE group_id = ? AND student_id = ? AND status = 'active'`,
-      [group_id, student_id]
-    );
-
-    res.json({
-      success: true,
-      message: "Student removed from group successfully",
-    });
-
-  } catch (err) {
-    console.error("Error removing student from group:", err);
-    res.status(500).json({
-      success: false,
-      error: "Failed to remove student from group",
+      error: "Failed to fetch group",
     });
   }
 });
