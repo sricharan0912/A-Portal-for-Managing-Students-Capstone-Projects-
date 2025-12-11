@@ -29,6 +29,17 @@ export default function SignupPage() {
     website: ""
   });
 
+  // Toast notification state
+  const [toast, setToast] = useState({ show: false, type: "", message: "" });
+
+  // Show toast notification
+  const showToast = (type, message) => {
+    setToast({ show: true, type, message });
+    if (type === "error") {
+      setTimeout(() => setToast({ show: false, type: "", message: "" }), 4000);
+    }
+  };
+
   const handleChange = (e) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
   };
@@ -61,9 +72,10 @@ export default function SignupPage() {
       );
 
       if (!checkResponse.ok) {
-        // User exists - redirect to login
-        alert("Account already exists! Please login instead.");
-        window.location.href = "/login";
+        showToast("error", "Account already exists! Please login instead.");
+        setTimeout(() => {
+          window.location.href = "/login";
+        }, 2000);
         return;
       }
 
@@ -82,10 +94,9 @@ export default function SignupPage() {
         };
         redirectPath = "/student-dashboard";
       } else if (role === "Client") {
-        // For clients, we need organization name - show a prompt
         const orgName = prompt("Please enter your organization name:");
         if (!orgName) {
-          alert("Organization name is required for client signup");
+          showToast("error", "Organization name is required for client signup");
           await deleteUser(user);
           setGoogleLoading(false);
           return;
@@ -110,7 +121,6 @@ export default function SignupPage() {
         redirectPath = "/login";
       }
 
-      // Send to backend
       const response = await fetch(url, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -120,27 +130,27 @@ export default function SignupPage() {
       const data = await response.json();
 
       if (response.ok) {
-        alert("Account created successfully!");
+        showToast("success", "Account created successfully! Redirecting...");
 
-        if (role === "Student") {
-          const studentData = {
-            id: data.student.id,
-            first_name: firstName,
-            last_name: lastName,
-            email: user.email,
-            token: data.token,
-          };
-          localStorage.setItem("student", JSON.stringify(studentData));
-          localStorage.setItem("authToken", data.token);
-        } else {
-          localStorage.setItem("authToken", data.token);
-        }
-
-        window.location.href = redirectPath;
+        setTimeout(() => {
+          if (role === "Student") {
+            const studentData = {
+              id: data.student.id,
+              first_name: firstName,
+              last_name: lastName,
+              email: user.email,
+              token: data.token,
+            };
+            localStorage.setItem("student", JSON.stringify(studentData));
+            localStorage.setItem("authToken", data.token);
+          } else {
+            localStorage.setItem("authToken", data.token);
+          }
+          window.location.href = redirectPath;
+        }, 1500);
       } else {
-        // Delete Firebase user if backend fails
         await deleteUser(user);
-        alert(data.error || "Signup failed");
+        showToast("error", data.error || "Signup failed");
       }
     } catch (err) {
       console.error("Google signup error:", err);
@@ -148,9 +158,9 @@ export default function SignupPage() {
       if (err.code === "auth/popup-closed-by-user") {
         // User closed the popup - do nothing
       } else if (err.code === "auth/account-exists-with-different-credential") {
-        alert("An account already exists with this email using a different sign-in method.");
+        showToast("error", "An account already exists with this email using a different sign-in method.");
       } else {
-        alert(err.message || "Google signup failed. Please try again.");
+        showToast("error", err.message || "Google signup failed. Please try again.");
       }
     } finally {
       setGoogleLoading(false);
@@ -162,33 +172,29 @@ export default function SignupPage() {
     setLoading(true);
 
     try {
-      // STEP 1: Validate form data
       if (formData.password !== formData.confirmPassword) {
-        alert("Passwords do not match!");
+        showToast("error", "Passwords do not match!");
         setLoading(false);
         return;
       }
 
-      // STEP 2: Check if email already exists in database BEFORE creating Firebase user
       const checkEmailResponse = await fetch(
         `${API_BASE_URL}/check-email?email=${encodeURIComponent(formData.email)}`
       );
       
       if (!checkEmailResponse.ok) {
         const errorData = await checkEmailResponse.json();
-        alert(errorData.error || "Email already registered");
+        showToast("error", errorData.error || "Email already registered");
         setLoading(false);
         return;
       }
 
-      // STEP 3: Email is available, create Firebase user
       const userCredential = await createUserWithEmailAndPassword(
         auth,
         formData.email,
         formData.password
       );
       
-      // STEP 4: Get Firebase ID token
       const idToken = await getIdToken(userCredential.user);
 
       let url = "";
@@ -224,12 +230,11 @@ export default function SignupPage() {
         };
         redirectPath = "/login";
       } else {
-        alert("Invalid role selected!");
+        showToast("error", "Invalid role selected!");
         setLoading(false);
         return;
       }
 
-      // STEP 5: Send data to backend
       const response = await fetch(url, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -239,64 +244,58 @@ export default function SignupPage() {
       const data = await response.json();
       
       if (response.ok) {
-        alert("Account created successfully!");
+        showToast("success", "Account created successfully! Redirecting...");
         
-        // Store token and user info
-        if (role === "Student") {
-          const studentData = {
-            id: data.student.id,
-            first_name: formData.firstName,
-            last_name: formData.lastName,
-            email: formData.email,
-            token: data.token,
-          };
-          localStorage.setItem("student", JSON.stringify(studentData));
-          localStorage.setItem("authToken", data.token);
-        } else if (role === "Client") {
-          localStorage.setItem("authToken", data.token);
-        } else if (role === "Instructor") {
-          localStorage.setItem("authToken", data.token);
-        }
-        
-        window.location.href = redirectPath;
+        setTimeout(() => {
+          if (role === "Student") {
+            const studentData = {
+              id: data.student.id,
+              first_name: formData.firstName,
+              last_name: formData.lastName,
+              email: formData.email,
+              token: data.token,
+            };
+            localStorage.setItem("student", JSON.stringify(studentData));
+            localStorage.setItem("authToken", data.token);
+          } else if (role === "Client") {
+            localStorage.setItem("authToken", data.token);
+          } else if (role === "Instructor") {
+            localStorage.setItem("authToken", data.token);
+          }
+          window.location.href = redirectPath;
+        }, 1500);
       } else {
-        // Delete Firebase user if backend signup fails
         try {
           if (userCredential?.user) {
             await deleteUser(userCredential.user);
-            console.log("Firebase user deleted due to backend error");
           }
         } catch (deleteErr) {
           console.error("Error deleting Firebase user:", deleteErr);
         }
-
-        alert(data.error || "Signup failed");
+        showToast("error", data.error || "Signup failed");
+        setLoading(false);
       }
     } catch (err) {
       console.error("Signup error:", err);
       
-      // Delete Firebase user if backend signup fails
       try {
         if (err.code && !err.code.startsWith("auth/")) {
           const user = auth.currentUser;
           if (user) {
             await deleteUser(user);
-            console.log("Firebase user deleted due to error");
           }
         }
       } catch (deleteErr) {
         console.error("Error deleting Firebase user:", deleteErr);
       }
       
-      // Handle Firebase specific errors
       if (err.code === "auth/email-already-in-use") {
-        alert("This email is already registered. Please login or use a different email.");
+        showToast("error", "This email is already registered. Please login or use a different email.");
       } else if (err.code === "auth/weak-password") {
-        alert("Password should be at least 6 characters");
+        showToast("error", "Password should be at least 6 characters");
       } else {
-        alert(err.message || "Something went wrong. Please try again.");
+        showToast("error", err.message || "Something went wrong. Please try again.");
       }
-    } finally {
       setLoading(false);
     }
   };
@@ -307,6 +306,36 @@ export default function SignupPage() {
 
       {/* Blue banner */}
       <div className="bg-blue-900 h-40 w-full"></div>
+
+      {/* Toast Notification */}
+      {toast.show && (
+        <div className="fixed top-20 left-1/2 -translate-x-1/2 z-50 animate-slideDown">
+          <div className={`flex items-center gap-3 px-6 py-4 rounded-lg shadow-lg ${
+            toast.type === "success" 
+              ? "bg-green-600 text-white" 
+              : "bg-red-600 text-white"
+          }`}>
+            {toast.type === "success" ? (
+              <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+            ) : (
+              <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+            )}
+            <span className="font-medium">{toast.message}</span>
+            <button 
+              onClick={() => setToast({ show: false, type: "", message: "" })}
+              className="ml-2 hover:opacity-80"
+            >
+              <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Signup Form */}
       <div className="flex-grow flex justify-center -mt-24">
@@ -508,6 +537,17 @@ export default function SignupPage() {
           </div>
         </div>
       </div>
+
+      {/* Animation styles */}
+      <style>{`
+        @keyframes slideDown {
+          from { opacity: 0; transform: translate(-50%, -20px); }
+          to { opacity: 1; transform: translate(-50%, 0); }
+        }
+        .animate-slideDown {
+          animation: slideDown 0.3s ease-out;
+        }
+      `}</style>
     </div>
   );
 }
