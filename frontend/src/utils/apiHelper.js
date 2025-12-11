@@ -165,6 +165,23 @@ export const createNewGroup = async (groupData) =>
     body: JSON.stringify(groupData),
   });
 
+// Remove student from a group (instructor only)
+export const removeStudentFromGroup = async (groupId, studentId) =>
+  apiCall(`/instructors/groups/${groupId}/members/${studentId}`, {
+    method: "DELETE",
+  });
+
+// Add student to a group (instructor only)
+export const addStudentToGroup = async (groupId, studentId) =>
+  apiCall(`/instructors/groups/${groupId}/members`, {
+    method: "POST",
+    body: JSON.stringify({ student_id: studentId }),
+  });
+
+// Get all unassigned students (not in any group)
+export const fetchUnassignedStudents = async () =>
+  apiCall("/instructors/unassigned-students", { method: "GET" });
+
 // Get all evaluations
 export const getInstructorEvaluations = async () =>
   apiCall("/evaluations", { method: "GET" });  // Changed from /instructor/evaluations to /evaluations

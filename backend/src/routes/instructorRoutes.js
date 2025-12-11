@@ -431,6 +431,50 @@ router.post("/add-student", verifyToken, async (req, res) => {
 // NOTE: These routes MUST be defined BEFORE /:instructor_id routes
 // to prevent Express from treating "groups" as an instructor ID
 
+// Get all unassigned students (students not in any group)
+router.get("/unassigned-students", verifyToken, async (req, res) => {
+  try {
+    if (req.user.role !== "instructor" && req.user.role !== "admin") {
+      return res.status(403).json({
+        success: false,
+        error: "Access denied. Instructor role required.",
+      });
+    }
+
+    // Get all students who are NOT in any group
+    const [unassignedStudents] = await db.query(`
+      SELECT 
+        u.id,
+        u.email,
+        up.first_name,
+        up.last_name,
+        up.full_name,
+        CASE 
+          WHEN up.full_name IS NOT NULL AND up.full_name != '' THEN up.full_name
+          WHEN up.first_name IS NOT NULL OR up.last_name IS NOT NULL THEN TRIM(CONCAT(COALESCE(up.first_name, ''), ' ', COALESCE(up.last_name, '')))
+          ELSE u.email
+        END as name
+      FROM users u
+      LEFT JOIN user_profiles up ON u.id = up.user_id
+      WHERE u.role = 'student' 
+        AND u.deleted_at IS NULL
+        AND u.id NOT IN (SELECT student_id FROM group_members)
+      ORDER BY up.first_name ASC
+    `);
+
+    res.json({
+      success: true,
+      data: unassignedStudents,
+    });
+  } catch (err) {
+    console.error("Error fetching unassigned students:", err);
+    res.status(500).json({
+      success: false,
+      error: "Failed to fetch unassigned students",
+    });
+  }
+});
+
 // Get all groups with members (PROTECTED - Instructor only)
 router.get("/groups", verifyToken, async (req, res) => {
   try {
@@ -791,6 +835,154 @@ router.get("/groups/:group_id", verifyToken, async (req, res) => {
 });
 
 // ==================== INSTRUCTOR PROFILE ====================
+
+// Remove student from a group (PROTECTED - Instructor only)
+router.delete("/groups/:group_id/members/:student_id", verifyToken, async (req, res) => {
+  try {
+    const { group_id, student_id } = req.params;
+
+    if (req.user.role !== "instructor" && req.user.role !== "admin") {
+      return res.status(403).json({
+        success: false,
+        error: "Access denied. Instructor role required.",
+      });
+    }
+
+    if (isNaN(group_id) || isNaN(student_id)) {
+      return res.status(400).json({
+        success: false,
+        error: "Invalid group ID or student ID format",
+      });
+    }
+
+    // Check if the student is in the group
+    const [membership] = await db.query(
+      "SELECT * FROM group_members WHERE group_id = ? AND student_id = ?",
+      [parseInt(group_id), parseInt(student_id)]
+    );
+
+    if (membership.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: "Student is not a member of this group",
+      });
+    }
+
+    // Remove the student from the group
+    await db.query(
+      "DELETE FROM group_members WHERE group_id = ? AND student_id = ?",
+      [parseInt(group_id), parseInt(student_id)]
+    );
+
+    // Check remaining members count
+    const [remainingMembers] = await db.query(
+      "SELECT COUNT(*) as count FROM group_members WHERE group_id = ?",
+      [parseInt(group_id)]
+    );
+
+    console.log(`✅ Student ${student_id} removed from group ${group_id}`);
+
+    res.json({
+      success: true,
+      message: "Student removed from group successfully",
+      data: {
+        group_id: parseInt(group_id),
+        student_id: parseInt(student_id),
+        remaining_members: remainingMembers[0].count,
+      },
+    });
+  } catch (err) {
+    console.error("Error removing student from group:", err);
+    res.status(500).json({
+      success: false,
+      error: "Failed to remove student from group",
+    });
+  }
+});
+
+// Add student to a group (PROTECTED - Instructor only)
+router.post("/groups/:group_id/members", verifyToken, async (req, res) => {
+  try {
+    const { group_id } = req.params;
+    const { student_id } = req.body;
+
+    if (req.user.role !== "instructor" && req.user.role !== "admin") {
+      return res.status(403).json({
+        success: false,
+        error: "Access denied. Instructor role required.",
+      });
+    }
+
+    if (isNaN(group_id) || isNaN(student_id)) {
+      return res.status(400).json({
+        success: false,
+        error: "Invalid group ID or student ID format",
+      });
+    }
+
+    // Check if student exists
+    const [student] = await db.query(
+      "SELECT id FROM users WHERE id = ? AND role = 'student' AND deleted_at IS NULL",
+      [parseInt(student_id)]
+    );
+
+    if (student.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: "Student not found",
+      });
+    }
+
+    // Check if group exists
+    const [group] = await db.query(
+      "SELECT id FROM student_groups WHERE id = ?",
+      [parseInt(group_id)]
+    );
+
+    if (group.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: "Group not found",
+      });
+    }
+
+    // Check if student is already in a group
+    const [existingMembership] = await db.query(
+      "SELECT group_id FROM group_members WHERE student_id = ?",
+      [parseInt(student_id)]
+    );
+
+    if (existingMembership.length > 0) {
+      return res.status(400).json({
+        success: false,
+        error: "Student is already assigned to a group. Remove them first before adding to a new group.",
+      });
+    }
+
+    // Add student to group
+    await db.query(
+      "INSERT INTO group_members (group_id, student_id, joined_at) VALUES (?, ?, NOW())",
+      [parseInt(group_id), parseInt(student_id)]
+    );
+
+    console.log(`✅ Student ${student_id} added to group ${group_id}`);
+
+    res.status(201).json({
+      success: true,
+      message: "Student added to group successfully",
+      data: {
+        group_id: parseInt(group_id),
+        student_id: parseInt(student_id),
+      },
+    });
+  } catch (err) {
+    console.error("Error adding student to group:", err);
+    res.status(500).json({
+      success: false,
+      error: "Failed to add student to group",
+    });
+  }
+});
 
 // Get instructor profile (PROTECTED)
 router.get("/:instructor_id", verifyToken, async (req, res) => {
