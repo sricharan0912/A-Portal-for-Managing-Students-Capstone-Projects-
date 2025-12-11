@@ -12,6 +12,8 @@ import { useStudentProjects } from "../hooks/useStudentProjects";
 import { useStudentPreferences } from "../hooks/useStudentPreferences";
 import { apiCall } from "../utils/apiHelper";
 
+const API_URL = import.meta.env.VITE_API_URL || "https://a-portal-for-managing-students-capstone-projects-production.up.railway.app";
+
 const NAVBAR_HEIGHT = 64;
 const DRAWER_WIDTH = 280;
 
@@ -92,7 +94,7 @@ export default function StudentDashboard() {
         );
 
         const response = await apiCall(
-          `https://a-portal-for-managing-students-capstone-projects-production.up.railway.app/students/${studentId}/group`,
+          `${API_URL}/students/${studentId}/group`,
           { method: "GET" }
         );
 
@@ -105,7 +107,7 @@ export default function StudentDashboard() {
         if (groupData) {
           try {
             const membersResponse = await apiCall(
-              `https://a-portal-for-managing-students-capstone-projects-production.up.railway.app/students/${studentId}/group/members`,
+              `${API_URL}/students/${studentId}/group/members`,
               { method: "GET" }
             );
             console.log("StudentDashboard: Group members received:", membersResponse);
@@ -292,9 +294,11 @@ export default function StudentDashboard() {
             />
           )}
 
-          {/* Evaluations View */}
           {active === "evaluations" && (
-            <StudentEvaluationsView />
+            <StudentEvaluationsView 
+              studentId={studentId} 
+              assignedGroup={assignedGroup} 
+            />
           )}
         </main>
       </div>

@@ -3,30 +3,74 @@ import { apiCall } from "../utils/apiHelper";
 
 /**
  * Student → Evaluations Page
- * Displays upcoming and past evaluations for student's groups
+ * Displays upcoming and past evaluations for student's assigned group only
  * Shows details like location, meeting link, description, etc.
  */
-export default function StudentEvaluationsView() {
+export default function StudentEvaluationsView({ studentId, assignedGroup }) {
   const [evaluations, setEvaluations] = useState([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState("upcoming");
 
   useEffect(() => {
-    fetchEvaluations();
-  }, []);
+    // Only fetch evaluations if student has an assigned group
+    if (assignedGroup && assignedGroup.group_id && !assignedGroup.message) {
+      fetchEvaluations();
+    } else {
+      setLoading(false);
+      setEvaluations([]);
+    }
+  }, [assignedGroup]);
 
   const fetchEvaluations = async () => {
     try {
       setLoading(true);
+      // Fetch evaluations and filter by group on frontend
       const res = await apiCall("/evaluations", { method: "GET" });
       console.log("Evaluations response:", res);
-      setEvaluations(res.data || []);
+      
+      // Filter evaluations to only show ones for this student's group
+      const allEvaluations = res.data || [];
+      const groupEvaluations = allEvaluations.filter(
+        (e) => e.group_id === assignedGroup.group_id
+      );
+      
+      setEvaluations(groupEvaluations);
     } catch (err) {
       console.error("Error fetching evaluations:", err);
+      setEvaluations([]);
     } finally {
       setLoading(false);
     }
   };
+
+  // Show message if student is not assigned to a group yet
+  if (!assignedGroup || assignedGroup.message || !assignedGroup.group_id) {
+    return (
+      <div className="space-y-6">
+        <div>
+          <h2 className="text-2xl font-bold text-slate-800">My Evaluations</h2>
+          <p className="text-slate-500 text-sm mt-1">
+            Sprints, milestones, and weekly updates for your projects
+          </p>
+        </div>
+        
+        <div className="bg-yellow-50 rounded-xl border-2 border-dashed border-yellow-300 p-12 text-center">
+          <div className="flex justify-center mb-4">
+            <svg className="h-16 w-16 text-yellow-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+          </div>
+          <h3 className="text-xl font-semibold text-yellow-800 mb-2">
+            Group Assignment Pending
+          </h3>
+          <p className="text-yellow-700 max-w-md mx-auto">
+            Evaluations will appear here once you have been assigned to a project group. 
+            Your instructor will assign you to a team after reviewing all preferences.
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   const filteredEvaluations = evaluations.filter((e) => {
     const today = new Date();
@@ -161,7 +205,7 @@ export default function StudentEvaluationsView() {
           </div>
           <div>
             <p className="font-semibold text-blue-900">
-              {evaluations.filter((e) => e.status !== "completed" && e.status !== "cancelled").length} upcoming evaluation{evaluations.filter((e) => e.status !== "completed" && e.status !== "cancelled").length !== 1 ? "s" : ""}
+              {filteredEvaluations.length} upcoming evaluation{filteredEvaluations.length !== 1 ? "s" : ""}
             </p>
             <p className="text-sm text-blue-700">{upcomingCount} within the next week</p>
           </div>
@@ -255,16 +299,6 @@ export default function StudentEvaluationsView() {
                           )}
                         </div>
 
-                        {/* Project */}
-                        {evaluation.project_title && (
-                          <div className="flex items-center gap-2 text-slate-600">
-                            <svg className="h-4 w-4 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
-                            </svg>
-                            <span>{evaluation.project_title}</span>
-                          </div>
-                        )}
-
                         {/* Location */}
                         {evaluation.location && (
                           <div className="flex items-center gap-2 text-slate-600">
@@ -275,52 +309,11 @@ export default function StudentEvaluationsView() {
                             <span>{evaluation.location}</span>
                           </div>
                         )}
-
-                        {/* Due Date */}
-                        {evaluation.due_date && (
-                          <div className="flex items-center gap-2 text-slate-600">
-                            <svg className="h-4 w-4 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                            </svg>
-                            <span>Due: {formatDate(evaluation.due_date)}</span>
-                          </div>
-                        )}
-
-                        {/* Evaluator */}
-                        {evaluation.evaluator_name && (
-                          <div className="flex items-center gap-2 text-slate-600">
-                            <svg className="h-4 w-4 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                            </svg>
-                            <span>Evaluator: {evaluation.evaluator_name}</span>
-                          </div>
-                        )}
                       </div>
-
-                      {/* Notes */}
-                      {evaluation.notes && (
-                        <div className="mt-3 p-3 bg-slate-50 rounded-lg border border-slate-100">
-                          <p className="text-xs font-medium text-slate-500 mb-1">Notes from Instructor</p>
-                          <p className="text-sm text-slate-700">{evaluation.notes}</p>
-                        </div>
-                      )}
                     </div>
 
-                    {/* Right Side - Join Button or Days Left */}
+                    {/* Right Side - Days Left */}
                     <div className="flex-shrink-0 flex flex-col items-end gap-2">
-                      {evaluation.meeting_link && isUpcoming && (
-                        <a
-                          href={evaluation.meeting_link}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 transition"
-                        >
-                          <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
-                          </svg>
-                          Join Meeting
-                        </a>
-                      )}
                       {isUpcoming && daysUntil > 0 && (
                         <div className="text-center">
                           <div className="text-2xl font-bold text-slate-700">{daysUntil}</div>

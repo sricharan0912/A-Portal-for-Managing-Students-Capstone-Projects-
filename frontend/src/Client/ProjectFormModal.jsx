@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { apiCall } from "../utils/apiHelper";
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "https://a-portal-for-managing-students-capstone-projects-production.up.railway.app";
+const API_BASE_URL = import.meta.env.VITE_API_URL || "https://a-portal-for-managing-students-capstone-projects-production.up.railway.app";
 
 // Icon components for section headers
 const ClipboardIcon = () => (

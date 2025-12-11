@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
 import { apiCall } from "../utils/apiHelper";
 
+const API_URL = import.meta.env.VITE_API_URL || "https://a-portal-for-managing-students-capstone-projects-production.up.railway.app";
+
 /**
  * Custom hook to fetch available projects for students
  * Handles loading state, errors, and data normalization
@@ -19,8 +21,7 @@ export const useStudentProjects = () => {
         setError(null);
 
         console.log("useStudentProjects: Fetching available projects");
-
-        const data = await apiCall("https://a-portal-for-managing-students-capstone-projects-production.up.railway.app/students/projects", {
+        const data = await apiCall(`${API_URL}/students/projects`, {
           method: "GET",
         });
 

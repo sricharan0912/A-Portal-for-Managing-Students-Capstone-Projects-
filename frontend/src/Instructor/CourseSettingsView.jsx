@@ -1,6 +1,8 @@
 import { useState, useEffect } from "react";
 import { apiCall } from "../utils/apiHelper";
 
+const API_URL = import.meta.env.VITE_API_URL || "https://a-portal-for-managing-students-capstone-projects-production.up.railway.app";
+
 /**
  * CourseSettingsView Component
  * Allows instructors to manage course settings like preference deadlines
@@ -24,7 +26,7 @@ export default function CourseSettingsView() {
       try {
         setLoading(true);
         const data = await apiCall(
-          "https://a-portal-for-managing-students-capstone-projects-production.up.railway.app/instructors/settings/all",
+          `${API_URL}/instructors/settings/all`,
           { method: "GET" }
         );
 
@@ -65,7 +67,7 @@ export default function CourseSettingsView() {
       }
 
       await apiCall(
-        "https://a-portal-for-managing-students-capstone-projects-production.up.railway.app/instructors/settings/preference_deadline",
+        `${API_URL}/instructors/settings/preference_deadline`,
         {
           method: "PUT",
           body: JSON.stringify({ value: deadlineValue }),
@@ -106,7 +108,7 @@ export default function CourseSettingsView() {
       setSuccess(null);
 
       await apiCall(
-        "https://a-portal-for-managing-students-capstone-projects-production.up.railway.app/instructors/settings/preference_deadline",
+        `${API_URL}/instructors/settings/preference_deadline`,
         {
           method: "PUT",
           body: JSON.stringify({ value: null }),
