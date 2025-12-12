@@ -255,6 +255,48 @@ router.get("/projects", async (req, res) => {
   }
 });
 
+// Get course settings (PUBLIC - students need to see deadline)
+router.get("/course-settings", async (req, res) => {
+  try {
+    // Query app_settings table for preference_deadline
+    const [result] = await db.query(
+      `SELECT setting_key, setting_value FROM app_settings WHERE setting_key = 'preference_deadline'`
+    );
+
+    if (result.length > 0) {
+      res.json({
+        success: true,
+        data: {
+          preference_deadline: result[0].setting_value,
+        },
+      });
+    } else {
+      // No deadline set
+      res.json({
+        success: true,
+        data: {
+          preference_deadline: null,
+        },
+      });
+    }
+  } catch (err) {
+    // If table doesn't exist, return null deadline
+    if (err.code === 'ER_NO_SUCH_TABLE') {
+      return res.json({
+        success: true,
+        data: {
+          preference_deadline: null,
+        },
+      });
+    }
+    console.error("Error fetching course settings:", err);
+    res.status(500).json({
+      success: false,
+      error: "Failed to fetch course settings",
+    });
+  }
+});
+
 // ==================== PARAMETERIZED ROUTES (AFTER STATIC ROUTES) ====================
 
 // ==================== STUDENT PROFILE ====================
@@ -799,7 +841,7 @@ router.get("/:student_id/group/members", verifyToken, async (req, res) => {
 
     const groupId = groupData[0].group_id;
 
-    // âœ… NEW SCHEMA: Query users + user_profiles for group members
+    // ✅ NEW SCHEMA: Query users + user_profiles for group members
     const [members] = await db.query(
       `SELECT gm.student_id, p.first_name, p.last_name, u.email 
        FROM group_members gm
@@ -819,6 +861,101 @@ router.get("/:student_id/group/members", verifyToken, async (req, res) => {
     res.status(500).json({
       success: false,
       error: "Failed to fetch group members",
+    });
+  }
+});
+
+// ==================== EVALUATIONS ====================
+
+// Get evaluations for a student's group (PROTECTED)
+router.get("/:student_id/evaluations", verifyToken, async (req, res) => {
+  try {
+    const { student_id } = req.params;
+
+    if (isNaN(student_id)) {
+      return res.status(400).json({
+        success: false,
+        error: "Invalid student ID format",
+      });
+    }
+
+    // Allow students to view their own evaluations, or instructors/admins
+    if (
+      parseInt(student_id) !== req.user.studentId && 
+      req.user.role !== "instructor" && 
+      req.user.role !== "admin"
+    ) {
+      return res.status(403).json({
+        success: false,
+        error: "Unauthorized access",
+      });
+    }
+
+    // First, find the student's group
+    const [groupData] = await db.query(
+      `SELECT gm.group_id, sg.project_id, sg.group_number 
+       FROM group_members gm
+       JOIN student_groups sg ON gm.group_id = sg.id
+       WHERE gm.student_id = ?`,
+      [parseInt(student_id)]
+    );
+
+    if (groupData.length === 0) {
+      return res.json({
+        success: true,
+        data: [],
+        message: "Student not assigned to a group yet",
+      });
+    }
+
+    const groupId = groupData[0].group_id;
+    const projectId = groupData[0].project_id;
+
+    // Check if evaluations table exists and fetch evaluations for this group
+    try {
+      const [evaluations] = await db.query(
+        `SELECT 
+           e.id,
+           e.title,
+           e.description,
+           e.evaluation_type,
+           e.scheduled_date,
+           e.scheduled_time,
+           e.status,
+           e.location,
+           e.group_id,
+           e.project_id,
+           p.title as project_title,
+           sg.group_number as group_name
+         FROM evaluations e
+         LEFT JOIN student_groups sg ON e.group_id = sg.id
+         LEFT JOIN projects p ON e.project_id = p.id OR sg.project_id = p.id
+         WHERE e.group_id = ? OR e.project_id = ?
+         ORDER BY e.scheduled_date DESC`,
+        [groupId, projectId]
+      );
+
+      res.json({
+        success: true,
+        data: evaluations,
+      });
+    } catch (queryErr) {
+      // If evaluations table doesn't exist, return empty array
+      if (queryErr.code === 'ER_NO_SUCH_TABLE') {
+        console.log("Evaluations table does not exist yet");
+        return res.json({
+          success: true,
+          data: [],
+          message: "No evaluations scheduled yet",
+        });
+      }
+      throw queryErr;
+    }
+  } catch (err) {
+    console.error("Error fetching student evaluations:", err);
+    res.status(500).json({
+      success: false,
+      error: "Failed to fetch evaluations",
     });
   }
 });

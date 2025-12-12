@@ -5,102 +5,96 @@ import StudentDashboardView from "./StudentDashboardView";
 import BrowseProjectsView from "./BrowseProjectsView";
 import PreferencesView from "./PreferencesView";
 import GroupView from "./GroupView";
+import StudentEvaluationsView from "./StudentEvaluationsView";
 import StudentProfileSettingsView from "./StudentProfileSettingsView";
 import { useStudentId } from "../hooks/useStudentId";
 import { useStudentProjects } from "../hooks/useStudentProjects";
 import { useStudentPreferences } from "../hooks/useStudentPreferences";
 import { apiCall } from "../utils/apiHelper";
 
-const API_URL = import.meta.env.VITE_API_URL || "https://a-]portal-for-managing-students-capstone-projects-production.up.railway.app";
-
 const NAVBAR_HEIGHT = 64;
 const DRAWER_WIDTH = 280;
 
-/**
- * StudentDashboard Component
- * Main container for the student dashboard
- * Manages all views: dashboard, browse projects, preferences, group, settings
- * Handles project preferences submission
- */
 export default function StudentDashboard() {
-  // Get student data from localStorage
   const studentData = localStorage.getItem("student");
   const student = studentData ? JSON.parse(studentData) : null;
-
-  // Get numeric student ID using custom hook
   const studentId = useStudentId();
 
-  // Fetch available projects using custom hook
   const { projects, loading: projectsLoading, error: projectsError } =
     useStudentProjects();
 
-  // Fetch and manage preferences using custom hook
   const {
     preferences,
     loading: preferencesLoading,
     error: preferencesError,
     submitPreferences,
+    lastUpdated: preferencesLastUpdated,
   } = useStudentPreferences(studentId);
 
-  // Fetch assigned group
   const [assignedGroup, setAssignedGroup] = useState(null);
+  const [groupMembers, setGroupMembers] = useState([]);
   const [groupLoading, setGroupLoading] = useState(false);
   const [groupError, setGroupError] = useState(null);
-
-  // UI State
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [active, setActive] = useState("dashboard");
   const [selectedProjects, setSelectedProjects] = useState([]);
   const [submittingPreferences, setSubmittingPreferences] = useState(false);
+  const [preferenceDeadline, setPreferenceDeadline] = useState(null);
 
-  // Fetch assigned group on mount
   useEffect(() => {
     if (!studentId) return;
-
-    const loadGroup = async () => {
+    const loadGroupData = async () => {
       try {
         setGroupLoading(true);
         setGroupError(null);
-
-        console.log(
-          "StudentDashboard: Fetching group for studentId:",
-          studentId
-        );
-
-        const data = await apiCall(
-          `${API_URL}/students/${studentId}/group`,
-          { method: "GET" }
-        );
-
-        console.log("StudentDashboard: Group data received:", data);
-        setAssignedGroup(data);
+        
+        // Load group info
+        const groupData = await apiCall(`/students/${studentId}/group`, { method: "GET" });
+        setAssignedGroup(groupData.data || groupData);
+        
+        // Load group members if group exists
+        if (groupData.data || (groupData && !groupData.message)) {
+          try {
+            const membersData = await apiCall(`/students/${studentId}/group/members`, { method: "GET" });
+            setGroupMembers(membersData.data || membersData || []);
+          } catch (memberErr) {
+            console.error("Error loading group members:", memberErr);
+            setGroupMembers([]);
+          }
+        }
       } catch (err) {
-        console.error("StudentDashboard: Error fetching group:", err);
         setGroupError(err.message);
         setAssignedGroup(null);
+        setGroupMembers([]);
       } finally {
         setGroupLoading(false);
       }
     };
-
-    loadGroup();
+    loadGroupData();
   }, [studentId]);
 
-  // Redirect if not logged in
+  // Fetch preference deadline
+  useEffect(() => {
+    const loadDeadline = async () => {
+      try {
+        const response = await apiCall("/instructors/settings/preference-deadline", { method: "GET" });
+        if (response.success && response.data?.deadline) {
+          setPreferenceDeadline(response.data.deadline);
+        }
+      } catch (err) {
+        console.error("Error loading preference deadline:", err);
+      }
+    };
+    loadDeadline();
+  }, []);
+
   if (!student) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-slate-50">
         <div className="text-center">
-          <h1 className="text-2xl font-bold text-slate-900 mb-2">
-            Not Logged In
-          </h1>
-          <p className="text-slate-600 mb-6">
-            Please log in to access the dashboard
-          </p>
-          <a
-            href="/login"
-            className="inline-block rounded-lg bg-blue-600 px-6 py-3 text-white font-semibold hover:bg-blue-700 transition"
-          >
+          <h1 className="text-2xl font-bold text-slate-900 mb-2">Not Logged In</h1>
+          <p className="text-slate-600 mb-6">Please log in to access the dashboard</p>
+          <a href="/login" className="inline-block rounded-lg bg-blue-600 px-6 py-3 text-white font-semibold hover:bg-blue-700 transition">
             Go to Login
           </a>
         </div>
@@ -108,79 +102,39 @@ export default function StudentDashboard() {
     );
   }
 
-  // Handle logout
   const handleLogout = () => {
     localStorage.removeItem("student");
+    localStorage.removeItem("authToken");
     window.location.href = "/login";
   };
 
-  // Handle project selection/deselection
   const handleSelectProject = (projectId) => {
     setSelectedProjects((prev) => {
-      if (prev.includes(projectId)) {
-        // Remove project
-        return prev.filter((id) => id !== projectId);
-      } else {
-        // Add project (max 3)
-        if (prev.length < 3) {
-          return [...prev, projectId];
-        }
-        return prev;
-      }
+      if (prev.includes(projectId)) return prev.filter((id) => id !== projectId);
+      if (prev.length < 3) return [...prev, projectId];
+      return prev;
     });
   };
 
-  // Handle submit preferences
   const handleSubmitPreferences = async (projectIds) => {
     try {
       setSubmittingPreferences(true);
-
-      // Format preferences with ranking
       const preferencesData = projectIds.map((id, idx) => ({
         project_id: id,
         preference_rank: idx + 1,
       }));
-
-      console.log("StudentDashboard: Submitting preferences:", preferencesData);
-
-      // Submit using hook function
       await submitPreferences(preferencesData);
-
-      // Clear selected projects
       setSelectedProjects([]);
-
       alert("Preferences submitted successfully!");
     } catch (err) {
-      console.error("StudentDashboard: Error submitting preferences:", err);
       alert("Error: " + err.message);
     } finally {
       setSubmittingPreferences(false);
     }
   };
 
-  // Animation styles
-  const animationStyles = `
-    @keyframes fadeIn {
-      from { opacity: 0; }
-      to { opacity: 1; }
-    }
-    @keyframes slideUp {
-      from { opacity: 0; transform: translateY(20px); }
-      to { opacity: 1; transform: translateY(0); }
-    }
-    .animate-fadeIn {
-      animation: fadeIn 0.2s ease-out;
-    }
-    .animate-slideUp {
-      animation: slideUp 0.3s ease-out;
-    }
-  `;
-
   return (
     <div className="flex min-h-screen flex-col bg-slate-50">
-      <style>{animationStyles}</style>
-
-      {/* Top Navigation Bar */}
       <DashboardNavbar
         role="student"
         title="Student Dashboard"
@@ -188,16 +142,12 @@ export default function StudentDashboard() {
         onMenuClick={() => setSidebarOpen((s) => !s)}
         onLogout={handleLogout}
       />
-
-      {/* Sidebar Navigation */}
       <StudentSidebar
         active={active}
         setActive={setActive}
         sidebarOpen={sidebarOpen}
         setSidebarOpen={setSidebarOpen}
       />
-
-      {/* Main Content Area */}
       <div
         className="flex-1 px-4 transition-[margin] duration-300 ease-in-out sm:px-6 lg:px-8"
         style={{
@@ -208,7 +158,6 @@ export default function StudentDashboard() {
         }}
       >
         <main className="mx-auto max-w-7xl pb-8">
-          {/* Dashboard View */}
           {active === "dashboard" && (
             <StudentDashboardView
               projects={projects}
@@ -217,8 +166,6 @@ export default function StudentDashboard() {
               onNavigate={setActive}
             />
           )}
-
-          {/* Browse Projects View */}
           {active === "browse" && (
             <BrowseProjectsView
               projects={projects}
@@ -227,8 +174,6 @@ export default function StudentDashboard() {
               loading={projectsLoading}
             />
           )}
-
-          {/* Preferences View */}
           {active === "preferences" && (
             <PreferencesView
               projects={projects}
@@ -237,31 +182,26 @@ export default function StudentDashboard() {
               onSelectProject={handleSelectProject}
               onSubmitPreferences={handleSubmitPreferences}
               loading={submittingPreferences}
+              deadline={preferenceDeadline}
+              lastUpdated={preferencesLastUpdated}
             />
           )}
-
-          {/* Group View */}
           {active === "group" && (
-            <GroupView
-              assignedGroup={assignedGroup}
-              loading={groupLoading}
+            <GroupView 
+              assignedGroup={assignedGroup} 
+              groupMembers={groupMembers}
+              loading={groupLoading} 
             />
           )}
-
-          {/* Profile Settings View */}
-          {active === "settings" && (
-            <StudentProfileSettingsView />
+          {active === "evaluations" && (
+            <StudentEvaluationsView studentId={studentId} />
           )}
+          {active === "profile" && <StudentProfileSettingsView />}
         </main>
       </div>
-
-      {/* Footer */}
       <footer className="mt-auto border-t border-slate-200 bg-white py-6 text-center text-sm text-slate-500">
-        © 2025 Capstone Hub. All rights reserved. | Contact:{" "}
-        <a
-          className="text-blue-600 hover:underline"
-          href="mailto:support@capstonehub.com"
-        >
+        Â© 2025 Capstone Hub. All rights reserved. | Contact:{" "}
+        <a className="text-blue-600 hover:underline" href="mailto:support@capstonehub.com">
           support@capstonehub.com
         </a>
       </footer>
