@@ -22,8 +22,11 @@ export default function GroupView({ assignedGroup = null, groupMembers = [], loa
     );
   }
 
+  // Check if group is actually assigned (not just truthy but has actual data)
+  const hasGroup = assignedGroup && !assignedGroup.message && (assignedGroup.id || assignedGroup.group_number || assignedGroup.title);
+
   // Not assigned yet
-  if (!assignedGroup) {
+  if (!hasGroup) {
     return (
       <div className="space-y-6">
         <div>
@@ -80,6 +83,28 @@ export default function GroupView({ assignedGroup = null, groupMembers = [], loa
           Congratulations! You have been assigned to your project team.
         </p>
       </div>
+
+      {/* Project Deadline Banner */}
+      {assignedGroup.end_date && (
+        <div className="rounded-xl border border-blue-200 bg-blue-50 px-5 py-3 flex items-center gap-3">
+          <svg className="h-5 w-5 text-blue-600 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+          <span className="text-blue-800 font-medium">
+            Due {new Date(assignedGroup.end_date).toLocaleDateString("en-US", {
+              month: "short",
+              day: "numeric",
+              year: "numeric",
+            })}
+            {assignedGroup.end_date.includes("T") && (
+              <>, {new Date(assignedGroup.end_date).toLocaleTimeString("en-US", {
+                hour: "numeric",
+                minute: "2-digit",
+              })}</>
+            )}
+          </span>
+        </div>
+      )}
 
       {/* Main Info Grid */}
       <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
@@ -141,12 +166,38 @@ export default function GroupView({ assignedGroup = null, groupMembers = [], loa
           </div>
 
           <div className="space-y-4">
-            <div className="rounded-lg bg-purple-50 p-4">
-              <p className="text-xs text-slate-500 mb-1">Group Number</p>
-              <p className="text-3xl font-bold text-purple-600">
-                {assignedGroup.group_number || assignedGroup.id || "—"}
-              </p>
-            </div>
+            {/* Project Deadline */}
+            {assignedGroup.end_date ? (
+              <div className="rounded-lg bg-purple-50 p-4">
+                <p className="text-xs text-slate-500 mb-1">Project Deadline</p>
+                <p className="text-xl font-bold text-purple-600">
+                  {new Date(assignedGroup.end_date).toLocaleDateString("en-US", {
+                    month: "short",
+                    day: "numeric",
+                    year: "numeric",
+                  })}
+                </p>
+              </div>
+            ) : (
+              <div className="rounded-lg bg-purple-50 p-4">
+                <p className="text-xs text-slate-500 mb-1">Project Deadline</p>
+                <p className="text-xl font-bold text-purple-600">TBD</p>
+              </div>
+            )}
+
+            {/* Start Date */}
+            {assignedGroup.start_date && (
+              <div>
+                <p className="text-xs text-slate-500 mb-1">Start Date</p>
+                <p className="text-lg font-semibold text-slate-900">
+                  {new Date(assignedGroup.start_date).toLocaleDateString("en-US", {
+                    month: "short",
+                    day: "numeric",
+                    year: "numeric",
+                  })}
+                </p>
+              </div>
+            )}
 
             <div>
               <p className="text-xs text-slate-500 mb-1">Team Size</p>

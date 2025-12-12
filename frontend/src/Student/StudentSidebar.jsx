@@ -171,7 +171,7 @@ export default function StudentSidebar({
               />
 
               <NavItem
-                id="settings"
+                id="profile"
                 label="Profile Settings"
                 icon={
                   <svg
