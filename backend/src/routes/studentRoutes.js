@@ -51,7 +51,7 @@ router.post("/signup", validateStudentSignup, async (req, res) => {
     const connection = await db.getConnection();
 
     try {
-      // âœ… NEW SCHEMA: Insert into users table
+      // Ã¢Å“â€¦ NEW SCHEMA: Insert into users table
       const [userResult] = await connection.query(
         "INSERT INTO users (email, firebase_uid, role, email_verified, status) VALUES (?, ?, 'student', 1, 'active')",
         [email, uid]
@@ -59,7 +59,7 @@ router.post("/signup", validateStudentSignup, async (req, res) => {
 
       const userId = userResult.insertId;
 
-      // âœ… NEW SCHEMA: Insert into user_profiles table
+      // Ã¢Å“â€¦ NEW SCHEMA: Insert into user_profiles table
       const fullName = `${first_name} ${last_name}`.trim();
       await connection.query(
         `INSERT INTO user_profiles 
@@ -73,7 +73,7 @@ router.post("/signup", validateStudentSignup, async (req, res) => {
       // Generate JWT token
       const token = generateJWT(uid, email, "student", userId);
 
-      // âœ… BACKWARDS COMPATIBLE RESPONSE
+      // Ã¢Å“â€¦ BACKWARDS COMPATIBLE RESPONSE
       res.status(201).json({
         success: true,
         message: "Student registered successfully",
@@ -126,7 +126,7 @@ router.post("/login", validateStudentLogin, async (req, res) => {
 
     const uid = decodedToken.uid;
 
-    // âœ… NEW SCHEMA: Query users + user_profiles
+    // Ã¢Å“â€¦ NEW SCHEMA: Query users + user_profiles
     const [students] = await db.query(
       `SELECT u.id, u.email, u.role,
               p.first_name, p.last_name, p.full_name
@@ -155,7 +155,7 @@ router.post("/login", validateStudentLogin, async (req, res) => {
     // Generate JWT token
     const token = generateJWT(uid, email, "student", studentId);
 
-    // âœ… BACKWARDS COMPATIBLE RESPONSE
+    // Ã¢Å“â€¦ BACKWARDS COMPATIBLE RESPONSE
     res.json({
       success: true,
       message: "Login successful",
@@ -179,11 +179,11 @@ router.post("/login", validateStudentLogin, async (req, res) => {
 
 // ==================== STATIC ROUTES (MUST BE BEFORE PARAMETERIZED ROUTES) ====================
 
-// âœ… Get all students (for instructor/admin to view all students)
+// Ã¢Å“â€¦ Get all students (for instructor/admin to view all students)
 // IMPORTANT: This MUST come before /:student_id routes
 router.get("/", verifyToken, verifyRole(["instructor", "admin"]), async (req, res) => {
   try {
-    // âœ… NEW SCHEMA: Query users + user_profiles
+    // Ã¢Å“â€¦ NEW SCHEMA: Query users + user_profiles
     const [students] = await db.query(
       `SELECT u.id, u.email, u.created_at,
               p.first_name, p.last_name, p.full_name
@@ -219,7 +219,7 @@ router.get("/", verifyToken, verifyRole(["instructor", "admin"]), async (req, re
 // IMPORTANT: This MUST come before /:student_id routes
 router.get("/projects", async (req, res) => {
   try {
-    // ✅ Query projects that have been approved by instructor
+    // âœ… Query projects that have been approved by instructor
     const [projects] = await db.query(
     `SELECT 
        id,
@@ -325,7 +325,7 @@ router.get("/:student_id", verifyToken, async (req, res) => {
       });
     }
 
-    // âœ… NEW SCHEMA: Query users + user_profiles
+    // Ã¢Å“â€¦ NEW SCHEMA: Query users + user_profiles
     const [students] = await db.query(
       `SELECT u.id, u.email, u.created_at,
               p.first_name, p.last_name, p.full_name
@@ -407,13 +407,13 @@ router.put("/:student_id", verifyToken, async (req, res) => {
     const connection = await db.getConnection();
 
     try {
-      // âœ… NEW SCHEMA: Update users table
+      // Ã¢Å“â€¦ NEW SCHEMA: Update users table
       await connection.query(
         "UPDATE users SET email = ? WHERE id = ?",
         [email, parseInt(student_id)]
       );
 
-      // âœ… NEW SCHEMA: Update user_profiles table
+      // Ã¢Å“â€¦ NEW SCHEMA: Update user_profiles table
       const fullName = `${first_name} ${last_name}`.trim();
       const [result] = await connection.query(
         "UPDATE user_profiles SET first_name = ?, last_name = ?, full_name = ? WHERE user_id = ?",
@@ -466,7 +466,7 @@ router.delete("/:student_id", verifyToken, async (req, res) => {
       });
     }
 
-    // âœ… NEW SCHEMA: Soft delete using deleted_at
+    // Ã¢Å“â€¦ NEW SCHEMA: Soft delete using deleted_at
     const [result] = await db.query(
       "UPDATE users SET deleted_at = NOW(), status = 'inactive' WHERE id = ? AND role = 'student'",
       [parseInt(student_id)]
@@ -518,7 +518,7 @@ router.get("/:student_id/preferences", verifyToken, async (req, res) => {
       });
     }
 
-    // ✅ Query with correct column name: preference_rank
+    // âœ… Query with correct column name: preference_rank
     const [preferences] = await db.query(
       `SELECT 
          sp.student_id, 
@@ -657,7 +657,7 @@ router.post("/:student_id/preferences", verifyToken, async (req, res) => {
         [parseInt(student_id)]
       );
 
-      // ✅ Insert with correct column name: preference_rank
+      // âœ… Insert with correct column name: preference_rank
       for (const pref of preferences) {
         await connection.query(
           "INSERT INTO student_preferences (student_id, project_id, preference_rank) VALUES (?, ?, ?)",
@@ -755,7 +755,7 @@ router.get("/:student_id/group", verifyToken, async (req, res) => {
       });
     }
 
-    // âœ… NEW SCHEMA: Query with column aliases for backwards compatibility
+    // Ã¢Å“â€¦ NEW SCHEMA: Query with column aliases for backwards compatibility
     const [groupData] = await db.query(
       `SELECT 
          sg.id, 
@@ -841,7 +841,7 @@ router.get("/:student_id/group/members", verifyToken, async (req, res) => {
 
     const groupId = groupData[0].group_id;
 
-    // ✅ NEW SCHEMA: Query users + user_profiles for group members
+    // âœ… NEW SCHEMA: Query users + user_profiles for group members
     const [members] = await db.query(
       `SELECT gm.student_id, p.first_name, p.last_name, u.email 
        FROM group_members gm
@@ -900,6 +900,7 @@ router.get("/:student_id/evaluations", verifyToken, async (req, res) => {
       [parseInt(student_id)]
     );
 
+    // If student is not in a group, don't show any evaluations
     if (groupData.length === 0) {
       return res.json({
         success: true,
@@ -911,7 +912,11 @@ router.get("/:student_id/evaluations", verifyToken, async (req, res) => {
     const groupId = groupData[0].group_id;
     const projectId = groupData[0].project_id;
 
-    // Check if evaluations table exists and fetch evaluations for this group
+    // Fetch evaluations for this student's group
+    // Include evaluations that:
+    // 1. Match the student's specific group_id
+    // 2. Match the student's project_id
+    // 3. Have group_id = NULL (applies to all groups)
     try {
       const [evaluations] = await db.query(
         `SELECT 
@@ -930,7 +935,9 @@ router.get("/:student_id/evaluations", verifyToken, async (req, res) => {
          FROM evaluations e
          LEFT JOIN student_groups sg ON e.group_id = sg.id
          LEFT JOIN projects p ON e.project_id = p.id OR sg.project_id = p.id
-         WHERE e.group_id = ? OR e.project_id = ?
+         WHERE e.group_id = ? 
+            OR e.project_id = ?
+            OR e.group_id IS NULL
          ORDER BY e.scheduled_date DESC`,
         [groupId, projectId]
       );
