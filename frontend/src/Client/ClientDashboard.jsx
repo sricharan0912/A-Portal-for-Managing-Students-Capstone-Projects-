@@ -5,6 +5,8 @@ import DashboardView from "./DashboardView";
 import ProjectListView from "./ProjectListView";
 import ProjectFormModal from "./ProjectFormModal";
 import ClientProfileSettingsView from "./ClientProfileSettingsView";
+import ClientTeamsView from "./ClientTeamsView";
+import ClientEvaluationsView from "./ClientEvaluationsView";
 import { useClientId } from "../hooks/useClientId";
 import { useProjects } from "../hooks/useProjects";
 
@@ -114,40 +116,6 @@ export default function ClientDashboard() {
     .form-enter { animation: fadeInSlideDown 400ms ease-out forwards; }
   `;
 
-  // Teams view placeholder
-  const TeamsView = () => (
-    <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-      <h3 className="mb-1 text-base font-semibold text-slate-800">My Teams</h3>
-      <p className="mb-4 text-sm text-slate-500">
-        This section will show teams assigned to your projects.
-      </p>
-      <div className="rounded-md border border-dashed border-slate-200 p-6 text-center text-sm text-slate-500">
-        No teams yet
-        <br />
-        <span className="text-xs">
-          Teams will appear here when projects are assigned.
-        </span>
-      </div>
-    </section>
-  );
-
-  // Evaluations view placeholder
-  const EvaluationsView = () => (
-    <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-      <h3 className="mb-1 text-base font-semibold text-slate-800">Evaluations</h3>
-      <p className="mb-4 text-sm text-slate-500">
-        View and manage evaluations for your project teams.
-      </p>
-      <div className="rounded-md border border-dashed border-slate-200 p-6 text-center text-sm text-slate-500">
-        No evaluations yet
-        <br />
-        <span className="text-xs">
-          Evaluations will appear here when scheduled.
-        </span>
-      </div>
-    </section>
-  );
-
   return (
     <div className="flex min-h-screen flex-col bg-slate-50">
       <style>{animationStyles}</style>
@@ -211,11 +179,11 @@ export default function ClientDashboard() {
             />
           )}
 
-          {/* Teams View */}
-          {active === "teams" && <TeamsView />}
+          {/* Teams View - Using actual ClientTeamsView component */}
+          {active === "teams" && <ClientTeamsView clientId={clientId} />}
 
-          {/* Evaluations View */}
-          {active === "evaluations" && <EvaluationsView />}
+          {/* Evaluations View - Using actual ClientEvaluationsView component */}
+          {active === "evaluations" && <ClientEvaluationsView />}
 
           {/* Profile Settings View */}
           {active === "settings" && <ClientProfileSettingsView />}
