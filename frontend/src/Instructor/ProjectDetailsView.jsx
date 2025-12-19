@@ -165,11 +165,11 @@ export default function ProjectDetailsView() {
 
   // Project found - display details
   return (
-    <div className="max-w-5xl mx-auto bg-white rounded-xl border border-slate-200 shadow-sm p-8 space-y-6">
+    <div className="max-w-5xl mx-auto bg-white rounded-xl border border-slate-200 shadow-sm p-8 space-y-6 overflow-hidden">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <h2 className="text-2xl font-bold text-slate-800">{project.title || "Untitled Project"}</h2>
-        <span className={`px-3 py-1 rounded-full text-xs font-semibold ${statusDisplay.className}`}>
+      <div className="flex items-start justify-between gap-4">
+        <h2 className="text-2xl font-bold text-slate-800 break-words min-w-0 flex-1">{project.title || "Untitled Project"}</h2>
+        <span className={`px-3 py-1 rounded-full text-xs font-semibold whitespace-nowrap flex-shrink-0 ${statusDisplay.className}`}>
           {statusDisplay.text}
         </span>
       </div>
@@ -211,42 +211,42 @@ export default function ProjectDetailsView() {
             <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 space-y-2">
               {(project.client_name || project.client_first_name) && (
                 <div className="flex items-center gap-2">
-                  <svg className="h-4 w-4 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                  <svg className="h-4 w-4 text-blue-500 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
                     <path strokeLinecap="round" strokeLinejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
                   </svg>
-                  <span className="text-sm font-medium text-slate-700">
+                  <span className="text-sm font-medium text-slate-700 break-words">
                     {project.client_name || `${project.client_first_name || ''} ${project.client_last_name || ''}`.trim()}
                   </span>
                 </div>
               )}
               {project.client_organization && (
                 <div className="flex items-center gap-2">
-                  <svg className="h-4 w-4 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                  <svg className="h-4 w-4 text-blue-500 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
                     <path strokeLinecap="round" strokeLinejoin="round" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
                   </svg>
-                  <span className="text-sm text-slate-600">{project.client_organization}</span>
+                  <span className="text-sm text-slate-600 break-words">{project.client_organization}</span>
                 </div>
               )}
               {project.client_email && (
                 <div className="flex items-center gap-2">
-                  <svg className="h-4 w-4 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                  <svg className="h-4 w-4 text-blue-500 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
                     <path strokeLinecap="round" strokeLinejoin="round" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
                   </svg>
-                  <a href={`mailto:${project.client_email}`} className="text-sm text-blue-600 hover:underline">
+                  <a href={`mailto:${project.client_email}`} className="text-sm text-blue-600 hover:underline break-all">
                     {project.client_email}
                   </a>
                 </div>
               )}
               {project.client_website && (
                 <div className="flex items-center gap-2">
-                  <svg className="h-4 w-4 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                  <svg className="h-4 w-4 text-blue-500 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
                     <path strokeLinecap="round" strokeLinejoin="round" d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9" />
                   </svg>
                   <a 
                     href={project.client_website.startsWith('http') ? project.client_website : `https://${project.client_website}`}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="text-sm text-blue-600 hover:underline"
+                    className="text-sm text-blue-600 hover:underline break-all"
                   >
                     {project.client_website}
                   </a>
@@ -259,8 +259,8 @@ export default function ProjectDetailsView() {
         {/* Description */}
         <div>
           <p className="text-xs font-medium text-slate-500 mb-2">Description</p>
-          <div className="bg-slate-50 rounded-lg p-4">
-            <p className="text-sm text-slate-700">{project.description || "No description provided"}</p>
+          <div className="bg-slate-50 rounded-lg p-4 overflow-hidden">
+            <p className="text-sm text-slate-700 break-words whitespace-pre-wrap">{project.description || "No description provided"}</p>
           </div>
         </div>
 
@@ -275,17 +275,17 @@ export default function ProjectDetailsView() {
                     ? JSON.parse(project.skills_required) 
                     : project.skills_required;
                   return Array.isArray(skills) ? skills.map((skill, idx) => (
-                    <span key={idx} className="bg-blue-100 text-blue-700 px-2 py-1 rounded text-xs font-medium">
+                    <span key={idx} className="bg-blue-100 text-blue-700 px-2 py-1 rounded text-xs font-medium break-words">
                       {skill}
                     </span>
                   )) : (
-                    <span className="bg-blue-100 text-blue-700 px-2 py-1 rounded text-xs font-medium">
+                    <span className="bg-blue-100 text-blue-700 px-2 py-1 rounded text-xs font-medium break-words">
                       {project.skills_required}
                     </span>
                   );
                 } catch {
                   return (
-                    <span className="bg-blue-100 text-blue-700 px-2 py-1 rounded text-xs font-medium">
+                    <span className="bg-blue-100 text-blue-700 px-2 py-1 rounded text-xs font-medium break-words">
                       {project.skills_required}
                     </span>
                   );
@@ -299,12 +299,12 @@ export default function ProjectDetailsView() {
         {project.instructor_feedback && (
           <div>
             <p className="text-xs font-medium text-slate-500 mb-2">Instructor Feedback</p>
-            <div className={`rounded-lg p-4 ${
+            <div className={`rounded-lg p-4 overflow-hidden ${
               project.approval_status === "rejected"
                 ? "bg-red-50 border border-red-200"
                 : "bg-green-50 border border-green-200"
             }`}>
-              <p className={`text-sm ${
+              <p className={`text-sm break-words whitespace-pre-wrap ${
                 project.approval_status === "rejected" ? "text-red-700" : "text-green-700"
               }`}>
                 {project.instructor_feedback}
