@@ -475,6 +475,51 @@ router.get("/unassigned-students", verifyToken, async (req, res) => {
   }
 });
 
+// Get all students with group assignment status (for Create Group modal)
+router.get("/all-students", verifyToken, async (req, res) => {
+  try {
+    if (req.user.role !== "instructor" && req.user.role !== "admin") {
+      return res.status(403).json({
+        success: false,
+        error: "Access denied. Instructor role required.",
+      });
+    }
+
+    // Get all students with their group assignment (if any)
+    const [students] = await db.query(`
+      SELECT 
+        u.id,
+        u.email,
+        up.first_name,
+        up.last_name,
+        up.full_name,
+        CASE 
+          WHEN up.full_name IS NOT NULL AND up.full_name != '' THEN up.full_name
+          WHEN up.first_name IS NOT NULL OR up.last_name IS NOT NULL THEN TRIM(CONCAT(COALESCE(up.first_name, ''), ' ', COALESCE(up.last_name, '')))
+          ELSE u.email
+        END as name,
+        gm.group_id
+      FROM users u
+      LEFT JOIN user_profiles up ON u.id = up.user_id
+      LEFT JOIN group_members gm ON u.id = gm.student_id
+      WHERE u.role = 'student' 
+        AND u.deleted_at IS NULL
+      ORDER BY up.first_name ASC
+    `);
+
+    res.json({
+      success: true,
+      data: students,
+    });
+  } catch (err) {
+    console.error("Error fetching all students:", err);
+    res.status(500).json({
+      success: false,
+      error: "Failed to fetch students",
+    });
+  }
+});
+
 // Get all groups with members (PROTECTED - Instructor only)
 router.get("/groups", verifyToken, async (req, res) => {
   try {
