@@ -236,7 +236,7 @@ router.get("/category/:category", async (req, res) => {
          status, 
          created_at
        FROM projects 
-       WHERE category = ? AND status = 'open'
+       WHERE category = ? AND approval_status = 'approved'
        ORDER BY created_at DESC`,
       [category]
     );
@@ -285,7 +285,7 @@ router.get("/complexity/:complexity", async (req, res) => {
          status, 
          created_at
        FROM projects 
-       WHERE difficulty_level = ? AND status = 'open'
+       WHERE difficulty_level = ? AND approval_status = 'approved'
        ORDER BY created_at DESC`,
       [complexity]
     );

@@ -237,9 +237,9 @@ router.get("/projects", async (req, res) => {
        industry_category as industry,
        status,
        created_at
-    FROM projects 
-    WHERE status = 'open' 
-    ORDER BY created_at DESC`
+      FROM projects 
+      WHERE approval_status = 'approved'
+      ORDER BY created_at DESC`
   );
 
     res.json({
