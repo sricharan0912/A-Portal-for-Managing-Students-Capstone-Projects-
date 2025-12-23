@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>JSDoc: Source: components/ui/ProjectCard.jsx</title>
+
+    <script src="scripts/prettify/prettify.js"> </script>
+    <script src="scripts/prettify/lang-css.js"> </script>
+    <!--[if lt IE 9]>
+      <script src="//html5shiv.googlecode.com/svn/trunk/html5.js"></script>
+    <![endif]-->
+    <link type="text/css" rel="stylesheet" href="styles/prettify-tomorrow.css">
+    <link type="text/css" rel="stylesheet" href="styles/jsdoc-default.css">
+</head>
+
+<body>
+
+<div id="main">
+
+    <h1 class="page-title">Source: components/ui/ProjectCard.jsx</h1>
+
+    
+
+
+
+    
+    <section>
+        <article>
+            <pre class="prettyprint source linenums"><code>/**
+ * ProjectCard Component
+ * Displays a single project card with edit and delete actions
+ *
+ * @param {object} project - Project data object
+ * @param {function} onEdit - Callback when edit button is clicked
+ * @param {function} onDelete - Callback when delete button is clicked
+ */
+export default function ProjectCard({ project, onEdit, onDelete, isDeleting }) {
+  if (!project) {
+    return null;
+  }
+
+  // Determine status color based on approval_status
+  const getStatusColor = () => {
+    switch (project.approval_status) {
+      case "approved":
+        return "bg-green-100 text-green-700";
+      case "rejected":
+        return "bg-red-100 text-red-700";
+      case "pending":
+      default:
+        return "bg-yellow-100 text-yellow-700";
+    }
+  };
+
+  // Get display status text
+  const getStatusText = () => {
+    if (project.approval_status === "approved") return "Approved";
+    if (project.approval_status === "rejected") return "Rejected";
+    return "Pending";
+  };
+
+  // Check if project can be edited (only pending projects)
+  const canEdit = true;
+
+  return (
+    &lt;div className="rounded-lg border border-slate-200 bg-slate-50 p-4 transition hover:bg-white hover:shadow-sm">
+      {/* Header with title and status badge */}
+      &lt;div className="mb-2 flex items-start justify-between gap-2">
+        &lt;h4 className="font-semibold text-slate-800 text-sm line-clamp-2">
+          {project.title}
+        &lt;/h4>
+        &lt;span
+          className={`whitespace-nowrap rounded-full px-2.5 py-1 text-xs font-semibold capitalize flex-shrink-0 ${getStatusColor()}`}
+        >
+          {getStatusText()}
+        &lt;/span>
+      &lt;/div>
+
+      {/* Description */}
+      &lt;p className="mb-3 text-xs text-slate-600 line-clamp-2">
+        {project.description}
+      &lt;/p>
+
+      {/* Instructor Feedback (shown for approved/rejected projects with feedback) */}
+      {project.instructor_feedback &amp;&amp; (
+        &lt;div className={`mb-3 p-2.5 rounded-lg border text-xs ${
+          project.approval_status === "rejected" 
+            ? "bg-red-50 border-red-200 text-red-700"
+            : "bg-blue-50 border-blue-200 text-blue-700"
+        }`}>
+          &lt;div className="flex items-start gap-2">
+            &lt;svg
+              className="h-4 w-4 flex-shrink-0 mt-0.5"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+            >
+              &lt;path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                d="M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z"
+              />
+            &lt;/svg>
+            &lt;div>
+              &lt;p className="font-medium mb-0.5">Instructor Feedback:&lt;/p>
+              &lt;p>{project.instructor_feedback}&lt;/p>
+            &lt;/div>
+          &lt;/div>
+        &lt;/div>
+      )}
+
+      {/* Meta information */}
+      {(project.category || project.complexity_level) &amp;&amp; (
+        &lt;div className="mb-3 flex flex-wrap gap-2">
+          {project.category &amp;&amp; (
+            &lt;span className="inline-block bg-blue-100 text-blue-700 px-2 py-1 rounded text-xs font-medium">
+              {project.category}
+            &lt;/span>
+          )}
+          {project.complexity_level &amp;&amp; (
+            &lt;span className="inline-block bg-purple-100 text-purple-700 px-2 py-1 rounded text-xs font-medium">
+              {project.complexity_level}
+            &lt;/span>
+          )}
+        &lt;/div>
+      )}
+
+      {/* Action buttons - only show for pending projects */}
+      {canEdit &amp;&amp; (
+        &lt;div className="flex gap-2">
+          &lt;button
+            onClick={() => onEdit(project)}
+            disabled={isDeleting}
+            className="flex items-center gap-1 flex-1 rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 transition hover:bg-slate-50 hover:border-slate-400 disabled:opacity-50"
+            title="Edit this project"
+          >
+            &lt;svg
+              className="h-3 w-3"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+            >
+              &lt;path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
+              />
+            &lt;/svg>
+            &lt;span className="hidden sm:inline">Edit&lt;/span>
+          &lt;/button>
+
+          &lt;button
+            onClick={() => onDelete(project.id)}
+            disabled={isDeleting}
+            className="flex items-center gap-1 flex-1 rounded-md border border-red-300 bg-red-50 px-3 py-1.5 text-xs font-medium text-red-700 transition hover:bg-red-100 hover:border-red-400 disabled:opacity-50"
+            title="Delete this project"
+          >
+            {isDeleting ? (
+              &lt;div className="h-3 w-3 animate-spin rounded-full border-2 border-red-300 border-t-red-600" />
+            ) : (
+              &lt;svg
+                className="h-3 w-3"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+              >
+                &lt;path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+                />
+              &lt;/svg>
+            )}
+            &lt;span className="hidden sm:inline">{isDeleting ? "..." : "Delete"}&lt;/span>
+          &lt;/button>
+        &lt;/div>
+      )}
+
+      {/* Status message for approved/rejected projects */}
+      {!canEdit &amp;&amp; (
+        &lt;div className={`text-xs text-center py-2 rounded-md ${
+          project.approval_status === "approved" 
+            ? "bg-green-50 text-green-600" 
+            : "bg-red-50 text-red-600"
+        }`}>
+          {project.approval_status === "approved" 
+            ? "✓ This project has been approved" 
+            : "This project was rejected - see feedback above"}
+        &lt;/div>
+      )}
+    &lt;/div>
+  );
+}</code></pre>
+        </article>
+    </section>
+
+
+
+
+</div>
+
+<nav>
+    <h2><a href="index.html">Home</a></h2><h3>Modules</h3><ul><li><a href="module-apiHelper.html">apiHelper</a></li><li><a href="module-firebaseConfig.html">firebaseConfig</a></li></ul><h3>Global</h3><ul><li><a href="global.html#API_BASE_URL">API_BASE_URL</a></li><li><a href="global.html#DRAWER_WIDTH">DRAWER_WIDTH</a></li><li><a href="global.html#NAVBAR_HEIGHT">NAVBAR_HEIGHT</a></li><li><a href="global.html#StatCard">StatCard</a></li><li><a href="global.html#animationStyles">animationStyles</a></li><li><a href="global.html#getActiveFromPath">getActiveFromPath</a></li><li><a href="global.html#handleEditProject">handleEditProject</a></li><li><a href="global.html#handleFormClose">handleFormClose</a></li><li><a href="global.html#handleFormSave">handleFormSave</a></li><li><a href="global.html#handleLogout">handleLogout</a></li><li><a href="global.html#handleProjectCreated">handleProjectCreated</a></li><li><a href="global.html#handleSelectProject">handleSelectProject</a></li><li><a href="global.html#handleShowForm">handleShowForm</a></li><li><a href="global.html#handleSubmitPreferences">handleSubmitPreferences</a></li><li><a href="global.html#loadDeadline">loadDeadline</a></li><li><a href="global.html#loadGroupData">loadGroupData</a></li><li><a href="global.html#loadPreferences">loadPreferences</a></li><li><a href="global.html#loadProjects">loadProjects</a></li><li><a href="global.html#refetchProjects">refetchProjects</a></li><li><a href="global.html#setActive">setActive</a></li><li><a href="global.html#submitPreferences">submitPreferences</a></li><li><a href="global.html#useClientId">useClientId</a></li><li><a href="global.html#useProjects">useProjects</a></li><li><a href="global.html#useStudentId">useStudentId</a></li><li><a href="global.html#useStudentPreferences">useStudentPreferences</a></li><li><a href="global.html#useStudentProjects">useStudentProjects</a></li></ul>
+</nav>
+
+<br class="clear">
+
+<footer>
+    Documentation generated by <a href="https://github.com/jsdoc/jsdoc">JSDoc 4.0.5</a> on Mon Dec 22 2025 21:57:25 GMT-0500 (Eastern Standard Time)
+</footer>
+
+<script> prettyPrint(); </script>
+<script src="scripts/linenumber.js"> </script>
+</body>
+</html>

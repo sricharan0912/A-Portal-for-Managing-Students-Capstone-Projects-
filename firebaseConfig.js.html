@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>JSDoc: Source: firebaseConfig.js</title>
+
+    <script src="scripts/prettify/prettify.js"> </script>
+    <script src="scripts/prettify/lang-css.js"> </script>
+    <!--[if lt IE 9]>
+      <script src="//html5shiv.googlecode.com/svn/trunk/html5.js"></script>
+    <![endif]-->
+    <link type="text/css" rel="stylesheet" href="styles/prettify-tomorrow.css">
+    <link type="text/css" rel="stylesheet" href="styles/jsdoc-default.css">
+</head>
+
+<body>
+
+<div id="main">
+
+    <h1 class="page-title">Source: firebaseConfig.js</h1>
+
+    
+
+
+
+    
+    <section>
+        <article>
+            <pre class="prettyprint source linenums"><code>/**
+ * Firebase Configuration and Initialization Module
+ * 
+ * Configures and initializes Firebase services for the Capstone Hub application.
+ * Handles Firebase Authentication setup using environment variables for security.
+ * 
+ * This module is the central configuration point for all Firebase services used
+ * throughout the application, particularly Firebase Authentication for user management.
+ * 
+ * Environment Variables Required:
+ * - VITE_FIREBASE_API_KEY: Firebase API key
+ * - VITE_FIREBASE_AUTH_DOMAIN: Firebase authentication domain
+ * - VITE_FIREBASE_PROJECT_ID: Firebase project identifier
+ * - VITE_FIREBASE_STORAGE_BUCKET: Firebase storage bucket URL
+ * - VITE_FIREBASE_MESSAGING_SENDER_ID: Firebase Cloud Messaging sender ID
+ * - VITE_FIREBASE_APP_ID: Firebase application ID
+ * 
+ * @module firebaseConfig
+ * @requires firebase/app
+ * @requires firebase/auth
+ */
+
+import { initializeApp } from "firebase/app";
+import { getAuth } from "firebase/auth";
+
+/**
+ * Firebase configuration object
+ * 
+ * Contains all necessary Firebase project credentials loaded from environment variables.
+ * These values are injected at build time by Vite and should never be hardcoded.
+ * 
+ * @constant {Object} firebaseConfig
+ * @property {string} apiKey - Firebase Web API key for client authentication
+ * @property {string} authDomain - Authorized domain for Firebase Authentication
+ * @property {string} projectId - Unique Firebase project identifier
+ * @property {string} storageBucket - Cloud Storage bucket URL
+ * @property {string} messagingSenderId - Firebase Cloud Messaging sender ID
+ * @property {string} appId - Firebase application ID
+ * 
+ * @example
+ * // Configuration is loaded automatically from .env file:
+ * // VITE_FIREBASE_API_KEY=AIza...
+ * // VITE_FIREBASE_AUTH_DOMAIN=capstone-hub.firebaseapp.com
+ * // etc.
+ */
+const firebaseConfig = {
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
+  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
+  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
+  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
+  appId: import.meta.env.VITE_FIREBASE_APP_ID,
+};
+
+/**
+ * Initialize Firebase application
+ * 
+ * Creates and configures the main Firebase app instance using the provided configuration.
+ * This instance is used as the foundation for all Firebase services in the application.
+ * 
+ * @constant {FirebaseApp} app
+ * 
+ * @example
+ * // The app instance is automatically initialized on import
+ * import app from './utils/firebaseConfig';
+ */
+const app = initializeApp(firebaseConfig);
+
+/**
+ * Initialize Firebase Authentication service
+ * 
+ * Creates the Authentication instance tied to the Firebase app.
+ * Used throughout the application for user authentication operations including:
+ * - User sign-in and sign-up
+ * - Email/password authentication
+ * - Token generation and verification
+ * - User session management
+ * 
+ * @constant {Auth} auth
+ * 
+ * @example
+ * // Import in authentication components
+ * import { auth } from './utils/firebaseConfig';
+ * import { signInWithEmailAndPassword } from 'firebase/auth';
+ * 
+ * // Sign in a user
+ * const userCredential = await signInWithEmailAndPassword(
+ *   auth, 
+ *   email, 
+ *   password
+ * );
+ * 
+ * @example
+ * // Get current user
+ * import { auth } from './utils/firebaseConfig';
+ * const currentUser = auth.currentUser;
+ * 
+ * @example
+ * // Get authentication token
+ * const token = await auth.currentUser.getIdToken();
+ */
+export const auth = getAuth(app);
+
+/**
+ * Default export: Firebase app instance
+ * 
+ * The main Firebase application instance.
+ * Import this if you need access to the core Firebase app object.
+ * 
+ * @default
+ * @type {FirebaseApp}
+ * 
+ * @example
+ * import firebaseApp from './utils/firebaseConfig';
+ * console.log(firebaseApp.name); // '[DEFAULT]'
+ */
+export default app;</code></pre>
+        </article>
+    </section>
+
+
+
+
+</div>
+
+<nav>
+    <h2><a href="index.html">Home</a></h2><h3>Modules</h3><ul><li><a href="module-apiHelper.html">apiHelper</a></li><li><a href="module-firebaseConfig.html">firebaseConfig</a></li></ul><h3>Global</h3><ul><li><a href="global.html#API_BASE_URL">API_BASE_URL</a></li><li><a href="global.html#DRAWER_WIDTH">DRAWER_WIDTH</a></li><li><a href="global.html#NAVBAR_HEIGHT">NAVBAR_HEIGHT</a></li><li><a href="global.html#StatCard">StatCard</a></li><li><a href="global.html#animationStyles">animationStyles</a></li><li><a href="global.html#getActiveFromPath">getActiveFromPath</a></li><li><a href="global.html#handleEditProject">handleEditProject</a></li><li><a href="global.html#handleFormClose">handleFormClose</a></li><li><a href="global.html#handleFormSave">handleFormSave</a></li><li><a href="global.html#handleLogout">handleLogout</a></li><li><a href="global.html#handleProjectCreated">handleProjectCreated</a></li><li><a href="global.html#handleSelectProject">handleSelectProject</a></li><li><a href="global.html#handleShowForm">handleShowForm</a></li><li><a href="global.html#handleSubmitPreferences">handleSubmitPreferences</a></li><li><a href="global.html#loadDeadline">loadDeadline</a></li><li><a href="global.html#loadGroupData">loadGroupData</a></li><li><a href="global.html#loadPreferences">loadPreferences</a></li><li><a href="global.html#loadProjects">loadProjects</a></li><li><a href="global.html#refetchProjects">refetchProjects</a></li><li><a href="global.html#setActive">setActive</a></li><li><a href="global.html#submitPreferences">submitPreferences</a></li><li><a href="global.html#useClientId">useClientId</a></li><li><a href="global.html#useProjects">useProjects</a></li><li><a href="global.html#useStudentId">useStudentId</a></li><li><a href="global.html#useStudentPreferences">useStudentPreferences</a></li><li><a href="global.html#useStudentProjects">useStudentProjects</a></li></ul>
+</nav>
+
+<br class="clear">
+
+<footer>
+    Documentation generated by <a href="https://github.com/jsdoc/jsdoc">JSDoc 4.0.5</a> on Mon Dec 22 2025 21:57:25 GMT-0500 (Eastern Standard Time)
+</footer>
+
+<script> prettyPrint(); </script>
+<script src="scripts/linenumber.js"> </script>
+</body>
+</html>

@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>JSDoc: Source: Student/StudentSidebar.jsx</title>
+
+    <script src="scripts/prettify/prettify.js"> </script>
+    <script src="scripts/prettify/lang-css.js"> </script>
+    <!--[if lt IE 9]>
+      <script src="//html5shiv.googlecode.com/svn/trunk/html5.js"></script>
+    <![endif]-->
+    <link type="text/css" rel="stylesheet" href="styles/prettify-tomorrow.css">
+    <link type="text/css" rel="stylesheet" href="styles/jsdoc-default.css">
+</head>
+
+<body>
+
+<div id="main">
+
+    <h1 class="page-title">Source: Student/StudentSidebar.jsx</h1>
+
+    
+
+
+
+    
+    <section>
+        <article>
+            <pre class="prettyprint source linenums"><code>const NAVBAR_HEIGHT = 64;
+const DRAWER_WIDTH = 280;
+
+/**
+ * StudentSidebar Component
+ * Navigation sidebar for student dashboard with collapsible menu
+ *
+ * @param {string} active - Currently active section ID
+ * @param {function} setActive - Function to change active section
+ * @param {boolean} sidebarOpen - Whether sidebar is open on mobile
+ * @param {function} setSidebarOpen - Function to toggle sidebar
+ */
+export default function StudentSidebar({
+  active,
+  setActive,
+  sidebarOpen,
+  setSidebarOpen,
+}) {
+  /**
+   * NavItem Component
+   * Individual navigation item with icon and label
+   */
+  const NavItem = ({ id, icon, label }) => {
+    const isActive = active === id;
+    return (
+      &lt;button
+        onClick={() => {
+          setActive(id);
+          // Close sidebar on mobile after selecting
+          if (window.innerWidth &lt; 1024) {
+            setSidebarOpen(false);
+          }
+        }}
+        className={`flex w-full items-center gap-3 rounded-md px-3 py-2 text-sm transition ${
+          isActive
+            ? "bg-blue-800 text-white"
+            : "text-blue-100 hover:bg-white/10 hover:text-white"
+        }`}
+        aria-current={isActive ? "page" : undefined}
+      >
+        &lt;span className="inline-flex h-5 w-5 items-center justify-center">
+          {icon}
+        &lt;/span>
+        {label}
+      &lt;/button>
+    );
+  };
+
+  return (
+    &lt;>
+      {/* Sidebar */}
+      &lt;aside
+        className="fixed left-0 z-40 h-[calc(100vh-64px)] bg-blue-900 text-blue-50 shadow-xl transition-transform duration-300 ease-in-out"
+        style={{
+          top: `${NAVBAR_HEIGHT}px`,
+          width: `${DRAWER_WIDTH}px`,
+          transform: sidebarOpen
+            ? "translateX(0px)"
+            : `translateX(-${DRAWER_WIDTH}px)`,
+        }}
+      >
+        &lt;div className="flex flex-col h-full">
+          &lt;div className="space-y-5 p-4 flex-1">
+            {/* Portal Header */}
+            &lt;div className="px-1">
+              &lt;p className="text-xs uppercase tracking-wide text-blue-200">
+                Student Portal
+              &lt;/p>
+            &lt;/div>
+
+            {/* Navigation Menu */}
+            &lt;nav className="space-y-1">
+              &lt;NavItem
+                id="dashboard"
+                label="My Dashboard"
+                icon={
+                  &lt;svg
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    className="h-5 w-5"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                  >
+                    &lt;path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"
+                    />
+                  &lt;/svg>
+                }
+              />
+
+              &lt;NavItem
+                id="browse"
+                label="Browse Projects"
+                icon={
+                  &lt;svg
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    className="h-5 w-5"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                  >
+                    &lt;path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01"
+                    />
+                  &lt;/svg>
+                }
+              />
+
+              &lt;NavItem
+                id="preferences"
+                label="My Preferences"
+                icon={
+                  &lt;svg
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    className="h-5 w-5"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                  >
+                    &lt;path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
+                    />
+                  &lt;/svg>
+                }
+              />
+
+              &lt;NavItem
+                id="group"
+                label="My Group"
+                icon={
+                  &lt;svg
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    className="h-5 w-5"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                  >
+                    &lt;path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"
+                    />
+                  &lt;/svg>
+                }
+              />
+
+              &lt;NavItem
+                id="evaluations"
+                label="Evaluations"
+                icon={
+                  &lt;svg
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    className="h-5 w-5"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                  >
+                    &lt;path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+                    />
+                  &lt;/svg>
+                }
+              />
+
+              &lt;NavItem
+                id="profile"
+                label="Profile Settings"
+                icon={
+                  &lt;svg
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    className="h-5 w-5"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                  >
+                    &lt;path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"
+                    />
+                    &lt;path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
+                    />
+                  &lt;/svg>
+                }
+              />
+            &lt;/nav>
+          &lt;/div>
+        &lt;/div>
+      &lt;/aside>
+
+      {/* Mobile Overlay */}
+      {sidebarOpen &amp;&amp; (
+        &lt;div
+          className="fixed inset-0 z-30 bg-black/40 lg:hidden"
+          onClick={() => setSidebarOpen(false)}
+          style={{ top: `${NAVBAR_HEIGHT}px` }}
+        />
+      )}
+    &lt;/>
+  );
+}</code></pre>
+        </article>
+    </section>
+
+
+
+
+</div>
+
+<nav>
+    <h2><a href="index.html">Home</a></h2><h3>Modules</h3><ul><li><a href="module-apiHelper.html">apiHelper</a></li><li><a href="module-firebaseConfig.html">firebaseConfig</a></li></ul><h3>Global</h3><ul><li><a href="global.html#API_BASE_URL">API_BASE_URL</a></li><li><a href="global.html#DRAWER_WIDTH">DRAWER_WIDTH</a></li><li><a href="global.html#NAVBAR_HEIGHT">NAVBAR_HEIGHT</a></li><li><a href="global.html#StatCard">StatCard</a></li><li><a href="global.html#animationStyles">animationStyles</a></li><li><a href="global.html#getActiveFromPath">getActiveFromPath</a></li><li><a href="global.html#handleEditProject">handleEditProject</a></li><li><a href="global.html#handleFormClose">handleFormClose</a></li><li><a href="global.html#handleFormSave">handleFormSave</a></li><li><a href="global.html#handleLogout">handleLogout</a></li><li><a href="global.html#handleProjectCreated">handleProjectCreated</a></li><li><a href="global.html#handleSelectProject">handleSelectProject</a></li><li><a href="global.html#handleShowForm">handleShowForm</a></li><li><a href="global.html#handleSubmitPreferences">handleSubmitPreferences</a></li><li><a href="global.html#loadDeadline">loadDeadline</a></li><li><a href="global.html#loadGroupData">loadGroupData</a></li><li><a href="global.html#loadPreferences">loadPreferences</a></li><li><a href="global.html#loadProjects">loadProjects</a></li><li><a href="global.html#refetchProjects">refetchProjects</a></li><li><a href="global.html#setActive">setActive</a></li><li><a href="global.html#submitPreferences">submitPreferences</a></li><li><a href="global.html#useClientId">useClientId</a></li><li><a href="global.html#useProjects">useProjects</a></li><li><a href="global.html#useStudentId">useStudentId</a></li><li><a href="global.html#useStudentPreferences">useStudentPreferences</a></li><li><a href="global.html#useStudentProjects">useStudentProjects</a></li></ul>
+</nav>
+
+<br class="clear">
+
+<footer>
+    Documentation generated by <a href="https://github.com/jsdoc/jsdoc">JSDoc 4.0.5</a> on Mon Dec 22 2025 21:57:25 GMT-0500 (Eastern Standard Time)
+</footer>
+
+<script> prettyPrint(); </script>
+<script src="scripts/linenumber.js"> </script>
+</body>
+</html>
