@@ -1,13 +1,60 @@
+/**
+ * API Helper Module
+ * 
+ * Centralized API communication layer for all frontend-backend interactions.
+ * Handles authentication token injection, error handling, and response parsing.
+ * All functions automatically include Firebase auth tokens and proper error handling.
+ * 
+ * @module apiHelper
+ */
+
 // const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:5050";
 const API_BASE_URL = import.meta.env.VITE_API_URL || "https://a-portal-for-managing-students-capstone-projects-production.up.railway.app";
 
+/**
+ * Build complete URL from relative or absolute path
+ * 
+ * @private
+ * @function buildUrl
+ * @param {string} url - Relative or absolute URL path
+ * @returns {string} Complete URL with base path
+ * 
+ * @example
+ * buildUrl('/api/projects') // Returns: 'https://...railway.app/api/projects'
+ * buildUrl('https://example.com') // Returns: 'https://example.com'
+ */
 function buildUrl(url) {
   if (/^https?:\/\//i.test(url)) return url; // allow absolute URLs
   return `${API_BASE_URL}${url.startsWith("/") ? url : `/${url}`}`;
 }
 
 /**
- * Generic API call helper with token injection.
+ * Generic API call helper with token injection
+ * 
+ * Makes authenticated HTTP requests to the backend API.
+ * Automatically includes Firebase auth token from localStorage.
+ * Handles JSON parsing and error responses.
+ * 
+ * @async
+ * @function apiCall
+ * @param {string} url - API endpoint URL (relative or absolute)
+ * @param {Object} [options={}] - Fetch options
+ * @param {string} [options.method='GET'] - HTTP method (GET, POST, PUT, DELETE)
+ * @param {Object} [options.headers] - Additional HTTP headers
+ * @param {string} [options.body] - Request body (already JSON stringified)
+ * @returns {Promise<Object>} Parsed JSON response from API
+ * @throws {Error} If API request fails or returns error response
+ * 
+ * @example
+ * // GET request
+ * const projects = await apiCall('/api/projects');
+ * 
+ * @example
+ * // POST request with body
+ * const result = await apiCall('/api/projects', {
+ *   method: 'POST',
+ *   body: JSON.stringify({ title: 'New Project' })
+ * });
  */
 export const apiCall = async (url, options = {}) => {
   const token = localStorage.getItem("authToken");
@@ -33,171 +80,614 @@ export const apiCall = async (url, options = {}) => {
 
 /* ===================== CLIENT ===================== */
 
+/**
+ * Fetch all projects for a specific client
+ * 
+ * @async
+ * @function fetchClientProjects
+ * @param {number} clientId - Client's numeric ID
+ * @returns {Promise<Array<Object>>} Array of project objects owned by client
+ * @throws {Error} If fetch fails
+ * 
+ * @example
+ * const projects = await fetchClientProjects(42);
+ * console.log(projects[0].title); // "AI Chatbot Project"
+ */
 export const fetchClientProjects = async (clientId) =>
   apiCall(`/clients/${clientId}/projects`, { method: "GET" });
 
+/**
+ * Create a new project proposal (client submission)
+ * 
+ * @async
+ * @function createClientProject
+ * @param {Object} projectData - Project details
+ * @param {string} projectData.title - Project title
+ * @param {string} projectData.description - Detailed project description
+ * @param {Array<string>} projectData.skills_required - Required skills
+ * @param {number} projectData.team_size - Recommended team size
+ * @param {string} [projectData.start_date] - Project start date
+ * @param {string} [projectData.end_date] - Project end date
+ * @returns {Promise<Object>} Created project object with ID
+ * @throws {Error} If creation fails or validation errors occur
+ * 
+ * @example
+ * const newProject = await createClientProject({
+ *   title: 'E-commerce Platform',
+ *   description: 'Build a full-stack shopping platform',
+ *   skills_required: ['React', 'Node.js', 'MongoDB'],
+ *   team_size: 4
+ * });
+ */
 export const createClientProject = async (projectData) =>
   apiCall("/projects", {
     method: "POST",
     body: JSON.stringify(projectData),
   });
 
+/**
+ * Update an existing project's details
+ * 
+ * @async
+ * @function updateClientProject
+ * @param {number} projectId - Project ID to update
+ * @param {Object} projectData - Updated project fields (partial update supported)
+ * @returns {Promise<Object>} Updated project object
+ * @throws {Error} If update fails or project not found
+ * 
+ * @example
+ * await updateClientProject(5, {
+ *   title: 'Updated Title',
+ *   team_size: 5
+ * });
+ */
 export const updateClientProject = async (projectId, projectData) =>
   apiCall(`/projects/${projectId}`, {
     method: "PUT",
     body: JSON.stringify(projectData),
   });
 
+/**
+ * Delete a project (only if not yet approved/assigned)
+ * 
+ * @async
+ * @function deleteClientProject
+ * @param {number} projectId - Project ID to delete
+ * @returns {Promise<Object>} Deletion confirmation
+ * @throws {Error} If deletion fails or project already assigned
+ * 
+ * @example
+ * await deleteClientProject(7);
+ */
 export const deleteClientProject = async (projectId) =>
   apiCall(`/projects/${projectId}`, { method: "DELETE" });
 
 /* ===================== STUDENT ===================== */
 
+/**
+ * Fetch all approved projects available for student selection
+ * 
+ * @async
+ * @function fetchAvailableProjects
+ * @returns {Promise<Array<Object>>} Array of instructor-approved projects
+ * @throws {Error} If fetch fails
+ * 
+ * @example
+ * const projects = await fetchAvailableProjects();
+ * projects.forEach(p => console.log(p.title));
+ */
 export const fetchAvailableProjects = async () =>
   apiCall("/students/projects", { method: "GET" });
 
+/**
+ * Fetch student's submitted project preferences
+ * 
+ * @async
+ * @function fetchStudentPreferences
+ * @param {number} studentId - Student's numeric ID
+ * @returns {Promise<Array<Object>>} Array of preference objects with rankings
+ * @throws {Error} If fetch fails
+ * 
+ * @example
+ * const prefs = await fetchStudentPreferences(123);
+ * console.log(prefs); // [{ project_id: 5, rank: 1 }, { project_id: 3, rank: 2 }, ...]
+ */
 export const fetchStudentPreferences = async (studentId) =>
   apiCall(`/students/${studentId}/preferences`, { method: "GET" });
 
+/**
+ * Submit or update student's project preferences (ranked choices)
+ * 
+ * @async
+ * @function submitStudentPreferences
+ * @param {number} studentId - Student's numeric ID
+ * @param {Array<number>} preferences - Array of project IDs in preference order (max 3)
+ * @returns {Promise<Object>} Submission confirmation
+ * @throws {Error} If submission fails or exceeds preference limit
+ * 
+ * @example
+ * // Submit 1st, 2nd, 3rd choice
+ * await submitStudentPreferences(123, [5, 12, 8]);
+ */
 export const submitStudentPreferences = async (studentId, preferences) =>
   apiCall(`/students/${studentId}/preferences`, {
     method: "POST",
     body: JSON.stringify({ preferences }),
   });
 
+/**
+ * Fetch student's assigned group and project details
+ * 
+ * @async
+ * @function fetchStudentGroup
+ * @param {number} studentId - Student's numeric ID
+ * @returns {Promise<Object>} Group object with project and team member details
+ * @throws {Error} If fetch fails or student not yet assigned
+ * 
+ * @example
+ * const group = await fetchStudentGroup(123);
+ * console.log(group.project_title); // "AI Chatbot"
+ * console.log(group.members); // [{ name: "Alice", email: "..." }, ...]
+ */
 export const fetchStudentGroup = async (studentId) =>
   apiCall(`/students/${studentId}/group`, { method: "GET" });
 
 /* ===================== INSTRUCTOR ===================== */
 
-// Get instructor stats
+/**
+ * Get instructor dashboard statistics
+ * 
+ * @async
+ * @function getInstructorStats
+ * @param {number} instructorId - Instructor's numeric ID
+ * @returns {Promise<Object>} Stats object with counts (projects, students, groups, etc.)
+ * @throws {Error} If fetch fails
+ * 
+ * @example
+ * const stats = await getInstructorStats(10);
+ * console.log(stats.total_projects); // 25
+ * console.log(stats.pending_approvals); // 5
+ */
 export const getInstructorStats = async (instructorId) =>
   apiCall(`/instructors/${instructorId}/stats`, { method: "GET" });
 
-// Get pending projects for approval
+/**
+ * Get all projects with 'open' status (pending approval)
+ * 
+ * @async
+ * @function getPendingProjects
+ * @returns {Promise<Array<Object>>} Array of projects awaiting instructor approval
+ * @throws {Error} If fetch fails
+ * 
+ * @example
+ * const pending = await getPendingProjects();
+ * pending.forEach(p => console.log(`${p.title} by ${p.client_name}`));
+ */
 export const getPendingProjects = async () =>
   apiCall("/projects?status=open", { method: "GET" });
 
-// Approve project (instructor only)
+/**
+ * Approve a project proposal
+ * 
+ * @async
+ * @function approveProject
+ * @param {number} projectId - Project ID to approve
+ * @param {string} [feedback=''] - Optional feedback message for client
+ * @returns {Promise<Object>} Approval confirmation
+ * @throws {Error} If approval fails
+ * 
+ * @example
+ * await approveProject(5, 'Great project idea! Looking forward to it.');
+ */
 export const approveProject = async (projectId, feedback = "") =>
   apiCall(`/projects/${projectId}/approval`, {
     method: "PUT",
     body: JSON.stringify({ approval_status: "approved", feedback }),
   });
 
-// Reject project with feedback (instructor only)
+/**
+ * Reject a project proposal with feedback
+ * 
+ * @async
+ * @function rejectProject
+ * @param {number} projectId - Project ID to reject
+ * @param {string} [feedback=''] - Feedback explaining rejection reason
+ * @returns {Promise<Object>} Rejection confirmation
+ * @throws {Error} If rejection fails
+ * 
+ * @example
+ * await rejectProject(7, 'Project scope is too broad for a semester-long capstone.');
+ */
 export const rejectProject = async (projectId, feedback = "") =>
   apiCall(`/projects/${projectId}/approval`, {
     method: "PUT",
     body: JSON.stringify({ approval_status: "rejected", feedback }),
   });
 
-// Run grouping algorithm
+/**
+ * Run automated group formation algorithm
+ * 
+ * @async
+ * @function runGroupingAlgorithm
+ * @returns {Promise<Object>} Algorithm results with formed groups
+ * @throws {Error} If algorithm execution fails
+ * 
+ * @example
+ * const result = await runGroupingAlgorithm();
+ * console.log(`${result.groups_formed} groups created`);
+ */
 export const runGroupingAlgorithm = async () =>
   apiCall("/instructors/assign-groups", { method: "POST" });
 
-// Get all students (instructors can see all students in the system)
+/**
+ * Get list of all students in the system
+ * 
+ * @async
+ * @function getInstructorStudents
+ * @param {number} instructorId - Instructor's numeric ID (currently unused in endpoint)
+ * @returns {Promise<Array<Object>>} Array of all student objects
+ * @throws {Error} If fetch fails
+ * 
+ * @example
+ * const students = await getInstructorStudents(10);
+ * students.forEach(s => console.log(`${s.name} - ${s.email}`));
+ */
 export const getInstructorStudents = async (instructorId) =>
   apiCall("/students", { method: "GET" });
 
+/**
+ * Add a new student to the system
+ * 
+ * @async
+ * @function addNewStudent
+ * @param {Object} studentData - Student information
+ * @param {string} studentData.name - Student's full name
+ * @param {string} studentData.email - Student's email address
+ * @param {string} studentData.firebase_uid - Firebase authentication UID
+ * @returns {Promise<Object>} Created student object with ID
+ * @throws {Error} If creation fails or email already exists
+ * 
+ * @example
+ * await addNewStudent({
+ *   name: 'John Doe',
+ *   email: 'john@example.com',
+ *   firebase_uid: 'abc123...'
+ * });
+ */
 export const addNewStudent = async (studentData) =>
   apiCall("/students/signup", {
     method: "POST",
     body: JSON.stringify(studentData),
   });
 
-// Get all projects (instructors can see all projects in the system)
+/**
+ * Get all projects in the system (instructor view)
+ * 
+ * @async
+ * @function getInstructorProjects
+ * @param {number} instructorId - Instructor's numeric ID (currently unused in endpoint)
+ * @returns {Promise<Array<Object>>} Array of all projects regardless of status
+ * @throws {Error} If fetch fails
+ * 
+ * @example
+ * const projects = await getInstructorProjects(10);
+ */
 export const getInstructorProjects = async (instructorId) =>
   apiCall("/projects", { method: "GET" });
 
-// Get project details by ID - This is the main function to use for both student and instructor
+/**
+ * Get detailed information for a specific project
+ * 
+ * @async
+ * @function getProjectById
+ * @param {number} projectId - Project ID
+ * @returns {Promise<Object>} Complete project object with all details
+ * @throws {Error} If project not found or fetch fails
+ * 
+ * @example
+ * const project = await getProjectById(5);
+ * console.log(project.title, project.description, project.assigned_group);
+ */
 export const getProjectById = async (projectId) =>
   apiCall(`/projects/${projectId}`, { method: "GET" });
 
 // REMOVED getInstructorProjectById - use getProjectById instead
 
-// Update project status (approve, reject, or other updates)
+/**
+ * Update project status (approve, reject, or other status changes)
+ * 
+ * @async
+ * @function updateProjectStatus
+ * @param {number} projectId - Project ID to update
+ * @param {string} status - New status value (e.g., 'approved', 'rejected', 'completed')
+ * @param {string} [feedback=''] - Optional feedback message
+ * @returns {Promise<Object>} Updated project object
+ * @throws {Error} If update fails
+ * 
+ * @example
+ * await updateProjectStatus(5, 'approved', 'Great proposal!');
+ */
 export const updateProjectStatus = async (projectId, status, feedback = "") =>
   apiCall(`/projects/${projectId}`, {
     method: "PUT",
     body: JSON.stringify({ status, feedback }),
   });
 
-// Create a new project (Instructor can create projects on behalf of clients)
+/**
+ * Create a new project (instructor creating on behalf of client)
+ * 
+ * @async
+ * @function createNewProject
+ * @param {Object} projectData - Complete project information
+ * @returns {Promise<Object>} Created project object with ID
+ * @throws {Error} If creation fails
+ * 
+ * @example
+ * const project = await createNewProject({
+ *   title: 'Mobile App Development',
+ *   description: '...',
+ *   client_id: 15
+ * });
+ */
 export const createNewProject = async (projectData) =>
   apiCall("/projects", {
     method: "POST",
     body: JSON.stringify(projectData),
   });
 
-// Get list of all groups
+/**
+ * Get list of all student groups
+ * 
+ * @async
+ * @function getInstructorGroups
+ * @returns {Promise<Array<Object>>} Array of group objects with members and projects
+ * @throws {Error} If fetch fails
+ * 
+ * @example
+ * const groups = await getInstructorGroups();
+ * groups.forEach(g => console.log(`Group ${g.id}: ${g.project_title}`));
+ */
 export const getInstructorGroups = async () =>
   apiCall("/instructors/groups", { method: "GET" });
 
-// Auto assign students to groups (run algorithm)
+/**
+ * Automatically assign students to groups using preference algorithm
+ * 
+ * @async
+ * @function autoAssignGroups
+ * @returns {Promise<Object>} Assignment results with created groups
+ * @throws {Error} If assignment fails
+ * 
+ * @example
+ * const result = await autoAssignGroups();
+ * console.log(`Created ${result.groups_count} groups`);
+ */
 export const autoAssignGroups = async () =>
   apiCall("/instructors/auto-assign-groups", { method: "POST" });
 
-// Preview group formation without saving
+/**
+ * Preview group formation without saving (dry run of algorithm)
+ * 
+ * @async
+ * @function previewGroups
+ * @returns {Promise<Object>} Preview of groups that would be formed
+ * @throws {Error} If preview generation fails
+ * 
+ * @example
+ * const preview = await previewGroups();
+ * console.log('Preview groups:', preview.groups);
+ */
 export const previewGroups = async () =>
   apiCall("/instructors/preview-groups", { method: "POST" });
 
-// Clear all groups
+/**
+ * Clear all existing groups (resets group assignments)
+ * 
+ * @async
+ * @function clearAllGroups
+ * @returns {Promise<Object>} Deletion confirmation
+ * @throws {Error} If deletion fails
+ * 
+ * @example
+ * await clearAllGroups();
+ * console.log('All groups cleared');
+ */
 export const clearAllGroups = async () =>
   apiCall("/instructors/groups", { method: "DELETE" });
 
-// Confirm or finalize auto-generated groups (deprecated - use autoAssignGroups)
+/**
+ * Confirm or finalize auto-generated groups
+ * 
+ * @deprecated Use autoAssignGroups instead
+ * @async
+ * @function confirmAutoGroups
+ * @returns {Promise<Object>} Confirmation response
+ */
 export const confirmAutoGroups = async () =>
   apiCall("/instructors/auto-assign-groups", { method: "POST" });
 
-// Get auto group formation statistics (included in autoAssignGroups response)
+/**
+ * Get auto group formation statistics
+ * 
+ * @async
+ * @function getAutoGroupStats
+ * @returns {Promise<Object>} Statistics about auto-formed groups
+ * @throws {Error} If fetch fails
+ * 
+ * @example
+ * const stats = await getAutoGroupStats();
+ * console.log(`Satisfaction rate: ${stats.avg_satisfaction}%`);
+ */
 export const getAutoGroupStats = async () =>
   apiCall("/instructors/groups", { method: "GET" });
 
-// Rerun the auto grouping algorithm again
+/**
+ * Rerun the auto grouping algorithm
+ * 
+ * @async
+ * @function rerunAutoGrouping
+ * @returns {Promise<Object>} New group formation results
+ * @throws {Error} If algorithm fails
+ * 
+ * @example
+ * const newGroups = await rerunAutoGrouping();
+ */
 export const rerunAutoGrouping = async () =>
   apiCall("/instructors/auto-assign-groups", { method: "POST" });
 
-// Create a new group manually
+/**
+ * Create a new group manually (instructor override)
+ * 
+ * @async
+ * @function createNewGroup
+ * @param {Object} groupData - Group information
+ * @param {number} groupData.project_id - Assigned project ID
+ * @param {Array<number>} groupData.student_ids - Array of student IDs to include
+ * @param {string} [groupData.name] - Optional group name
+ * @returns {Promise<Object>} Created group object
+ * @throws {Error} If creation fails
+ * 
+ * @example
+ * await createNewGroup({
+ *   project_id: 5,
+ *   student_ids: [10, 22, 35, 48],
+ *   name: 'Team Alpha'
+ * });
+ */
 export const createNewGroup = async (groupData) =>
   apiCall("/groups", {  // Changed from /instructor/groups to /groups
     method: "POST",
     body: JSON.stringify(groupData),
   });
 
-// Remove student from a group (instructor only)
+/**
+ * Remove a student from their assigned group
+ * 
+ * @async
+ * @function removeStudentFromGroup
+ * @param {number} groupId - Group ID
+ * @param {number} studentId - Student ID to remove
+ * @returns {Promise<Object>} Removal confirmation
+ * @throws {Error} If removal fails
+ * 
+ * @example
+ * await removeStudentFromGroup(3, 45);
+ */
 export const removeStudentFromGroup = async (groupId, studentId) =>
   apiCall(`/instructors/groups/${groupId}/members/${studentId}`, {
     method: "DELETE",
   });
 
-// Add student to a group (instructor only)
+/**
+ * Add a student to an existing group
+ * 
+ * @async
+ * @function addStudentToGroup
+ * @param {number} groupId - Group ID
+ * @param {number} studentId - Student ID to add
+ * @returns {Promise<Object>} Addition confirmation
+ * @throws {Error} If addition fails or student already assigned
+ * 
+ * @example
+ * await addStudentToGroup(3, 52);
+ */
 export const addStudentToGroup = async (groupId, studentId) =>
   apiCall(`/instructors/groups/${groupId}/members`, {
     method: "POST",
     body: JSON.stringify({ student_id: studentId }),
   });
 
-// Get all unassigned students (not in any group)
+/**
+ * Get list of students not assigned to any group
+ * 
+ * @async
+ * @function fetchUnassignedStudents
+ * @returns {Promise<Array<Object>>} Array of unassigned student objects
+ * @throws {Error} If fetch fails
+ * 
+ * @example
+ * const unassigned = await fetchUnassignedStudents();
+ * console.log(`${unassigned.length} students need assignment`);
+ */
 export const fetchUnassignedStudents = async () =>
   apiCall("/instructors/unassigned-students", { method: "GET" });
 
-// Get all evaluations
+/**
+ * Get all scheduled evaluations
+ * 
+ * @async
+ * @function getInstructorEvaluations
+ * @returns {Promise<Array<Object>>} Array of evaluation objects
+ * @throws {Error} If fetch fails
+ * 
+ * @example
+ * const evals = await getInstructorEvaluations();
+ * evals.forEach(e => console.log(`${e.title} - ${e.due_date}`));
+ */
 export const getInstructorEvaluations = async () =>
   apiCall("/evaluations", { method: "GET" });  // Changed from /instructor/evaluations to /evaluations
 
-// Schedule a new evaluation
+/**
+ * Schedule a new evaluation
+ * 
+ * @async
+ * @function scheduleEvaluation
+ * @param {Object} payload - Evaluation details
+ * @param {string} payload.title - Evaluation title
+ * @param {string} payload.due_date - Due date (ISO format)
+ * @param {number} [payload.project_id] - Optional specific project ID
+ * @param {number} [payload.group_id] - Optional specific group ID
+ * @returns {Promise<Object>} Created evaluation object
+ * @throws {Error} If scheduling fails
+ * 
+ * @example
+ * await scheduleEvaluation({
+ *   title: 'Midterm Presentation',
+ *   due_date: '2025-03-15',
+ *   group_id: 5
+ * });
+ */
 export const scheduleEvaluation = async (payload) =>
   apiCall("/evaluations", {  // Changed from /instructor/evaluations to /evaluations
     method: "POST",
     body: JSON.stringify(payload),
   });
 
-// Fetch instructor profile
+/**
+ * Fetch instructor profile information
+ * 
+ * @async
+ * @function getInstructorProfile
+ * @param {number} instructorId - Instructor's numeric ID
+ * @returns {Promise<Object>} Instructor profile object
+ * @throws {Error} If fetch fails
+ * 
+ * @example
+ * const profile = await getInstructorProfile(10);
+ * console.log(profile.name, profile.email, profile.department);
+ */
 export const getInstructorProfile = async (instructorId) =>
   apiCall(`/instructors/${instructorId}`, { method: "GET" });
 
-// Update instructor profile
+/**
+ * Update instructor profile information
+ * 
+ * @async
+ * @function updateInstructorProfile
+ * @param {number} instructorId - Instructor's numeric ID
+ * @param {Object} profileData - Updated profile fields
+ * @param {string} [profileData.name] - Updated name
+ * @param {string} [profileData.email] - Updated email
+ * @param {string} [profileData.department] - Updated department
+ * @returns {Promise<Object>} Updated instructor profile
+ * @throws {Error} If update fails
+ * 
+ * @example
+ * await updateInstructorProfile(10, {
+ *   department: 'Computer Science',
+ *   office: 'Room 305'
+ * });
+ */
 export const updateInstructorProfile = async (instructorId, profileData) =>
   apiCall(`/instructors/${instructorId}`, {
     method: "PUT",
@@ -206,6 +696,22 @@ export const updateInstructorProfile = async (instructorId, profileData) =>
 
 /* ===================== FALLBACK FETCH ===================== */
 
+/**
+ * Fetch projects with automatic endpoint fallback
+ * 
+ * Tries multiple API endpoints to fetch client projects.
+ * Useful for handling different backend API versions or structures.
+ * 
+ * @async
+ * @function fetchProjectsWithFallback
+ * @param {number} clientId - Client's numeric ID
+ * @returns {Promise<Array<Object>>} Array of project objects
+ * @throws {Error} If all endpoint attempts fail
+ * 
+ * @example
+ * const projects = await fetchProjectsWithFallback(42);
+ * // Tries: /clients/42/projects, then /projects/client/42
+ */
 export const fetchProjectsWithFallback = async (clientId) => {
   const endpoints = [
     `/clients/${clientId}/projects`,

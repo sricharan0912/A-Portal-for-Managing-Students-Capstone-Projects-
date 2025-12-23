@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>JSDoc: Source: hooks/useStudentProjects.js</title>
+
+    <script src="scripts/prettify/prettify.js"> </script>
+    <script src="scripts/prettify/lang-css.js"> </script>
+    <!--[if lt IE 9]>
+      <script src="//html5shiv.googlecode.com/svn/trunk/html5.js"></script>
+    <![endif]-->
+    <link type="text/css" rel="stylesheet" href="styles/prettify-tomorrow.css">
+    <link type="text/css" rel="stylesheet" href="styles/jsdoc-default.css">
+</head>
+
+<body>
+
+<div id="main">
+
+    <h1 class="page-title">Source: hooks/useStudentProjects.js</h1>
+
+    
+
+
+
+    
+    <section>
+        <article>
+            <pre class="prettyprint source linenums"><code>import { useEffect, useState } from "react";
+import { apiCall } from "../utils/apiHelper";
+
+const API_URL = import.meta.env.VITE_API_URL || "https://a-portal-for-managing-students-capstone-projects-production.up.railway.app";
+
+/**
+ * Custom React hook to fetch available projects for students
+ * 
+ * Automatically fetches all instructor-approved projects that students
+ * can browse and select as preferences. Handles loading state, errors,
+ * and data normalization across different API response formats.
+ * 
+ * The hook:
+ * - Fetches projects automatically on component mount
+ * - Normalizes different response formats (array, { data: [] }, { projects: [] })
+ * - Manages loading and error states
+ * - Returns empty array on errors or unexpected formats
+ * 
+ * @hook
+ * @returns {Object} Projects state and metadata
+ * @returns {Array&lt;Object>} returns.projects - Array of approved project objects
+ * @returns {boolean} returns.loading - Loading state indicator
+ * @returns {string|null} returns.error - Error message if fetch fails, null otherwise
+ * 
+ * @example
+ * // Basic usage in a student projects page
+ * function BrowseProjects() {
+ *   const { projects, loading, error } = useStudentProjects();
+ *   
+ *   if (loading) return &lt;div>Loading projects...&lt;/div>;
+ *   if (error) return &lt;div>Error: {error}&lt;/div>;
+ *   
+ *   return (
+ *     &lt;div>
+ *       &lt;h2>Available Projects ({projects.length})&lt;/h2>
+ *       {projects.map(project => (
+ *         &lt;ProjectCard key={project.id} project={project} />
+ *       ))}
+ *     &lt;/div>
+ *   );
+ * }
+ * 
+ * @example
+ * // Using with filtering
+ * function FilterableProjects() {
+ *   const { projects, loading } = useStudentProjects();
+ *   const [filtered, setFiltered] = useState([]);
+ *   
+ *   useEffect(() => {
+ *     setFiltered(projects.filter(p => p.category === 'Web Development'));
+ *   }, [projects]);
+ *   
+ *   return &lt;ProjectList projects={filtered} />;
+ * }
+ * 
+ * @example
+ * // Checking if projects are available
+ * function ProjectSelection() {
+ *   const { projects, loading, error } = useStudentProjects();
+ *   
+ *   if (!loading &amp;&amp; !error &amp;&amp; projects.length === 0) {
+ *     return &lt;div>No approved projects available yet&lt;/div>;
+ *   }
+ *   
+ *   return &lt;ProjectGrid projects={projects} />;
+ * }
+ */
+export const useStudentProjects = () => {
+  /**
+   * State: Array of approved project objects
+   * Each project contains: { id, title, description, skills_required, client_name, ... }
+   * @type {Array&lt;Object>}
+   */
+  const [projects, setProjects] = useState([]);
+  
+  /**
+   * State: Loading indicator during API fetch
+   * @type {boolean}
+   */
+  const [loading, setLoading] = useState(false);
+  
+  /**
+   * State: Error message from failed fetch operation
+   * @type {string|null}
+   */
+  const [error, setError] = useState(null);
+
+  /**
+   * Effect: Fetch available projects on component mount
+   * 
+   * Automatically loads all instructor-approved projects when the component
+   * using this hook is mounted. Handles multiple response formats and
+   * updates all related state (projects, loading, error).
+   * 
+   * Only runs once on mount (empty dependency array).
+   * 
+   * Dependencies: []
+   */
+  useEffect(() => {
+    /**
+     * Internal async function to load projects from API
+     * 
+     * Fetches approved projects from the backend and normalizes
+     * the response format. Handles errors gracefully and updates state.
+     * 
+     * @async
+     * @function loadProjects
+     * @returns {Promise&lt;void>}
+     * @throws {Error} If API call fails (caught and stored in error state)
+     */
+    const loadProjects = async () => {
+      try {
+        setLoading(true);
+        setError(null);
+
+        console.log("useStudentProjects: Fetching available projects");
+        const data = await apiCall(`${API_URL}/students/projects`, {
+          method: "GET",
+        });
+
+        console.log("useStudentProjects: Projects data received:", data);
+
+        // Handle response format { success: true, data: [...] }
+        if (Array.isArray(data)) {
+          // Direct array response
+          setProjects(data);
+        } else if (data &amp;&amp; data.data &amp;&amp; Array.isArray(data.data)) {
+          // { success: true, data: [...] } format
+          setProjects(data.data);
+        } else if (data &amp;&amp; Array.isArray(data.projects)) {
+          // { projects: [...] } format
+          setProjects(data.projects);
+        } else {
+          // Fallback: no valid data found
+          console.warn("useStudentProjects: Unexpected data format, setting empty array");
+          setProjects([]);
+        }
+      } catch (err) {
+        console.error("useStudentProjects: Error fetching projects:", err);
+        setError(err.message || "Failed to fetch projects");
+        setProjects([]);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadProjects();
+  }, []);
+
+  return {
+    projects,
+    loading,
+    error,
+  };
+};</code></pre>
+        </article>
+    </section>
+
+
+
+
+</div>
+
+<nav>
+    <h2><a href="index.html">Home</a></h2><h3>Modules</h3><ul><li><a href="module-apiHelper.html">apiHelper</a></li><li><a href="module-firebaseConfig.html">firebaseConfig</a></li></ul><h3>Global</h3><ul><li><a href="global.html#API_BASE_URL">API_BASE_URL</a></li><li><a href="global.html#DRAWER_WIDTH">DRAWER_WIDTH</a></li><li><a href="global.html#NAVBAR_HEIGHT">NAVBAR_HEIGHT</a></li><li><a href="global.html#StatCard">StatCard</a></li><li><a href="global.html#animationStyles">animationStyles</a></li><li><a href="global.html#getActiveFromPath">getActiveFromPath</a></li><li><a href="global.html#handleEditProject">handleEditProject</a></li><li><a href="global.html#handleFormClose">handleFormClose</a></li><li><a href="global.html#handleFormSave">handleFormSave</a></li><li><a href="global.html#handleLogout">handleLogout</a></li><li><a href="global.html#handleProjectCreated">handleProjectCreated</a></li><li><a href="global.html#handleSelectProject">handleSelectProject</a></li><li><a href="global.html#handleShowForm">handleShowForm</a></li><li><a href="global.html#handleSubmitPreferences">handleSubmitPreferences</a></li><li><a href="global.html#loadDeadline">loadDeadline</a></li><li><a href="global.html#loadGroupData">loadGroupData</a></li><li><a href="global.html#loadPreferences">loadPreferences</a></li><li><a href="global.html#loadProjects">loadProjects</a></li><li><a href="global.html#refetchProjects">refetchProjects</a></li><li><a href="global.html#setActive">setActive</a></li><li><a href="global.html#submitPreferences">submitPreferences</a></li><li><a href="global.html#useClientId">useClientId</a></li><li><a href="global.html#useProjects">useProjects</a></li><li><a href="global.html#useStudentId">useStudentId</a></li><li><a href="global.html#useStudentPreferences">useStudentPreferences</a></li><li><a href="global.html#useStudentProjects">useStudentProjects</a></li></ul>
+</nav>
+
+<br class="clear">
+
+<footer>
+    Documentation generated by <a href="https://github.com/jsdoc/jsdoc">JSDoc 4.0.5</a> on Mon Dec 22 2025 22:20:27 GMT-0500 (Eastern Standard Time)
+</footer>
+
+<script> prettyPrint(); </script>
+<script src="scripts/linenumber.js"> </script>
+</body>
+</html>

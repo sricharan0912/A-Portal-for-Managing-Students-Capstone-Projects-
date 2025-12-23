@@ -1,0 +1,839 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>JSDoc: Source: Instructor/EvaluationsView.jsx</title>
+
+    <script src="scripts/prettify/prettify.js"> </script>
+    <script src="scripts/prettify/lang-css.js"> </script>
+    <!--[if lt IE 9]>
+      <script src="//html5shiv.googlecode.com/svn/trunk/html5.js"></script>
+    <![endif]-->
+    <link type="text/css" rel="stylesheet" href="styles/prettify-tomorrow.css">
+    <link type="text/css" rel="stylesheet" href="styles/jsdoc-default.css">
+</head>
+
+<body>
+
+<div id="main">
+
+    <h1 class="page-title">Source: Instructor/EvaluationsView.jsx</h1>
+
+    
+
+
+
+    
+    <section>
+        <article>
+            <pre class="prettyprint source linenums"><code>import React, { useEffect, useState } from "react";
+import { apiCall } from "../utils/apiHelper";
+
+/**
+ * Instructor → Evaluations Page
+ * Displays scheduled evaluations (sprints, milestones, weekly updates)
+ */
+export default function EvaluationsView() {
+  const [evaluations, setEvaluations] = useState([]);
+  const [groups, setGroups] = useState([]);
+  const [projects, setProjects] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [filter, setFilter] = useState("all");
+  const [typeFilter, setTypeFilter] = useState("all");
+  const [searchTerm, setSearchTerm] = useState("");
+  const [message, setMessage] = useState({ type: "", text: "" });
+  
+  // View state - 'list' or 'create'
+  const [view, setView] = useState("list");
+  const [formLoading, setFormLoading] = useState(false);
+  const [formError, setFormError] = useState("");
+  const [formData, setFormData] = useState({
+    title: "",
+    description: "",
+    evaluation_type: "sprint",
+    group_id: "",
+    project_id: "",
+    scheduled_date: "",
+    scheduled_time: "",
+    due_date: "",
+    location: "",
+    meeting_link: "",
+    evaluator_name: "",
+    notes: "",
+  });
+
+  useEffect(() => {
+    fetchEvaluations();
+    fetchGroups();
+    fetchProjects();
+  }, []);
+
+  const fetchEvaluations = async () => {
+    try {
+      setLoading(true);
+      const res = await apiCall("/evaluations", { method: "GET" });
+      setEvaluations(res.data || []);
+    } catch (err) {
+      console.error("Error fetching evaluations:", err);
+      setMessage({ type: "error", text: "Failed to load evaluations" });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const fetchGroups = async () => {
+    try {
+      const res = await apiCall("/instructors/groups", { method: "GET" });
+      setGroups(res.data || []);
+    } catch (err) {
+      console.error("Error fetching groups:", err);
+    }
+  };
+
+  const fetchProjects = async () => {
+    try {
+      const res = await apiCall("/projects", { method: "GET" });
+      setProjects((res.data || []).filter(p => p.approval_status === "approved"));
+    } catch (err) {
+      console.error("Error fetching projects:", err);
+    }
+  };
+
+  const handleFormChange = (e) => {
+    const { name, value } = e.target;
+    setFormData((prev) => ({ ...prev, [name]: value }));
+
+    // Auto-fill project when group is selected
+    if (name === "group_id" &amp;&amp; value) {
+      const selectedGroup = groups.find(g => g.id === parseInt(value));
+      if (selectedGroup?.project_id) {
+        setFormData(prev => ({ ...prev, project_id: selectedGroup.project_id.toString() }));
+      }
+    }
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setFormLoading(true);
+    setFormError("");
+
+    try {
+      const payload = {
+        ...formData,
+        group_id: formData.group_id ? parseInt(formData.group_id) : null,
+        project_id: formData.project_id ? parseInt(formData.project_id) : null,
+      };
+
+      const res = await apiCall("/evaluations", {
+        method: "POST",
+        body: JSON.stringify(payload),
+      });
+
+      if (res.success) {
+        setMessage({ type: "success", text: "Evaluation scheduled successfully!" });
+        setView("list");
+        resetForm();
+        fetchEvaluations();
+      } else {
+        setFormError(res.error || "Failed to schedule evaluation");
+      }
+    } catch (err) {
+      console.error("Error scheduling evaluation:", err);
+      setFormError(err.message || "Something went wrong");
+    } finally {
+      setFormLoading(false);
+    }
+  };
+
+  const resetForm = () => {
+    setFormData({
+      title: "",
+      description: "",
+      evaluation_type: "sprint",
+      group_id: "",
+      project_id: "",
+      scheduled_date: "",
+      scheduled_time: "",
+      due_date: "",
+      location: "",
+      meeting_link: "",
+      evaluator_name: "",
+      notes: "",
+    });
+    setFormError("");
+  };
+
+  const handleDelete = async (id) => {
+    if (!window.confirm("Are you sure you want to delete this evaluation?")) {
+      return;
+    }
+
+    try {
+      await apiCall(`/evaluations/${id}`, { method: "DELETE" });
+      setEvaluations(evaluations.filter(e => e.id !== id));
+      setMessage({ type: "success", text: "Evaluation deleted successfully" });
+    } catch (err) {
+      console.error("Error deleting evaluation:", err);
+      setMessage({ type: "error", text: "Failed to delete evaluation" });
+    }
+  };
+
+  const handleStatusChange = async (id, newStatus) => {
+    try {
+      await apiCall(`/evaluations/${id}`, {
+        method: "PUT",
+        body: JSON.stringify({ status: newStatus })
+      });
+      setEvaluations(evaluations.map(e => 
+        e.id === id ? { ...e, status: newStatus } : e
+      ));
+      setMessage({ type: "success", text: "Status updated successfully" });
+    } catch (err) {
+      console.error("Error updating status:", err);
+      setMessage({ type: "error", text: "Failed to update status" });
+    }
+  };
+
+  // Filter evaluations
+  const filteredEvaluations = evaluations.filter(e => {
+    // Status filter
+    if (filter === "upcoming" &amp;&amp; e.status !== "scheduled") return false;
+    if (filter === "completed" &amp;&amp; e.status !== "completed") return false;
+    
+    // Type filter
+    if (typeFilter !== "all" &amp;&amp; e.evaluation_type !== typeFilter) return false;
+    
+    // Search filter
+    if (searchTerm) {
+      const term = searchTerm.toLowerCase();
+      return (
+        e.title?.toLowerCase().includes(term) ||
+        e.project_title?.toLowerCase().includes(term) ||
+        e.group_name?.toLowerCase().includes(term)
+      );
+    }
+    
+    return true;
+  });
+
+  const getTypeColor = (type) => {
+    switch (type) {
+      case "sprint": return "bg-blue-100 text-blue-700";
+      case "milestone": return "bg-purple-100 text-purple-700";
+      case "final": return "bg-red-100 text-red-700";
+      case "weekly": return "bg-green-100 text-green-700";
+      default: return "bg-slate-100 text-slate-700";
+    }
+  };
+
+  const getStatusColor = (status) => {
+    switch (status) {
+      case "scheduled": return "bg-yellow-100 text-yellow-700";
+      case "in_progress": return "bg-blue-100 text-blue-700";
+      case "completed": return "bg-green-100 text-green-700";
+      case "cancelled": return "bg-red-100 text-red-700";
+      default: return "bg-slate-100 text-slate-700";
+    }
+  };
+
+  const formatDate = (date) => {
+    if (!date) return "No date";
+    return new Date(date).toLocaleDateString("en-US", {
+      weekday: "short",
+      month: "short",
+      day: "numeric",
+      year: "numeric"
+    });
+  };
+
+  const formatTime = (time) => {
+    if (!time) return "";
+    const [hours, minutes] = time.split(":");
+    const h = parseInt(hours);
+    const ampm = h >= 12 ? "PM" : "AM";
+    const h12 = h % 12 || 12;
+    return `${h12}:${minutes} ${ampm}`;
+  };
+
+  if (loading) {
+    return (
+      &lt;div className="flex justify-center items-center h-64">
+        &lt;div className="text-center">
+          &lt;div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4">&lt;/div>
+          &lt;p className="text-slate-600">Loading evaluations...&lt;/p>
+        &lt;/div>
+      &lt;/div>
+    );
+  }
+
+  // ==================== CREATE VIEW ====================
+  if (view === "create") {
+    return (
+      &lt;div className="form-enter rounded-2xl bg-white p-8 shadow-lg">
+        {/* Header */}
+        &lt;div className="mb-8 flex items-center justify-between border-b border-slate-200 pb-6">
+          &lt;div>
+            &lt;h2 className="text-3xl font-bold text-slate-900">Schedule Evaluation&lt;/h2>
+            &lt;p className="mt-2 text-slate-600">
+              Create a new sprint, milestone, or weekly update for student groups.
+            &lt;/p>
+          &lt;/div>
+          &lt;button
+            onClick={() => {
+              setView("list");
+              resetForm();
+            }}
+            className="rounded-lg p-2 text-slate-400 transition hover:bg-slate-100 hover:text-slate-600"
+            type="button"
+          >
+            &lt;svg className="h-8 w-8" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              &lt;path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+            &lt;/svg>
+          &lt;/button>
+        &lt;/div>
+
+        {/* Error Message */}
+        {formError &amp;&amp; (
+          &lt;div className="mb-6 rounded-lg border border-red-200 bg-red-50 p-4">
+            &lt;p className="text-sm text-red-800">{formError}&lt;/p>
+          &lt;/div>
+        )}
+
+        &lt;form onSubmit={handleSubmit} className="space-y-8">
+          {/* Evaluation Type */}
+          &lt;div className="space-y-6">
+            &lt;div>
+              &lt;h3 className="text-lg font-bold text-slate-900">📋 Evaluation Type&lt;/h3>
+              &lt;p className="mt-1 text-sm text-slate-500">Select the type of evaluation you want to schedule&lt;/p>
+            &lt;/div>
+
+            &lt;div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+              {[
+                { value: "sprint", label: "Sprint Review", icon: "🏃", desc: "Regular sprint check-in" },
+                { value: "weekly", label: "Weekly Update", icon: "📅", desc: "Weekly progress meeting" },
+                { value: "milestone", label: "Milestone", icon: "🎯", desc: "Major project milestone" },
+                { value: "final", label: "Final Presentation", icon: "🎓", desc: "End of project evaluation" },
+              ].map((type) => (
+                &lt;label
+                  key={type.value}
+                  className={`relative flex flex-col items-center p-4 rounded-xl border-2 cursor-pointer transition ${
+                    formData.evaluation_type === type.value
+                      ? "border-blue-500 bg-blue-50"
+                      : "border-slate-200 hover:border-slate-300 hover:bg-slate-50"
+                  }`}
+                >
+                  &lt;input
+                    type="radio"
+                    name="evaluation_type"
+                    value={type.value}
+                    checked={formData.evaluation_type === type.value}
+                    onChange={handleFormChange}
+                    className="sr-only"
+                  />
+                  &lt;span className="text-2xl mb-2">{type.icon}&lt;/span>
+                  &lt;span className="text-sm font-medium text-slate-800">{type.label}&lt;/span>
+                  &lt;span className="text-xs text-slate-500 text-center mt-1">{type.desc}&lt;/span>
+                  {formData.evaluation_type === type.value &amp;&amp; (
+                    &lt;div className="absolute top-2 right-2">
+                      &lt;svg className="h-5 w-5 text-blue-600" fill="currentColor" viewBox="0 0 20 20">
+                        &lt;path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                      &lt;/svg>
+                    &lt;/div>
+                  )}
+                &lt;/label>
+              ))}
+            &lt;/div>
+          &lt;/div>
+
+          {/* Basic Information */}
+          &lt;div className="space-y-6">
+            &lt;div>
+              &lt;h3 className="text-lg font-bold text-slate-900">📝 Basic Information&lt;/h3>
+              &lt;p className="mt-1 text-sm text-slate-500">Essential details about this evaluation&lt;/p>
+            &lt;/div>
+
+            &lt;div>
+              &lt;label className="mb-2 block text-sm font-semibold text-slate-700">
+                Title &lt;span className="text-red-500">*&lt;/span>
+              &lt;/label>
+              &lt;input
+                type="text"
+                name="title"
+                value={formData.title}
+                onChange={handleFormChange}
+                required
+                placeholder="e.g., Sprint 3 Review"
+                className="w-full rounded-lg border border-slate-300 p-3.5 text-slate-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
+              />
+            &lt;/div>
+
+            &lt;div>
+              &lt;label className="mb-2 block text-sm font-semibold text-slate-700">
+                Description
+              &lt;/label>
+              &lt;textarea
+                name="description"
+                value={formData.description}
+                onChange={handleFormChange}
+                rows="3"
+                placeholder="What will be covered in this evaluation?"
+                className="w-full resize-y rounded-lg border border-slate-300 p-3.5 text-slate-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
+              />
+              &lt;p className="mt-1.5 text-xs text-slate-500">Provide details about the evaluation agenda&lt;/p>
+            &lt;/div>
+
+            &lt;div className="grid grid-cols-1 gap-6 md:grid-cols-2">
+              &lt;div>
+                &lt;label className="mb-2 block text-sm font-semibold text-slate-700">
+                  Group
+                &lt;/label>
+                &lt;select
+                  name="group_id"
+                  value={formData.group_id}
+                  onChange={handleFormChange}
+                  className="w-full rounded-lg border border-slate-300 p-3.5 text-slate-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
+                >
+                  &lt;option value="">All groups / No specific group&lt;/option>
+                  {groups.map((g) => (
+                    &lt;option key={g.id} value={g.id}>
+                      {g.project_title || g.group_name || g.name}
+                    &lt;/option>
+                  ))}
+                &lt;/select>
+              &lt;/div>
+              &lt;div>
+                &lt;label className="mb-2 block text-sm font-semibold text-slate-700">
+                  Project
+                &lt;/label>
+                &lt;select
+                  name="project_id"
+                  value={formData.project_id}
+                  onChange={handleFormChange}
+                  className="w-full rounded-lg border border-slate-300 p-3.5 text-slate-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
+                >
+                  &lt;option value="">All projects / No specific project&lt;/option>
+                  {projects.map((p) => (
+                    &lt;option key={p.id} value={p.id}>
+                      {p.title}
+                    &lt;/option>
+                  ))}
+                &lt;/select>
+              &lt;/div>
+            &lt;/div>
+          &lt;/div>
+
+          {/* Schedule */}
+          &lt;div className="space-y-6">
+            &lt;div>
+              &lt;h3 className="text-lg font-bold text-slate-900">📆 Schedule&lt;/h3>
+              &lt;p className="mt-1 text-sm text-slate-500">When and where will this evaluation take place&lt;/p>
+            &lt;/div>
+
+            &lt;div className="grid grid-cols-1 gap-6 md:grid-cols-3">
+              &lt;div>
+                &lt;label className="mb-2 block text-sm font-semibold text-slate-700">
+                  Date &lt;span className="text-red-500">*&lt;/span>
+                &lt;/label>
+                &lt;input
+                  type="date"
+                  name="scheduled_date"
+                  value={formData.scheduled_date}
+                  onChange={handleFormChange}
+                  required
+                  className="w-full rounded-lg border border-slate-300 p-3.5 text-slate-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
+                />
+              &lt;/div>
+              &lt;div>
+                &lt;label className="mb-2 block text-sm font-semibold text-slate-700">
+                  Time
+                &lt;/label>
+                &lt;input
+                  type="time"
+                  name="scheduled_time"
+                  value={formData.scheduled_time}
+                  onChange={handleFormChange}
+                  className="w-full rounded-lg border border-slate-300 p-3.5 text-slate-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
+                />
+              &lt;/div>
+              &lt;div>
+                &lt;label className="mb-2 block text-sm font-semibold text-slate-700">
+                  Due Date
+                &lt;/label>
+                &lt;input
+                  type="date"
+                  name="due_date"
+                  value={formData.due_date}
+                  onChange={handleFormChange}
+                  className="w-full rounded-lg border border-slate-300 p-3.5 text-slate-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
+                />
+                &lt;p className="mt-1.5 text-xs text-slate-500">Deadline for submissions&lt;/p>
+              &lt;/div>
+            &lt;/div>
+
+            &lt;div className="grid grid-cols-1 gap-6 md:grid-cols-2">
+              &lt;div>
+                &lt;label className="mb-2 block text-sm font-semibold text-slate-700">
+                  Location
+                &lt;/label>
+                &lt;input
+                  type="text"
+                  name="location"
+                  value={formData.location}
+                  onChange={handleFormChange}
+                  placeholder="e.g., Room 101 or Online"
+                  className="w-full rounded-lg border border-slate-300 p-3.5 text-slate-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
+                />
+              &lt;/div>
+              &lt;div>
+                &lt;label className="mb-2 block text-sm font-semibold text-slate-700">
+                  Meeting Link
+                &lt;/label>
+                &lt;input
+                  type="url"
+                  name="meeting_link"
+                  value={formData.meeting_link}
+                  onChange={handleFormChange}
+                  placeholder="https://zoom.us/j/..."
+                  className="w-full rounded-lg border border-slate-300 p-3.5 text-slate-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
+                />
+                &lt;p className="mt-1.5 text-xs text-slate-500">Video conferencing link for remote meetings&lt;/p>
+              &lt;/div>
+            &lt;/div>
+          &lt;/div>
+
+          {/* Additional Information */}
+          &lt;div className="space-y-6">
+            &lt;div>
+              &lt;h3 className="text-lg font-bold text-slate-900">📋 Additional Information&lt;/h3>
+              &lt;p className="mt-1 text-sm text-slate-500">Optional details about this evaluation&lt;/p>
+            &lt;/div>
+
+            &lt;div>
+              &lt;label className="mb-2 block text-sm font-semibold text-slate-700">
+                Evaluator Name
+              &lt;/label>
+              &lt;input
+                type="text"
+                name="evaluator_name"
+                value={formData.evaluator_name}
+                onChange={handleFormChange}
+                placeholder="Who will conduct this evaluation?"
+                className="w-full rounded-lg border border-slate-300 p-3.5 text-slate-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
+              />
+            &lt;/div>
+
+            &lt;div>
+              &lt;label className="mb-2 block text-sm font-semibold text-slate-700">
+                Notes
+              &lt;/label>
+              &lt;textarea
+                name="notes"
+                value={formData.notes}
+                onChange={handleFormChange}
+                rows="3"
+                placeholder="Any additional instructions or requirements..."
+                className="w-full resize-y rounded-lg border border-slate-300 p-3.5 text-slate-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
+              />
+            &lt;/div>
+          &lt;/div>
+
+          {/* Actions */}
+          &lt;div className="flex justify-end gap-4 border-t border-slate-200 pt-6">
+            &lt;button
+              type="button"
+              onClick={() => {
+                setView("list");
+                resetForm();
+              }}
+              className="rounded-lg border-2 border-slate-300 px-6 py-3 font-semibold text-slate-700 transition hover:bg-slate-50"
+              disabled={formLoading}
+            >
+              Cancel
+            &lt;/button>
+            &lt;button
+              type="submit"
+              disabled={formLoading || !formData.title || !formData.scheduled_date}
+              className="rounded-lg bg-blue-600 px-6 py-3 font-semibold text-white shadow-lg transition hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {formLoading ? "Scheduling..." : "Schedule Evaluation"}
+            &lt;/button>
+          &lt;/div>
+        &lt;/form>
+      &lt;/div>
+    );
+  }
+
+  // ==================== LIST VIEW ====================
+  return (
+    &lt;div className="space-y-6">
+      {/* Header */}
+      &lt;div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+        &lt;div>
+          &lt;h2 className="text-2xl font-bold text-slate-800">Evaluations&lt;/h2>
+          &lt;p className="text-slate-500 text-sm mt-1">
+            Schedule and manage sprints, milestones, and weekly updates
+          &lt;/p>
+        &lt;/div>
+
+        &lt;button
+          onClick={() => setView("create")}
+          className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 transition"
+        >
+          &lt;svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+            &lt;path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
+          &lt;/svg>
+          Schedule Evaluation
+        &lt;/button>
+      &lt;/div>
+
+      {/* Message Banner */}
+      {message.text &amp;&amp; (
+        &lt;div className={`rounded-lg p-4 ${
+          message.type === "error" ? "bg-red-50 text-red-700 border border-red-200" :
+          "bg-green-50 text-green-700 border border-green-200"
+        }`}>
+          {message.text}
+          &lt;button 
+            onClick={() => setMessage({ type: "", text: "" })}
+            className="float-right text-lg leading-none"
+          >
+            ×
+          &lt;/button>
+        &lt;/div>
+      )}
+
+      {/* Filters */}
+      &lt;div className="bg-white rounded-xl border border-slate-200 p-4">
+        &lt;div className="flex flex-col sm:flex-row gap-4">
+          {/* Search */}
+          &lt;div className="relative flex-1">
+            &lt;input
+              type="text"
+              placeholder="Search evaluations..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full rounded-lg border border-slate-300 pl-10 pr-4 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            />
+            &lt;svg className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              &lt;path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+            &lt;/svg>
+          &lt;/div>
+
+          {/* Status Filter */}
+          &lt;select
+            value={filter}
+            onChange={(e) => setFilter(e.target.value)}
+            className="rounded-lg border border-slate-300 px-4 py-2 text-sm focus:ring-2 focus:ring-blue-500"
+          >
+            &lt;option value="all">All Status&lt;/option>
+            &lt;option value="upcoming">Upcoming&lt;/option>
+            &lt;option value="completed">Completed&lt;/option>
+          &lt;/select>
+
+          {/* Type Filter */}
+          &lt;select
+            value={typeFilter}
+            onChange={(e) => setTypeFilter(e.target.value)}
+            className="rounded-lg border border-slate-300 px-4 py-2 text-sm focus:ring-2 focus:ring-blue-500"
+          >
+            &lt;option value="all">All Types&lt;/option>
+            &lt;option value="sprint">Sprint&lt;/option>
+            &lt;option value="milestone">Milestone&lt;/option>
+            &lt;option value="weekly">Weekly&lt;/option>
+            &lt;option value="final">Final&lt;/option>
+          &lt;/select>
+        &lt;/div>
+      &lt;/div>
+
+      {/* Stats Cards */}
+      &lt;div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+        &lt;div className="bg-white rounded-xl border border-slate-200 p-4 text-center">
+          &lt;div className="text-2xl font-bold text-slate-700">{evaluations.length}&lt;/div>
+          &lt;div className="text-xs text-slate-500">Total&lt;/div>
+        &lt;/div>
+        &lt;div className="bg-yellow-50 rounded-xl border border-yellow-200 p-4 text-center">
+          &lt;div className="text-2xl font-bold text-yellow-700">
+            {evaluations.filter(e => e.status === "scheduled").length}
+          &lt;/div>
+          &lt;div className="text-xs text-yellow-600">Scheduled&lt;/div>
+        &lt;/div>
+        &lt;div className="bg-blue-50 rounded-xl border border-blue-200 p-4 text-center">
+          &lt;div className="text-2xl font-bold text-blue-700">
+            {evaluations.filter(e => e.status === "in_progress").length}
+          &lt;/div>
+          &lt;div className="text-xs text-blue-600">In Progress&lt;/div>
+        &lt;/div>
+        &lt;div className="bg-green-50 rounded-xl border border-green-200 p-4 text-center">
+          &lt;div className="text-2xl font-bold text-green-700">
+            {evaluations.filter(e => e.status === "completed").length}
+          &lt;/div>
+          &lt;div className="text-xs text-green-600">Completed&lt;/div>
+        &lt;/div>
+      &lt;/div>
+
+      {/* Evaluations List */}
+      {filteredEvaluations.length === 0 ? (
+        &lt;div className="bg-white rounded-xl border border-slate-200 p-12 text-center">
+          &lt;svg className="mx-auto h-12 w-12 text-slate-300 mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            &lt;path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+          &lt;/svg>
+          &lt;h3 className="text-lg font-semibold text-slate-800 mb-2">No Evaluations Found&lt;/h3>
+          &lt;p className="text-slate-500 mb-6">
+            {searchTerm || filter !== "all" || typeFilter !== "all" 
+              ? "Try adjusting your filters" 
+              : "Schedule your first evaluation to get started"}
+          &lt;/p>
+          &lt;button
+            onClick={() => setView("create")}
+            className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
+          >
+            &lt;svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+              &lt;path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
+            &lt;/svg>
+            Schedule Evaluation
+          &lt;/button>
+        &lt;/div>
+      ) : (
+        &lt;div className="space-y-4">
+          {filteredEvaluations.map((evaluation) => (
+            &lt;div
+              key={evaluation.id}
+              className="bg-white rounded-xl border border-slate-200 shadow-sm hover:shadow-md transition overflow-hidden"
+            >
+              &lt;div className="p-5">
+                &lt;div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
+                  {/* Left: Info */}
+                  &lt;div className="flex-1">
+                    &lt;div className="flex items-center gap-2 mb-2">
+                      &lt;span className={`px-2 py-0.5 rounded-full text-xs font-medium ${getTypeColor(evaluation.evaluation_type)}`}>
+                        {evaluation.evaluation_type?.charAt(0).toUpperCase() + evaluation.evaluation_type?.slice(1)}
+                      &lt;/span>
+                      &lt;span className={`px-2 py-0.5 rounded-full text-xs font-medium ${getStatusColor(evaluation.status)}`}>
+                        {evaluation.status?.replace("_", " ").charAt(0).toUpperCase() + evaluation.status?.slice(1).replace("_", " ")}
+                      &lt;/span>
+                    &lt;/div>
+                    
+                    &lt;h3 className="text-lg font-semibold text-slate-800 mb-1">
+                      {evaluation.title}
+                    &lt;/h3>
+                    
+                    {evaluation.description &amp;&amp; (
+                      &lt;p className="text-sm text-slate-500 mb-3 line-clamp-2">
+                        {evaluation.description}
+                      &lt;/p>
+                    )}
+
+                    &lt;div className="flex flex-wrap gap-4 text-sm text-slate-600">
+                      {/* Date &amp; Time */}
+                      &lt;div className="flex items-center gap-1.5">
+                        &lt;svg className="h-4 w-4 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          &lt;path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                        &lt;/svg>
+                        &lt;span>{formatDate(evaluation.scheduled_date)}&lt;/span>
+                        {evaluation.scheduled_time &amp;&amp; (
+                          &lt;span className="text-slate-400">at {formatTime(evaluation.scheduled_time)}&lt;/span>
+                        )}
+                      &lt;/div>
+
+                      {/* Project */}
+                      {evaluation.project_title &amp;&amp; (
+                        &lt;div className="flex items-center gap-1.5">
+                          &lt;svg className="h-4 w-4 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            &lt;path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
+                          &lt;/svg>
+                          &lt;span>{evaluation.project_title}&lt;/span>
+                        &lt;/div>
+                      )}
+
+                      {/* Group */}
+                      {evaluation.group_name &amp;&amp; (
+                        &lt;div className="flex items-center gap-1.5">
+                          &lt;svg className="h-4 w-4 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            &lt;path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
+                          &lt;/svg>
+                          &lt;span>{evaluation.group_name}&lt;/span>
+                        &lt;/div>
+                      )}
+
+                      {/* Location */}
+                      {evaluation.location &amp;&amp; (
+                        &lt;div className="flex items-center gap-1.5">
+                          &lt;svg className="h-4 w-4 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            &lt;path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                            &lt;path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                          &lt;/svg>
+                          &lt;span>{evaluation.location}&lt;/span>
+                        &lt;/div>
+                      )}
+                    &lt;/div>
+                  &lt;/div>
+
+                  {/* Right: Actions */}
+                  &lt;div className="flex items-center gap-2">
+                    {evaluation.meeting_link &amp;&amp; (
+                      &lt;a
+                        href={evaluation.meeting_link}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1.5 rounded-lg border border-blue-200 bg-blue-50 px-3 py-1.5 text-xs font-medium text-blue-700 hover:bg-blue-100 transition"
+                      >
+                        &lt;svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          &lt;path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                        &lt;/svg>
+                        Join
+                      &lt;/a>
+                    )}
+
+                    {/* Status Dropdown */}
+                    &lt;select
+                      value={evaluation.status}
+                      onChange={(e) => handleStatusChange(evaluation.id, e.target.value)}
+                      className="rounded-lg border border-slate-200 px-2 py-1.5 text-xs focus:ring-2 focus:ring-blue-500"
+                    >
+                      &lt;option value="scheduled">Scheduled&lt;/option>
+                      &lt;option value="in_progress">In Progress&lt;/option>
+                      &lt;option value="completed">Completed&lt;/option>
+                      &lt;option value="cancelled">Cancelled&lt;/option>
+                    &lt;/select>
+
+                    &lt;button
+                      onClick={() => handleDelete(evaluation.id)}
+                      className="p-1.5 text-red-400 hover:text-red-600 hover:bg-red-50 rounded transition"
+                      title="Delete"
+                    >
+                      &lt;svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        &lt;path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                      &lt;/svg>
+                    &lt;/button>
+                  &lt;/div>
+                &lt;/div>
+              &lt;/div>
+            &lt;/div>
+          ))}
+        &lt;/div>
+      )}
+    &lt;/div>
+  );
+}</code></pre>
+        </article>
+    </section>
+
+
+
+
+</div>
+
+<nav>
+    <h2><a href="index.html">Home</a></h2><h3>Modules</h3><ul><li><a href="module-apiHelper.html">apiHelper</a></li><li><a href="module-firebaseConfig.html">firebaseConfig</a></li></ul><h3>Global</h3><ul><li><a href="global.html#API_BASE_URL">API_BASE_URL</a></li><li><a href="global.html#DRAWER_WIDTH">DRAWER_WIDTH</a></li><li><a href="global.html#NAVBAR_HEIGHT">NAVBAR_HEIGHT</a></li><li><a href="global.html#StatCard">StatCard</a></li><li><a href="global.html#animationStyles">animationStyles</a></li><li><a href="global.html#getActiveFromPath">getActiveFromPath</a></li><li><a href="global.html#handleEditProject">handleEditProject</a></li><li><a href="global.html#handleFormClose">handleFormClose</a></li><li><a href="global.html#handleFormSave">handleFormSave</a></li><li><a href="global.html#handleLogout">handleLogout</a></li><li><a href="global.html#handleProjectCreated">handleProjectCreated</a></li><li><a href="global.html#handleSelectProject">handleSelectProject</a></li><li><a href="global.html#handleShowForm">handleShowForm</a></li><li><a href="global.html#handleSubmitPreferences">handleSubmitPreferences</a></li><li><a href="global.html#loadDeadline">loadDeadline</a></li><li><a href="global.html#loadGroupData">loadGroupData</a></li><li><a href="global.html#loadPreferences">loadPreferences</a></li><li><a href="global.html#loadProjects">loadProjects</a></li><li><a href="global.html#refetchProjects">refetchProjects</a></li><li><a href="global.html#setActive">setActive</a></li><li><a href="global.html#submitPreferences">submitPreferences</a></li><li><a href="global.html#useClientId">useClientId</a></li><li><a href="global.html#useProjects">useProjects</a></li><li><a href="global.html#useStudentId">useStudentId</a></li><li><a href="global.html#useStudentPreferences">useStudentPreferences</a></li><li><a href="global.html#useStudentProjects">useStudentProjects</a></li></ul>
+</nav>
+
+<br class="clear">
+
+<footer>
+    Documentation generated by <a href="https://github.com/jsdoc/jsdoc">JSDoc 4.0.5</a> on Mon Dec 22 2025 22:20:27 GMT-0500 (Eastern Standard Time)
+</footer>
+
+<script> prettyPrint(); </script>
+<script src="scripts/linenumber.js"> </script>
+</body>
+</html>

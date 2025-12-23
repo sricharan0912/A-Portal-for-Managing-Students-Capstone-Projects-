@@ -1,3 +1,25 @@
+/**
+ * Evaluation Routes Module
+ * 
+ * Handles all evaluation-related API endpoints including scheduling evaluations,
+ * managing evaluation details, and retrieving evaluations based on user roles.
+ * 
+ * Evaluations can be:
+ * - Group-specific (assigned to a particular student group)
+ * - Project-specific (assigned to all groups working on a project)
+ * - Global (visible to all users)
+ * 
+ * Access control:
+ * - Instructors/Admins: Full access to all evaluations
+ * - Students: View evaluations for their assigned groups
+ * - Clients: View evaluations for their projects
+ * 
+ * @module routes/evaluationRoutes
+ * @requires express
+ * @requires ../../db
+ * @requires ../middleware/authMiddleware
+ */
+
 import express from "express";
 import db from "../../db.js";
 import { verifyToken } from "../middleware/authMiddleware.js";
@@ -6,7 +28,27 @@ const router = express.Router();
 
 // ==================== GET ALL EVALUATIONS ====================
 
-// Get all evaluations (filtered by role)
+/**
+ * Get All Evaluations
+ * 
+ * Retrieves evaluations filtered by user role and permissions.
+ * Different users see different subsets of evaluations:
+ * - Instructors/Admins: All evaluations with full details
+ * - Students: Evaluations for their groups OR global evaluations
+ * - Clients: Evaluations for their projects OR global evaluations
+ * 
+ * @route GET /evaluations
+ * @group Evaluations - Evaluation management operations
+ * @security JWT
+ * @param {string} authorization.header.required - Bearer token
+ * @returns {object} 200 - Success response with evaluations array
+ * @returns {object} 403 - Access denied
+ * @returns {object} 500 - Server error
+ * 
+ * @example
+ * GET /evaluations
+ * Authorization: Bearer <token>
+ */
 router.get("/", verifyToken, async (req, res) => {
   try {
     const { role, instructorId, studentId, clientId } = req.user;
@@ -82,6 +124,25 @@ router.get("/", verifyToken, async (req, res) => {
 
 // ==================== GET SINGLE EVALUATION ====================
 
+/**
+ * Get Single Evaluation by ID
+ * 
+ * Retrieves detailed information for a specific evaluation including
+ * associated group name, project title, and active group members.
+ * 
+ * @route GET /evaluations/:id
+ * @group Evaluations - Evaluation management operations
+ * @security JWT
+ * @param {number} id.path.required - Evaluation ID
+ * @param {string} authorization.header.required - Bearer token
+ * @returns {object} 200 - Success response with evaluation data and members
+ * @returns {object} 404 - Evaluation not found
+ * @returns {object} 500 - Server error
+ * 
+ * @example
+ * GET /evaluations/42
+ * Authorization: Bearer <token>
+ */
 router.get("/:id", verifyToken, async (req, res) => {
   try {
     const { id } = req.params;
@@ -139,6 +200,46 @@ router.get("/:id", verifyToken, async (req, res) => {
 
 // ==================== CREATE EVALUATION (Instructor Only) ====================
 
+/**
+ * Create New Evaluation
+ * 
+ * Schedules a new evaluation (sprint review, final presentation, etc.).
+ * Can be assigned to a specific group, project, or left global.
+ * Protected route - only instructors and admins can create evaluations.
+ * 
+ * @route POST /evaluations
+ * @group Evaluations - Evaluation management operations
+ * @security JWT
+ * @param {string} title.body.required - Evaluation title
+ * @param {string} description.body - Evaluation description
+ * @param {string} evaluation_type.body - Type of evaluation (default: 'sprint')
+ * @param {number} group_id.body - Specific group ID (null for all groups)
+ * @param {number} project_id.body - Specific project ID (null for all projects)
+ * @param {string} scheduled_date.body.required - Scheduled date (YYYY-MM-DD)
+ * @param {string} scheduled_time.body - Scheduled time (HH:MM:SS)
+ * @param {string} due_date.body - Due date for submissions
+ * @param {string} location.body - Physical location
+ * @param {string} meeting_link.body - Virtual meeting link
+ * @param {string} evaluator_name.body - Name of evaluator
+ * @param {string} notes.body - Additional notes
+ * @param {string} authorization.header.required - Bearer token
+ * @returns {object} 201 - Success response with evaluation ID
+ * @returns {object} 400 - Validation error (missing required fields)
+ * @returns {object} 403 - Only instructors can create evaluations
+ * @returns {object} 500 - Server error
+ * 
+ * @example
+ * POST /evaluations
+ * {
+ *   "title": "Sprint 2 Review",
+ *   "description": "Review of sprint 2 deliverables",
+ *   "evaluation_type": "sprint",
+ *   "group_id": 5,
+ *   "scheduled_date": "2025-01-15",
+ *   "scheduled_time": "14:00:00",
+ *   "location": "Room 301"
+ * }
+ */
 router.post("/", verifyToken, async (req, res) => {
   try {
     if (req.user.role !== "instructor" && req.user.role !== "admin") {
@@ -208,6 +309,43 @@ router.post("/", verifyToken, async (req, res) => {
 
 // ==================== UPDATE EVALUATION ====================
 
+/**
+ * Update Evaluation
+ * 
+ * Updates an existing evaluation with new information.
+ * Dynamically builds UPDATE query based on provided fields.
+ * Protected route - only instructors and admins can update evaluations.
+ * 
+ * @route PUT /evaluations/:id
+ * @group Evaluations - Evaluation management operations
+ * @security JWT
+ * @param {number} id.path.required - Evaluation ID
+ * @param {string} title.body - Updated title
+ * @param {string} description.body - Updated description
+ * @param {string} evaluation_type.body - Updated evaluation type
+ * @param {number} group_id.body - Updated group ID
+ * @param {number} project_id.body - Updated project ID
+ * @param {string} scheduled_date.body - Updated scheduled date
+ * @param {string} scheduled_time.body - Updated scheduled time
+ * @param {string} due_date.body - Updated due date
+ * @param {string} location.body - Updated location
+ * @param {string} meeting_link.body - Updated meeting link
+ * @param {string} evaluator_name.body - Updated evaluator name
+ * @param {string} status.body - Updated status (scheduled, in_progress, completed, cancelled)
+ * @param {string} notes.body - Updated notes
+ * @param {string} authorization.header.required - Bearer token
+ * @returns {object} 200 - Success response
+ * @returns {object} 400 - No fields to update
+ * @returns {object} 403 - Only instructors can update evaluations
+ * @returns {object} 500 - Server error
+ * 
+ * @example
+ * PUT /evaluations/42
+ * {
+ *   "status": "completed",
+ *   "notes": "All groups presented successfully"
+ * }
+ */
 router.put("/:id", verifyToken, async (req, res) => {
   try {
     if (req.user.role !== "instructor" && req.user.role !== "admin") {
@@ -280,6 +418,25 @@ router.put("/:id", verifyToken, async (req, res) => {
 
 // ==================== DELETE EVALUATION ====================
 
+/**
+ * Delete Evaluation
+ * 
+ * Permanently deletes an evaluation from the system.
+ * Protected route - only instructors and admins can delete evaluations.
+ * 
+ * @route DELETE /evaluations/:id
+ * @group Evaluations - Evaluation management operations
+ * @security JWT
+ * @param {number} id.path.required - Evaluation ID
+ * @param {string} authorization.header.required - Bearer token
+ * @returns {object} 200 - Success response
+ * @returns {object} 403 - Only instructors can delete evaluations
+ * @returns {object} 500 - Server error
+ * 
+ * @example
+ * DELETE /evaluations/42
+ * Authorization: Bearer <token>
+ */
 router.delete("/:id", verifyToken, async (req, res) => {
   try {
     if (req.user.role !== "instructor" && req.user.role !== "admin") {
@@ -308,6 +465,24 @@ router.delete("/:id", verifyToken, async (req, res) => {
 
 // ==================== GET UPCOMING EVALUATIONS ====================
 
+/**
+ * Get Upcoming Evaluations
+ * 
+ * Retrieves upcoming evaluations (scheduled for today or later) filtered by user role.
+ * Returns up to 10 evaluations ordered by scheduled date and time.
+ * Only includes evaluations with status 'scheduled' or 'in_progress'.
+ * 
+ * @route GET /evaluations/upcoming/list
+ * @group Evaluations - Evaluation management operations
+ * @security JWT
+ * @param {string} authorization.header.required - Bearer token
+ * @returns {object} 200 - Success response with upcoming evaluations (max 10)
+ * @returns {object} 500 - Server error
+ * 
+ * @example
+ * GET /evaluations/upcoming/list
+ * Authorization: Bearer <token>
+ */
 router.get("/upcoming/list", verifyToken, async (req, res) => {
   try {
     const { role, studentId, clientId } = req.user;

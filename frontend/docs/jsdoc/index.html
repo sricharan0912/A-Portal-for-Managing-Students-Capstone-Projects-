@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>JSDoc: Home</title>
+
+    <script src="scripts/prettify/prettify.js"> </script>
+    <script src="scripts/prettify/lang-css.js"> </script>
+    <!--[if lt IE 9]>
+      <script src="//html5shiv.googlecode.com/svn/trunk/html5.js"></script>
+    <![endif]-->
+    <link type="text/css" rel="stylesheet" href="styles/prettify-tomorrow.css">
+    <link type="text/css" rel="stylesheet" href="styles/jsdoc-default.css">
+</head>
+
+<body>
+
+<div id="main">
+
+    <h1 class="page-title">Home</h1>
+
+    
+
+
+
+    
+
+
+    <h3> </h3>
+
+
+
+
+
+
+
+
+
+
+    
+
+
+
+
+    <section>
+        <article><h1>Capstone Hub Frontend</h1>
+<p>Student Capstone Project Management System - React Frontend Application</p>
+<h2>Overview</h2>
+<p>This is the frontend application for Capstone Hub, a comprehensive platform for managing student capstone projects in CS 682. Built with modern React and designed for three user roles:</p>
+<ul>
+<li><strong>Clients</strong>: Submit and track project proposals</li>
+<li><strong>Students</strong>: Browse projects, submit preferences, and view assignments</li>
+<li><strong>Instructors</strong>: Approve projects, manage groups, and oversee progress</li>
+</ul>
+<h2>Tech Stack</h2>
+<ul>
+<li><strong>React 19</strong> - UI library</li>
+<li><strong>Vite</strong> - Build tool and dev server</li>
+<li><strong>TailwindCSS 4</strong> - Utility-first CSS framework</li>
+<li><strong>React Router DOM 7</strong> - Client-side routing</li>
+<li><strong>Firebase</strong> - Authentication</li>
+<li><strong>Framer Motion</strong> - Animations</li>
+<li><strong>React Icons</strong> - Icon library</li>
+</ul>
+<h2>Project Structure</h2>
+<pre class="prettyprint source"><code>frontend/
+├── src/
+│   ├── components/          # Reusable UI components
+│   │   ├── shared/         # Shared across roles
+│   │   ├── student/        # Student-specific components
+│   │   ├── instructor/     # Instructor-specific components
+│   │   └── client/         # Client-specific components
+│   ├── pages/              # Page-level components
+│   │   ├── public/         # Public pages (login, signup, home)
+│   │   ├── student/        # Student dashboard pages
+│   │   ├── instructor/     # Instructor dashboard pages
+│   │   └── client/         # Client dashboard pages
+│   ├── utils/              # Helper functions and utilities
+│   │   ├── apiHelper.js    # API communication layer
+│   │   └── firebase.js     # Firebase configuration
+│   ├── hooks/              # Custom React hooks
+│   ├── App.jsx             # Main app component with routing
+│   └── main.jsx            # Application entry point
+└── docs/                   # Generated documentation
+    └── jsdoc/
+</code></pre>
+<h2>Features by Role</h2>
+<h3>Student Features</h3>
+<ul>
+<li>Browse approved projects with detailed information</li>
+<li>Submit and rank top 3 project preferences</li>
+<li>View assigned project and team members</li>
+<li>Track project progress and deadlines</li>
+</ul>
+<h3>Client Features</h3>
+<ul>
+<li>Submit detailed project proposals</li>
+<li>Track approval status and instructor feedback</li>
+<li>View assigned student teams</li>
+<li>Manage project details and requirements</li>
+</ul>
+<h3>Instructor Features</h3>
+<ul>
+<li>Review and approve/reject project proposals</li>
+<li>Run automated group formation algorithm</li>
+<li>Manually adjust student groups</li>
+<li>Post announcements and manage evaluations</li>
+<li>Monitor overall system statistics</li>
+</ul>
+<h2>Development</h2>
+<pre class="prettyprint source lang-bash"><code># Install dependencies
+npm install
+
+# Start development server
+npm run dev
+
+# Build for production
+npm run build
+
+# Preview production build
+npm run preview
+
+# Lint code
+npm run lint
+</code></pre>
+<h2>Documentation</h2>
+<p>For complete component-level documentation, run:</p>
+<pre class="prettyprint source lang-bash"><code>npm run docs:generate
+npm run docs:view
+</code></pre>
+<p>This will generate and open the JSDoc HTML documentation in your browser.</p>
+<h2>Team</h2>
+<ul>
+<li>Charan</li>
+<li>Lohith Mudipalli</li>
+<li>Bharath</li>
+</ul>
+<h2>Course</h2>
+<p>CS 682 - Capstone Project</p></article>
+    </section>
+
+
+
+
+
+
+</div>
+
+<nav>
+    <h2><a href="index.html">Home</a></h2><h3>Modules</h3><ul><li><a href="module-apiHelper.html">apiHelper</a></li><li><a href="module-firebaseConfig.html">firebaseConfig</a></li></ul><h3>Global</h3><ul><li><a href="global.html#API_BASE_URL">API_BASE_URL</a></li><li><a href="global.html#DRAWER_WIDTH">DRAWER_WIDTH</a></li><li><a href="global.html#NAVBAR_HEIGHT">NAVBAR_HEIGHT</a></li><li><a href="global.html#StatCard">StatCard</a></li><li><a href="global.html#animationStyles">animationStyles</a></li><li><a href="global.html#getActiveFromPath">getActiveFromPath</a></li><li><a href="global.html#handleEditProject">handleEditProject</a></li><li><a href="global.html#handleFormClose">handleFormClose</a></li><li><a href="global.html#handleFormSave">handleFormSave</a></li><li><a href="global.html#handleLogout">handleLogout</a></li><li><a href="global.html#handleProjectCreated">handleProjectCreated</a></li><li><a href="global.html#handleSelectProject">handleSelectProject</a></li><li><a href="global.html#handleShowForm">handleShowForm</a></li><li><a href="global.html#handleSubmitPreferences">handleSubmitPreferences</a></li><li><a href="global.html#loadDeadline">loadDeadline</a></li><li><a href="global.html#loadGroupData">loadGroupData</a></li><li><a href="global.html#loadPreferences">loadPreferences</a></li><li><a href="global.html#loadProjects">loadProjects</a></li><li><a href="global.html#refetchProjects">refetchProjects</a></li><li><a href="global.html#setActive">setActive</a></li><li><a href="global.html#submitPreferences">submitPreferences</a></li><li><a href="global.html#useClientId">useClientId</a></li><li><a href="global.html#useProjects">useProjects</a></li><li><a href="global.html#useStudentId">useStudentId</a></li><li><a href="global.html#useStudentPreferences">useStudentPreferences</a></li><li><a href="global.html#useStudentProjects">useStudentProjects</a></li></ul>
+</nav>
+
+<br class="clear">
+
+<footer>
+    Documentation generated by <a href="https://github.com/jsdoc/jsdoc">JSDoc 4.0.5</a> on Mon Dec 22 2025 22:20:27 GMT-0500 (Eastern Standard Time)
+</footer>
+
+<script> prettyPrint(); </script>
+<script src="scripts/linenumber.js"> </script>
+</body>
+</html>

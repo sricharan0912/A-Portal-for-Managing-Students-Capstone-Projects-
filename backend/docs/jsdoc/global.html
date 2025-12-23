@@ -1,0 +1,2769 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>JSDoc: Global</title>
+
+    <script src="scripts/prettify/prettify.js"> </script>
+    <script src="scripts/prettify/lang-css.js"> </script>
+    <!--[if lt IE 9]>
+      <script src="//html5shiv.googlecode.com/svn/trunk/html5.js"></script>
+    <![endif]-->
+    <link type="text/css" rel="stylesheet" href="styles/prettify-tomorrow.css">
+    <link type="text/css" rel="stylesheet" href="styles/jsdoc-default.css">
+</head>
+
+<body>
+
+<div id="main">
+
+    <h1 class="page-title">Global</h1>
+
+    
+
+
+
+
+<section>
+
+<header>
+    
+        <h2></h2>
+        
+    
+</header>
+
+<article>
+    <div class="container-overview">
+    
+        
+
+        
+
+
+<dl class="details">
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+</dl>
+
+
+        
+    
+    </div>
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+        <h3 class="subsection-title">Members</h3>
+
+        
+            
+<h4 class="name" id="OPTIONAL_ENV_VARS"><span class="type-signature">(constant) </span>OPTIONAL_ENV_VARS<span class="type-signature"></span></h4>
+
+
+
+
+<div class="description">
+    <p>Optional environment variables (have defaults)
+These don't cause the server to crash if missing</p>
+</div>
+
+
+
+
+
+
+
+<dl class="details">
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+    <dt class="tag-source">Source:</dt>
+    <dd class="tag-source"><ul class="dummy"><li>
+        <a href="config_validateEnv.js.html">config/validateEnv.js</a>, <a href="config_validateEnv.js.html#line49">line 49</a>
+    </li></ul></dd>
+    
+
+    
+
+    
+
+    
+</dl>
+
+
+
+
+
+
+        
+            
+<h4 class="name" id="REQUIRED_ENV_VARS"><span class="type-signature">(constant) </span>REQUIRED_ENV_VARS<span class="type-signature"></span></h4>
+
+
+
+
+<div class="description">
+    <p>List of all required environment variables
+Add new variables here as you add features</p>
+</div>
+
+
+
+
+
+
+
+<dl class="details">
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+    <dt class="tag-source">Source:</dt>
+    <dd class="tag-source"><ul class="dummy"><li>
+        <a href="config_validateEnv.js.html">config/validateEnv.js</a>, <a href="config_validateEnv.js.html#line18">line 18</a>
+    </li></ul></dd>
+    
+
+    
+
+    
+
+    
+</dl>
+
+
+
+
+
+
+        
+            
+<h4 class="name" id="calculatePagination"><span class="type-signature">(constant) </span>calculatePagination<span class="type-signature"></span></h4>
+
+
+
+
+<div class="description">
+    <p>Pagination Helper
+Calculate pagination info</p>
+</div>
+
+
+
+
+
+
+
+<dl class="details">
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+    <dt class="tag-source">Source:</dt>
+    <dd class="tag-source"><ul class="dummy"><li>
+        <a href="utils_responseFormatter.js.html">utils/responseFormatter.js</a>, <a href="utils_responseFormatter.js.html#line314">line 314</a>
+    </li></ul></dd>
+    
+
+    
+
+    
+
+    
+</dl>
+
+
+
+
+
+
+        
+            
+<h4 class="name" id="errorHandler"><span class="type-signature">(constant) </span>errorHandler<span class="type-signature"></span></h4>
+
+
+
+
+<div class="description">
+    <p>Error Handler Middleware
+Catches all errors from routes and sends consistent error responses
+Must be used as the LAST middleware in index.js</p>
+<p>Usage in index.js (at the end, after all routes):
+app.use(errorHandler);</p>
+<p>Note: This middleware has 4 parameters (err, req, res, next)
+Express recognizes it as an error handler by the 4-parameter signature</p>
+</div>
+
+
+
+
+
+
+
+<dl class="details">
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+    <dt class="tag-source">Source:</dt>
+    <dd class="tag-source"><ul class="dummy"><li>
+        <a href="middleware_errorHandler.js.html">middleware/errorHandler.js</a>, <a href="middleware_errorHandler.js.html#line13">line 13</a>
+    </li></ul></dd>
+    
+
+    
+
+    
+
+    
+</dl>
+
+
+
+
+
+
+        
+            
+<h4 class="name" id="formatAuthError"><span class="type-signature">(constant) </span>formatAuthError<span class="type-signature"></span></h4>
+
+
+
+
+<div class="description">
+    <p>Authentication Error Response
+Use for auth failures</p>
+</div>
+
+
+
+
+
+
+
+<dl class="details">
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+    <dt class="tag-source">Source:</dt>
+    <dd class="tag-source"><ul class="dummy"><li>
+        <a href="utils_responseFormatter.js.html">utils/responseFormatter.js</a>, <a href="utils_responseFormatter.js.html#line211">line 211</a>
+    </li></ul></dd>
+    
+
+    
+
+    
+
+    
+</dl>
+
+
+
+
+
+
+        
+            
+<h4 class="name" id="formatConflict"><span class="type-signature">(constant) </span>formatConflict<span class="type-signature"></span></h4>
+
+
+
+
+<div class="description">
+    <p>Conflict Error Response
+Use for duplicate/conflict situations</p>
+</div>
+
+
+
+
+
+
+
+<dl class="details">
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+    <dt class="tag-source">Source:</dt>
+    <dd class="tag-source"><ul class="dummy"><li>
+        <a href="utils_responseFormatter.js.html">utils/responseFormatter.js</a>, <a href="utils_responseFormatter.js.html#line273">line 273</a>
+    </li></ul></dd>
+    
+
+    
+
+    
+
+    
+</dl>
+
+
+
+
+
+
+        
+            
+<h4 class="name" id="formatCreated"><span class="type-signature">(constant) </span>formatCreated<span class="type-signature"></span></h4>
+
+
+
+
+<div class="description">
+    <p>Created Resource Response
+Use for POST requests that create new resources</p>
+</div>
+
+
+
+
+
+
+
+<dl class="details">
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+    <dt class="tag-source">Source:</dt>
+    <dd class="tag-source"><ul class="dummy"><li>
+        <a href="utils_responseFormatter.js.html">utils/responseFormatter.js</a>, <a href="utils_responseFormatter.js.html#line113">line 113</a>
+    </li></ul></dd>
+    
+
+    
+
+    
+
+    
+</dl>
+
+
+
+
+
+
+        
+            
+<h4 class="name" id="formatDeleted"><span class="type-signature">(constant) </span>formatDeleted<span class="type-signature"></span></h4>
+
+
+
+
+<div class="description">
+    <p>Deleted Resource Response
+Use for DELETE requests</p>
+</div>
+
+
+
+
+
+
+
+<dl class="details">
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+    <dt class="tag-source">Source:</dt>
+    <dd class="tag-source"><ul class="dummy"><li>
+        <a href="utils_responseFormatter.js.html">utils/responseFormatter.js</a>, <a href="utils_responseFormatter.js.html#line162">line 162</a>
+    </li></ul></dd>
+    
+
+    
+
+    
+
+    
+</dl>
+
+
+
+
+
+
+        
+            
+<h4 class="name" id="formatError"><span class="type-signature">(constant) </span>formatError<span class="type-signature"></span></h4>
+
+
+
+
+<div class="description">
+    <p>Error Response Format</p>
+</div>
+
+
+
+
+
+
+
+<dl class="details">
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+    <dt class="tag-source">Source:</dt>
+    <dd class="tag-source"><ul class="dummy"><li>
+        <a href="utils_responseFormatter.js.html">utils/responseFormatter.js</a>, <a href="utils_responseFormatter.js.html#line53">line 53</a>
+    </li></ul></dd>
+    
+
+    
+
+    
+
+    
+</dl>
+
+
+
+
+
+
+        
+            
+<h4 class="name" id="formatForbidden"><span class="type-signature">(constant) </span>formatForbidden<span class="type-signature"></span></h4>
+
+
+
+
+<div class="description">
+    <p>Permission Denied Error Response
+Use for authorization failures</p>
+</div>
+
+
+
+
+
+
+
+<dl class="details">
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+    <dt class="tag-source">Source:</dt>
+    <dd class="tag-source"><ul class="dummy"><li>
+        <a href="utils_responseFormatter.js.html">utils/responseFormatter.js</a>, <a href="utils_responseFormatter.js.html#line252">line 252</a>
+    </li></ul></dd>
+    
+
+    
+
+    
+
+    
+</dl>
+
+
+
+
+
+
+        
+            
+<h4 class="name" id="formatList"><span class="type-signature">(constant) </span>formatList<span class="type-signature"></span></h4>
+
+
+
+
+<div class="description">
+    <p>List Response Format
+For paginated or multiple item responses</p>
+</div>
+
+
+
+
+
+
+
+<dl class="details">
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+    <dt class="tag-source">Source:</dt>
+    <dd class="tag-source"><ul class="dummy"><li>
+        <a href="utils_responseFormatter.js.html">utils/responseFormatter.js</a>, <a href="utils_responseFormatter.js.html#line78">line 78</a>
+    </li></ul></dd>
+    
+
+    
+
+    
+
+    
+</dl>
+
+
+
+
+
+
+        
+            
+<h4 class="name" id="formatNotFound"><span class="type-signature">(constant) </span>formatNotFound<span class="type-signature"></span></h4>
+
+
+
+
+<div class="description">
+    <p>Not Found Error Response</p>
+</div>
+
+
+
+
+
+
+
+<dl class="details">
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+    <dt class="tag-source">Source:</dt>
+    <dd class="tag-source"><ul class="dummy"><li>
+        <a href="utils_responseFormatter.js.html">utils/responseFormatter.js</a>, <a href="utils_responseFormatter.js.html#line231">line 231</a>
+    </li></ul></dd>
+    
+
+    
+
+    
+
+    
+</dl>
+
+
+
+
+
+
+        
+            
+<h4 class="name" id="formatServerError"><span class="type-signature">(constant) </span>formatServerError<span class="type-signature"></span></h4>
+
+
+
+
+<div class="description">
+    <p>Server Error Response
+Use for unexpected server errors</p>
+</div>
+
+
+
+
+
+
+
+<dl class="details">
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+    <dt class="tag-source">Source:</dt>
+    <dd class="tag-source"><ul class="dummy"><li>
+        <a href="utils_responseFormatter.js.html">utils/responseFormatter.js</a>, <a href="utils_responseFormatter.js.html#line294">line 294</a>
+    </li></ul></dd>
+    
+
+    
+
+    
+
+    
+</dl>
+
+
+
+
+
+
+        
+            
+<h4 class="name" id="formatSuccess"><span class="type-signature">(constant) </span>formatSuccess<span class="type-signature"></span></h4>
+
+
+
+
+<div class="description">
+    <p>Success Response Format</p>
+</div>
+
+
+
+
+
+
+
+<dl class="details">
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+    <dt class="tag-source">Source:</dt>
+    <dd class="tag-source"><ul class="dummy"><li>
+        <a href="utils_responseFormatter.js.html">utils/responseFormatter.js</a>, <a href="utils_responseFormatter.js.html#line29">line 29</a>
+    </li></ul></dd>
+    
+
+    
+
+    
+
+    
+</dl>
+
+
+
+
+
+
+        
+            
+<h4 class="name" id="formatUpdated"><span class="type-signature">(constant) </span>formatUpdated<span class="type-signature"></span></h4>
+
+
+
+
+<div class="description">
+    <p>Updated Resource Response
+Use for PUT/PATCH requests</p>
+</div>
+
+
+
+
+
+
+
+<dl class="details">
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+    <dt class="tag-source">Source:</dt>
+    <dd class="tag-source"><ul class="dummy"><li>
+        <a href="utils_responseFormatter.js.html">utils/responseFormatter.js</a>, <a href="utils_responseFormatter.js.html#line138">line 138</a>
+    </li></ul></dd>
+    
+
+    
+
+    
+
+    
+</dl>
+
+
+
+
+
+
+        
+            
+<h4 class="name" id="formatValidationError"><span class="type-signature">(constant) </span>formatValidationError<span class="type-signature"></span></h4>
+
+
+
+
+<div class="description">
+    <p>Validation Error Response
+Use when validation fails</p>
+</div>
+
+
+
+
+
+
+
+<dl class="details">
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+    <dt class="tag-source">Source:</dt>
+    <dd class="tag-source"><ul class="dummy"><li>
+        <a href="utils_responseFormatter.js.html">utils/responseFormatter.js</a>, <a href="utils_responseFormatter.js.html#line188">line 188</a>
+    </li></ul></dd>
+    
+
+    
+
+    
+
+    
+</dl>
+
+
+
+
+
+
+        
+            
+<h4 class="name" id="getEnv"><span class="type-signature">(constant) </span>getEnv<span class="type-signature"></span></h4>
+
+
+
+
+<div class="description">
+    <p>Get environment variable with fallback
+Safe way to get optional variables with defaults</p>
+<p>Usage:
+const port = getEnv(&quot;PORT&quot;, &quot;5050&quot;);
+const frontend = getEnv(&quot;FRONTEND_URL&quot;, &quot;http://localhost:3000&quot;);</p>
+</div>
+
+
+
+
+
+
+
+<dl class="details">
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+    <dt class="tag-source">Source:</dt>
+    <dd class="tag-source"><ul class="dummy"><li>
+        <a href="config_validateEnv.js.html">config/validateEnv.js</a>, <a href="config_validateEnv.js.html#line122">line 122</a>
+    </li></ul></dd>
+    
+
+    
+
+    
+
+    
+</dl>
+
+
+
+
+
+
+        
+            
+<h4 class="name" id="printEnvironmentSummary"><span class="type-signature">(constant) </span>printEnvironmentSummary<span class="type-signature"></span></h4>
+
+
+
+
+<div class="description">
+    <p>Print environment summary (for debugging)
+Shows which variables are set (doesn't print sensitive values)</p>
+<p>Usage:
+printEnvironmentSummary();</p>
+</div>
+
+
+
+
+
+
+
+<dl class="details">
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+    <dt class="tag-source">Source:</dt>
+    <dd class="tag-source"><ul class="dummy"><li>
+        <a href="config_validateEnv.js.html">config/validateEnv.js</a>, <a href="config_validateEnv.js.html#line134">line 134</a>
+    </li></ul></dd>
+    
+
+    
+
+    
+
+    
+</dl>
+
+
+
+
+
+
+        
+            
+<h4 class="name" id="printExampleEnvFile"><span class="type-signature">(constant) </span>printExampleEnvFile<span class="type-signature"></span></h4>
+
+
+
+
+<div class="description">
+    <p>Example .env file generator
+Prints example of what your .env file should look like</p>
+<p>Usage:
+printExampleEnvFile();</p>
+</div>
+
+
+
+
+
+
+
+<dl class="details">
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+    <dt class="tag-source">Source:</dt>
+    <dd class="tag-source"><ul class="dummy"><li>
+        <a href="config_validateEnv.js.html">config/validateEnv.js</a>, <a href="config_validateEnv.js.html#line167">line 167</a>
+    </li></ul></dd>
+    
+
+    
+
+    
+
+    
+</dl>
+
+
+
+
+
+
+        
+            
+<h4 class="name" id="requestIdMiddleware"><span class="type-signature">(constant) </span>requestIdMiddleware<span class="type-signature"></span></h4>
+
+
+
+
+<div class="description">
+    <p>Request ID Middleware
+Generates unique ID for each request to track it through logs
+Use this FIRST, before all other middleware</p>
+<p>Usage in index.js (at the very top):
+app.use(requestIdMiddleware);</p>
+</div>
+
+
+
+
+
+
+
+<dl class="details">
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+    <dt class="tag-source">Source:</dt>
+    <dd class="tag-source"><ul class="dummy"><li>
+        <a href="middleware_errorHandler.js.html">middleware/errorHandler.js</a>, <a href="middleware_errorHandler.js.html#line186">line 186</a>
+    </li></ul></dd>
+    
+
+    
+
+    
+
+    
+</dl>
+
+
+
+
+
+
+        
+            
+<h4 class="name" id="requestLoggingMiddleware"><span class="type-signature">(constant) </span>requestLoggingMiddleware<span class="type-signature"></span></h4>
+
+
+
+
+<div class="description">
+    <p>Request Logging Middleware
+Logs all incoming requests for debugging and monitoring</p>
+<p>Usage in index.js (after requestIdMiddleware):
+app.use(requestLoggingMiddleware);</p>
+</div>
+
+
+
+
+
+
+
+<dl class="details">
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+    <dt class="tag-source">Source:</dt>
+    <dd class="tag-source"><ul class="dummy"><li>
+        <a href="middleware_errorHandler.js.html">middleware/errorHandler.js</a>, <a href="middleware_errorHandler.js.html#line203">line 203</a>
+    </li></ul></dd>
+    
+
+    
+
+    
+
+    
+</dl>
+
+
+
+
+
+
+        
+            
+<h4 class="name" id="server"><span class="type-signature">(constant) </span>server<span class="type-signature"> :Server</span></h4>
+
+
+
+
+<div class="description">
+    <p>Start Express Server
+Listens on configured PORT and logs startup information
+Displays environment summary in development mode</p>
+</div>
+
+
+
+    <h5>Type:</h5>
+    <ul>
+        <li>
+            
+<span class="param-type">Server</span>
+
+
+        </li>
+    </ul>
+
+
+
+
+
+<dl class="details">
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+    <dt class="tag-source">Source:</dt>
+    <dd class="tag-source"><ul class="dummy"><li>
+        <a href="index.js.html">index.js</a>, <a href="index.js.html#line323">line 323</a>
+    </li></ul></dd>
+    
+
+    
+
+    
+
+    
+</dl>
+
+
+
+
+
+
+        
+            
+<h4 class="name" id="validateClientLogin"><span class="type-signature">(constant) </span>validateClientLogin<span class="type-signature"></span></h4>
+
+
+
+
+<div class="description">
+    <p>Validate Client Login
+Checks: email, idToken</p>
+</div>
+
+
+
+
+
+
+
+<dl class="details">
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+    <dt class="tag-source">Source:</dt>
+    <dd class="tag-source"><ul class="dummy"><li>
+        <a href="middleware_validateRequest.js.html">middleware/validateRequest.js</a>, <a href="middleware_validateRequest.js.html#line67">line 67</a>
+    </li></ul></dd>
+    
+
+    
+
+    
+
+    
+</dl>
+
+
+
+
+
+
+        
+            
+<h4 class="name" id="validateClientSignup"><span class="type-signature">(constant) </span>validateClientSignup<span class="type-signature"></span></h4>
+
+
+
+
+<div class="description">
+    <p>Validate Client Signup
+Checks: email, idToken, name, organization_name</p>
+</div>
+
+
+
+
+
+
+
+<dl class="details">
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+    <dt class="tag-source">Source:</dt>
+    <dd class="tag-source"><ul class="dummy"><li>
+        <a href="middleware_validateRequest.js.html">middleware/validateRequest.js</a>, <a href="middleware_validateRequest.js.html#line15">line 15</a>
+    </li></ul></dd>
+    
+
+    
+
+    
+
+    
+</dl>
+
+
+
+
+
+
+        
+            
+<h4 class="name" id="validateDatabaseConfig"><span class="type-signature">(constant) </span>validateDatabaseConfig<span class="type-signature"></span></h4>
+
+
+
+
+<div class="description">
+    <p>Validate specific required Database environment variables</p>
+</div>
+
+
+
+
+
+
+
+<dl class="details">
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+    <dt class="tag-source">Source:</dt>
+    <dd class="tag-source"><ul class="dummy"><li>
+        <a href="config_validateEnv.js.html">config/validateEnv.js</a>, <a href="config_validateEnv.js.html#line232">line 232</a>
+    </li></ul></dd>
+    
+
+    
+
+    
+
+    
+</dl>
+
+
+
+
+
+
+        
+            
+<h4 class="name" id="validateEnvironment"><span class="type-signature">(constant) </span>validateEnvironment<span class="type-signature"></span></h4>
+
+
+
+
+<div class="description">
+    <p>Validate all required environment variables
+Throws error and exits if any required variables are missing</p>
+</div>
+
+
+
+
+
+
+
+<dl class="details">
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+    <dt class="tag-source">Source:</dt>
+    <dd class="tag-source"><ul class="dummy"><li>
+        <a href="config_validateEnv.js.html">config/validateEnv.js</a>, <a href="config_validateEnv.js.html#line58">line 58</a>
+    </li></ul></dd>
+    
+
+    
+
+    
+
+    
+</dl>
+
+
+
+
+
+
+        
+            
+<h4 class="name" id="validateFirebaseConfig"><span class="type-signature">(constant) </span>validateFirebaseConfig<span class="type-signature"></span></h4>
+
+
+
+
+<div class="description">
+    <p>Validate specific required Firebase environment variables
+Firebase requires all these fields to initialize properly</p>
+</div>
+
+
+
+
+
+
+
+<dl class="details">
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+    <dt class="tag-source">Source:</dt>
+    <dd class="tag-source"><ul class="dummy"><li>
+        <a href="config_validateEnv.js.html">config/validateEnv.js</a>, <a href="config_validateEnv.js.html#line202">line 202</a>
+    </li></ul></dd>
+    
+
+    
+
+    
+
+    
+</dl>
+
+
+
+
+
+
+        
+            
+<h4 class="name" id="validateGroupAssignment"><span class="type-signature">(constant) </span>validateGroupAssignment<span class="type-signature"></span></h4>
+
+
+
+
+<div class="description">
+    <p>Validate Group Assignment
+Checks: assignments array with project_id and student_ids</p>
+</div>
+
+
+
+
+
+
+
+<dl class="details">
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+    <dt class="tag-source">Source:</dt>
+    <dd class="tag-source"><ul class="dummy"><li>
+        <a href="middleware_validateRequest.js.html">middleware/validateRequest.js</a>, <a href="middleware_validateRequest.js.html#line359">line 359</a>
+    </li></ul></dd>
+    
+
+    
+
+    
+
+    
+</dl>
+
+
+
+
+
+
+        
+            
+<h4 class="name" id="validateInstructorLogin"><span class="type-signature">(constant) </span>validateInstructorLogin<span class="type-signature"></span></h4>
+
+
+
+
+<div class="description">
+    <p>Validate Instructor Login
+Checks: email, idToken</p>
+</div>
+
+
+
+
+
+
+
+<dl class="details">
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+    <dt class="tag-source">Source:</dt>
+    <dd class="tag-source"><ul class="dummy"><li>
+        <a href="middleware_validateRequest.js.html">middleware/validateRequest.js</a>, <a href="middleware_validateRequest.js.html#line216">line 216</a>
+    </li></ul></dd>
+    
+
+    
+
+    
+
+    
+</dl>
+
+
+
+
+
+
+        
+            
+<h4 class="name" id="validateInstructorSignup"><span class="type-signature">(constant) </span>validateInstructorSignup<span class="type-signature"></span></h4>
+
+
+
+
+<div class="description">
+    <p>Validate Instructor Signup
+Checks: email, idToken, first_name, last_name
+NOTE: Frontend creates Firebase user and sends idToken, backend only verifies it</p>
+</div>
+
+
+
+
+
+
+
+<dl class="details">
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+    <dt class="tag-source">Source:</dt>
+    <dd class="tag-source"><ul class="dummy"><li>
+        <a href="middleware_validateRequest.js.html">middleware/validateRequest.js</a>, <a href="middleware_validateRequest.js.html#line173">line 173</a>
+    </li></ul></dd>
+    
+
+    
+
+    
+
+    
+</dl>
+
+
+
+
+
+
+        
+            
+<h4 class="name" id="validatePreferences"><span class="type-signature">(constant) </span>validatePreferences<span class="type-signature"></span></h4>
+
+
+
+
+<div class="description">
+    <p>Validate Student Preferences Submission
+Checks: preferences array with project_id and preference_rank</p>
+</div>
+
+
+
+
+
+
+
+<dl class="details">
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+    <dt class="tag-source">Source:</dt>
+    <dd class="tag-source"><ul class="dummy"><li>
+        <a href="middleware_validateRequest.js.html">middleware/validateRequest.js</a>, <a href="middleware_validateRequest.js.html#line305">line 305</a>
+    </li></ul></dd>
+    
+
+    
+
+    
+
+    
+</dl>
+
+
+
+
+
+
+        
+            
+<h4 class="name" id="validateProject"><span class="type-signature">(constant) </span>validateProject<span class="type-signature"></span></h4>
+
+
+
+
+<div class="description">
+    <p>Validate Project Creation/Update
+Checks: title, description, skills_required</p>
+</div>
+
+
+
+
+
+
+
+<dl class="details">
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+    <dt class="tag-source">Source:</dt>
+    <dd class="tag-source"><ul class="dummy"><li>
+        <a href="middleware_validateRequest.js.html">middleware/validateRequest.js</a>, <a href="middleware_validateRequest.js.html#line247">line 247</a>
+    </li></ul></dd>
+    
+
+    
+
+    
+
+    
+</dl>
+
+
+
+
+
+
+        
+            
+<h4 class="name" id="validateStudentLogin"><span class="type-signature">(constant) </span>validateStudentLogin<span class="type-signature"></span></h4>
+
+
+
+
+<div class="description">
+    <p>Validate Student Login
+Checks: email, idToken</p>
+</div>
+
+
+
+
+
+
+
+<dl class="details">
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+    <dt class="tag-source">Source:</dt>
+    <dd class="tag-source"><ul class="dummy"><li>
+        <a href="middleware_validateRequest.js.html">middleware/validateRequest.js</a>, <a href="middleware_validateRequest.js.html#line141">line 141</a>
+    </li></ul></dd>
+    
+
+    
+
+    
+
+    
+</dl>
+
+
+
+
+
+
+        
+            
+<h4 class="name" id="validateStudentSignup"><span class="type-signature">(constant) </span>validateStudentSignup<span class="type-signature"></span></h4>
+
+
+
+
+<div class="description">
+    <p>Validate Student Signup
+Checks: email, idToken, first_name, last_name</p>
+</div>
+
+
+
+
+
+
+
+<dl class="details">
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+    <dt class="tag-source">Source:</dt>
+    <dd class="tag-source"><ul class="dummy"><li>
+        <a href="middleware_validateRequest.js.html">middleware/validateRequest.js</a>, <a href="middleware_validateRequest.js.html#line98">line 98</a>
+    </li></ul></dd>
+    
+
+    
+
+    
+
+    
+</dl>
+
+
+
+
+
+
+        
+    
+
+    
+        <h3 class="subsection-title">Methods</h3>
+
+        
+            
+
+    
+
+    
+    <h4 class="name" id="isValidEmail"><span class="type-signature"></span>isValidEmail<span class="signature">(email)</span><span class="type-signature"> &rarr; {boolean}</span></h4>
+    
+
+    
+
+
+
+<div class="description">
+    <p>Validate email format</p>
+</div>
+
+
+
+
+
+
+
+
+
+    <h5>Parameters:</h5>
+    
+
+<table class="params">
+    <thead>
+    <tr>
+        
+        <th>Name</th>
+        
+
+        <th>Type</th>
+
+        
+
+        
+
+        <th class="last">Description</th>
+    </tr>
+    </thead>
+
+    <tbody>
+    
+
+        <tr>
+            
+                <td class="name"><code>email</code></td>
+            
+
+            <td class="type">
+            
+                
+<span class="param-type">string</span>
+
+
+            
+            </td>
+
+            
+
+            
+
+            <td class="description last"></td>
+        </tr>
+
+    
+    </tbody>
+</table>
+
+
+
+
+
+
+<dl class="details">
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+    <dt class="tag-source">Source:</dt>
+    <dd class="tag-source"><ul class="dummy"><li>
+        <a href="middleware_validateRequest.js.html">middleware/validateRequest.js</a>, <a href="middleware_validateRequest.js.html#line421">line 421</a>
+    </li></ul></dd>
+    
+
+    
+
+    
+
+    
+</dl>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<h5>Returns:</h5>
+
+        
+
+
+<dl>
+    <dt>
+        Type
+    </dt>
+    <dd>
+        
+<span class="param-type">boolean</span>
+
+
+    </dd>
+</dl>
+
+    
+
+
+
+
+
+        
+            
+
+    
+
+    
+    <h4 class="name" id="isValidUrl"><span class="type-signature"></span>isValidUrl<span class="signature">(url)</span><span class="type-signature"> &rarr; {boolean}</span></h4>
+    
+
+    
+
+
+
+<div class="description">
+    <p>Validate URL format</p>
+</div>
+
+
+
+
+
+
+
+
+
+    <h5>Parameters:</h5>
+    
+
+<table class="params">
+    <thead>
+    <tr>
+        
+        <th>Name</th>
+        
+
+        <th>Type</th>
+
+        
+
+        
+
+        <th class="last">Description</th>
+    </tr>
+    </thead>
+
+    <tbody>
+    
+
+        <tr>
+            
+                <td class="name"><code>url</code></td>
+            
+
+            <td class="type">
+            
+                
+<span class="param-type">string</span>
+
+
+            
+            </td>
+
+            
+
+            
+
+            <td class="description last"></td>
+        </tr>
+
+    
+    </tbody>
+</table>
+
+
+
+
+
+
+<dl class="details">
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+    <dt class="tag-source">Source:</dt>
+    <dd class="tag-source"><ul class="dummy"><li>
+        <a href="middleware_validateRequest.js.html">middleware/validateRequest.js</a>, <a href="middleware_validateRequest.js.html#line431">line 431</a>
+    </li></ul></dd>
+    
+
+    
+
+    
+
+    
+</dl>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<h5>Returns:</h5>
+
+        
+
+
+<dl>
+    <dt>
+        Type
+    </dt>
+    <dd>
+        
+<span class="param-type">boolean</span>
+
+
+    </dd>
+</dl>
+
+    
+
+
+
+
+
+        
+            
+
+    
+
+    
+    <h4 class="name" id="mapFirebaseError"><span class="type-signature"></span>mapFirebaseError<span class="signature">(code)</span><span class="type-signature"> &rarr; {string}</span></h4>
+    
+
+    
+
+
+
+<div class="description">
+    <p>Map Firebase error codes to user-friendly messages</p>
+</div>
+
+
+
+
+
+
+
+
+
+    <h5>Parameters:</h5>
+    
+
+<table class="params">
+    <thead>
+    <tr>
+        
+        <th>Name</th>
+        
+
+        <th>Type</th>
+
+        
+
+        
+
+        <th class="last">Description</th>
+    </tr>
+    </thead>
+
+    <tbody>
+    
+
+        <tr>
+            
+                <td class="name"><code>code</code></td>
+            
+
+            <td class="type">
+            
+                
+<span class="param-type">string</span>
+
+
+            
+            </td>
+
+            
+
+            
+
+            <td class="description last"><p>Firebase error code</p></td>
+        </tr>
+
+    
+    </tbody>
+</table>
+
+
+
+
+
+
+<dl class="details">
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+    <dt class="tag-source">Source:</dt>
+    <dd class="tag-source"><ul class="dummy"><li>
+        <a href="middleware_errorHandler.js.html">middleware/errorHandler.js</a>, <a href="middleware_errorHandler.js.html#line156">line 156</a>
+    </li></ul></dd>
+    
+
+    
+
+    
+
+    
+</dl>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<h5>Returns:</h5>
+
+        
+<div class="param-desc">
+    <p>User-friendly error message</p>
+</div>
+
+
+
+<dl>
+    <dt>
+        Type
+    </dt>
+    <dd>
+        
+<span class="param-type">string</span>
+
+
+    </dd>
+</dl>
+
+    
+
+
+
+
+
+        
+    
+
+    
+
+    
+</article>
+
+</section>
+
+
+
+
+</div>
+
+<nav>
+    <h2><a href="index.html">Home</a></h2><h3>Modules</h3><ul><li><a href="module-controllers_clientController.html">controllers/clientController</a></li><li><a href="module-controllers_instructorController.html">controllers/instructorController</a></li><li><a href="module-controllers_studentController.html">controllers/studentController</a></li><li><a href="module-groupFormationAlgorithm.html">groupFormationAlgorithm</a></li><li><a href="module-middleware_authMiddleware.html">middleware/authMiddleware</a></li><li><a href="module-routes_clientRoutes.html">routes/clientRoutes</a></li><li><a href="module-routes_evaluationRoutes.html">routes/evaluationRoutes</a></li><li><a href="module-routes_instructorRoutes.html">routes/instructorRoutes</a></li><li><a href="module-routes_projectRoutes.html">routes/projectRoutes</a></li><li><a href="module-routes_studentRoutes.html">routes/studentRoutes</a></li><li><a href="module-utils_groupFormationAlgorithm.html">utils/groupFormationAlgorithm</a></li></ul><h3>Classes</h3><ul><li><a href="AppError.html">AppError</a></li></ul><h3>Global</h3><ul><li><a href="global.html#OPTIONAL_ENV_VARS">OPTIONAL_ENV_VARS</a></li><li><a href="global.html#REQUIRED_ENV_VARS">REQUIRED_ENV_VARS</a></li><li><a href="global.html#calculatePagination">calculatePagination</a></li><li><a href="global.html#errorHandler">errorHandler</a></li><li><a href="global.html#formatAuthError">formatAuthError</a></li><li><a href="global.html#formatConflict">formatConflict</a></li><li><a href="global.html#formatCreated">formatCreated</a></li><li><a href="global.html#formatDeleted">formatDeleted</a></li><li><a href="global.html#formatError">formatError</a></li><li><a href="global.html#formatForbidden">formatForbidden</a></li><li><a href="global.html#formatList">formatList</a></li><li><a href="global.html#formatNotFound">formatNotFound</a></li><li><a href="global.html#formatServerError">formatServerError</a></li><li><a href="global.html#formatSuccess">formatSuccess</a></li><li><a href="global.html#formatUpdated">formatUpdated</a></li><li><a href="global.html#formatValidationError">formatValidationError</a></li><li><a href="global.html#getEnv">getEnv</a></li><li><a href="global.html#isValidEmail">isValidEmail</a></li><li><a href="global.html#isValidUrl">isValidUrl</a></li><li><a href="global.html#mapFirebaseError">mapFirebaseError</a></li><li><a href="global.html#printEnvironmentSummary">printEnvironmentSummary</a></li><li><a href="global.html#printExampleEnvFile">printExampleEnvFile</a></li><li><a href="global.html#requestIdMiddleware">requestIdMiddleware</a></li><li><a href="global.html#requestLoggingMiddleware">requestLoggingMiddleware</a></li><li><a href="global.html#server">server</a></li><li><a href="global.html#validateClientLogin">validateClientLogin</a></li><li><a href="global.html#validateClientSignup">validateClientSignup</a></li><li><a href="global.html#validateDatabaseConfig">validateDatabaseConfig</a></li><li><a href="global.html#validateEnvironment">validateEnvironment</a></li><li><a href="global.html#validateFirebaseConfig">validateFirebaseConfig</a></li><li><a href="global.html#validateGroupAssignment">validateGroupAssignment</a></li><li><a href="global.html#validateInstructorLogin">validateInstructorLogin</a></li><li><a href="global.html#validateInstructorSignup">validateInstructorSignup</a></li><li><a href="global.html#validatePreferences">validatePreferences</a></li><li><a href="global.html#validateProject">validateProject</a></li><li><a href="global.html#validateStudentLogin">validateStudentLogin</a></li><li><a href="global.html#validateStudentSignup">validateStudentSignup</a></li></ul>
+</nav>
+
+<br class="clear">
+
+<footer>
+    Documentation generated by <a href="https://github.com/jsdoc/jsdoc">JSDoc 4.0.5</a> on Mon Dec 22 2025 22:20:27 GMT-0500 (Eastern Standard Time)
+</footer>
+
+<script> prettyPrint(); </script>
+<script src="scripts/linenumber.js"> </script>
+</body>
+</html>

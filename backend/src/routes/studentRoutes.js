@@ -1,3 +1,26 @@
+/**
+ * Student Routes Module
+ * 
+ * Handles all student-related API endpoints including authentication, profile management,
+ * project preferences, group assignments, and evaluations.
+ * 
+ * Routes are organized in this order:
+ * 1. Authentication (signup, login)
+ * 2. Static routes (all students, projects, settings)
+ * 3. Parameterized routes (specific student operations)
+ * 4. Preferences management
+ * 5. Group assignments
+ * 6. Evaluations
+ * 
+ * @module routes/studentRoutes
+ * @requires express
+ * @requires jsonwebtoken
+ * @requires ../../db
+ * @requires ../../firebaseAdmin
+ * @requires ../middleware/authMiddleware
+ * @requires ../middleware/validateRequest
+ */
+
 import express from "express";
 import jwt from "jsonwebtoken";
 import db from "../../db.js";
@@ -7,6 +30,22 @@ import { validateStudentSignup, validateStudentLogin } from "../middleware/valid
 
 const router = express.Router();
 
+/**
+ * Generate JWT Token for Student
+ * 
+ * Creates a signed JWT token containing student authentication data.
+ * Token expires in 7 days.
+ * 
+ * @function generateJWT
+ * @param {string} uid - Firebase user ID
+ * @param {string} email - Student email address
+ * @param {string} role - User role (should be 'student')
+ * @param {number} studentId - Numeric database student ID
+ * @returns {string} Signed JWT token
+ * 
+ * @example
+ * const token = generateJWT('firebase-uid-123', 'student@example.com', 'student', 42);
+ */
 const generateJWT = (uid, email, role, studentId) => {
   return jwt.sign(
     { uid, email, role, studentId },
@@ -17,7 +56,32 @@ const generateJWT = (uid, email, role, studentId) => {
 
 // ==================== AUTHENTICATION ====================
 
-// Student Signup with Firebase
+/**
+ * Student Signup with Firebase
+ * 
+ * Registers a new student account with Firebase authentication.
+ * Creates entries in both users and user_profiles tables.
+ * 
+ * @route POST /students/signup
+ * @group Authentication - Student authentication operations
+ * @param {string} email.body.required - Student email address
+ * @param {string} idToken.body.required - Firebase ID token
+ * @param {string} first_name.body.required - Student first name
+ * @param {string} last_name.body.required - Student last name
+ * @returns {object} 201 - Success response with token and student data
+ * @returns {object} 400 - Email already registered
+ * @returns {object} 401 - Invalid Firebase token
+ * @returns {object} 500 - Server error
+ * 
+ * @example
+ * POST /students/signup
+ * {
+ *   "email": "john.doe@example.com",
+ *   "idToken": "firebase-id-token...",
+ *   "first_name": "John",
+ *   "last_name": "Doe"
+ * }
+ */
 router.post("/signup", validateStudentSignup, async (req, res) => {
   try {
     const { email, idToken, first_name, last_name } = req.body;
@@ -51,7 +115,7 @@ router.post("/signup", validateStudentSignup, async (req, res) => {
     const connection = await db.getConnection();
 
     try {
-      // Ã¢Å“â€¦ NEW SCHEMA: Insert into users table
+      // ✅ NEW SCHEMA: Insert into users table
       const [userResult] = await connection.query(
         "INSERT INTO users (email, firebase_uid, role, email_verified, status) VALUES (?, ?, 'student', 1, 'active')",
         [email, uid]
@@ -59,7 +123,7 @@ router.post("/signup", validateStudentSignup, async (req, res) => {
 
       const userId = userResult.insertId;
 
-      // Ã¢Å“â€¦ NEW SCHEMA: Insert into user_profiles table
+      // ✅ NEW SCHEMA: Insert into user_profiles table
       const fullName = `${first_name} ${last_name}`.trim();
       await connection.query(
         `INSERT INTO user_profiles 
@@ -73,7 +137,7 @@ router.post("/signup", validateStudentSignup, async (req, res) => {
       // Generate JWT token
       const token = generateJWT(uid, email, "student", userId);
 
-      // Ã¢Å“â€¦ BACKWARDS COMPATIBLE RESPONSE
+      // ✅ BACKWARDS COMPATIBLE RESPONSE
       res.status(201).json({
         success: true,
         message: "Student registered successfully",
@@ -107,7 +171,27 @@ router.post("/signup", validateStudentSignup, async (req, res) => {
   }
 });
 
-// Student Login with Firebase
+/**
+ * Student Login with Firebase
+ * 
+ * Authenticates an existing student using Firebase ID token.
+ * Updates last login timestamp and returns JWT token.
+ * 
+ * @route POST /students/login
+ * @group Authentication - Student authentication operations
+ * @param {string} email.body.required - Student email address
+ * @param {string} idToken.body.required - Firebase ID token
+ * @returns {object} 200 - Success response with token and student data
+ * @returns {object} 401 - Invalid credentials or token
+ * @returns {object} 500 - Server error
+ * 
+ * @example
+ * POST /students/login
+ * {
+ *   "email": "john.doe@example.com",
+ *   "idToken": "firebase-id-token..."
+ * }
+ */
 router.post("/login", validateStudentLogin, async (req, res) => {
   try {
     const { email, idToken } = req.body;
@@ -126,7 +210,7 @@ router.post("/login", validateStudentLogin, async (req, res) => {
 
     const uid = decodedToken.uid;
 
-    // Ã¢Å“â€¦ NEW SCHEMA: Query users + user_profiles
+    // ✅ NEW SCHEMA: Query users + user_profiles
     const [students] = await db.query(
       `SELECT u.id, u.email, u.role,
               p.first_name, p.last_name, p.full_name
@@ -155,7 +239,7 @@ router.post("/login", validateStudentLogin, async (req, res) => {
     // Generate JWT token
     const token = generateJWT(uid, email, "student", studentId);
 
-    // Ã¢Å“â€¦ BACKWARDS COMPATIBLE RESPONSE
+    // ✅ BACKWARDS COMPATIBLE RESPONSE
     res.json({
       success: true,
       message: "Login successful",
@@ -179,11 +263,30 @@ router.post("/login", validateStudentLogin, async (req, res) => {
 
 // ==================== STATIC ROUTES (MUST BE BEFORE PARAMETERIZED ROUTES) ====================
 
-// Ã¢Å“â€¦ Get all students (for instructor/admin to view all students)
-// IMPORTANT: This MUST come before /:student_id routes
+/**
+ * Get All Students
+ * 
+ * Retrieves list of all registered students.
+ * Protected route - only accessible by instructors and admins.
+ * 
+ * IMPORTANT: This route MUST be defined before /:student_id routes to avoid conflicts.
+ * 
+ * @route GET /students
+ * @group Students - Student management operations
+ * @security JWT
+ * @param {string} authorization.header.required - Bearer token
+ * @returns {object} 200 - Success response with array of students
+ * @returns {object} 401 - Unauthorized
+ * @returns {object} 403 - Forbidden (not instructor/admin)
+ * @returns {object} 500 - Server error
+ * 
+ * @example
+ * GET /students
+ * Authorization: Bearer <token>
+ */
 router.get("/", verifyToken, verifyRole(["instructor", "admin"]), async (req, res) => {
   try {
-    // Ã¢Å“â€¦ NEW SCHEMA: Query users + user_profiles
+    // ✅ NEW SCHEMA: Query users + user_profiles
     const [students] = await db.query(
       `SELECT u.id, u.email, u.created_at,
               p.first_name, p.last_name, p.full_name
@@ -215,11 +318,25 @@ router.get("/", verifyToken, verifyRole(["instructor", "admin"]), async (req, re
   }
 });
 
-// Get all available projects for students to browse (PUBLIC)
-// IMPORTANT: This MUST come before /:student_id routes
+/**
+ * Get Available Projects for Students
+ * 
+ * Returns all instructor-approved projects that students can browse and select.
+ * Public route - no authentication required.
+ * 
+ * IMPORTANT: This route MUST be defined before /:student_id routes.
+ * 
+ * @route GET /students/projects
+ * @group Projects - Project browsing operations
+ * @returns {object} 200 - Success response with approved projects array
+ * @returns {object} 500 - Server error
+ * 
+ * @example
+ * GET /students/projects
+ */
 router.get("/projects", async (req, res) => {
   try {
-    // âœ… Query projects that have been approved by instructor
+    // ✅ Query projects that have been approved by instructor
     const [projects] = await db.query(
     `SELECT 
        id,
@@ -255,7 +372,21 @@ router.get("/projects", async (req, res) => {
   }
 });
 
-// Get course settings (PUBLIC - students need to see deadline)
+/**
+ * Get Course Settings
+ * 
+ * Retrieves course settings including preference submission deadline.
+ * Public route - students need to see deadline before authentication.
+ * 
+ * @route GET /students/course-settings
+ * @group Settings - Course configuration operations
+ * @returns {object} 200 - Success response with course settings
+ * @returns {object} 500 - Server error
+ * 
+ * @example
+ * GET /students/course-settings
+ * Response: { "success": true, "data": { "preference_deadline": "2025-01-15T23:59:59Z" } }
+ */
 router.get("/course-settings", async (req, res) => {
   try {
     // Query app_settings table for preference_deadline
@@ -301,7 +432,27 @@ router.get("/course-settings", async (req, res) => {
 
 // ==================== STUDENT PROFILE ====================
 
-// Get student profile (PROTECTED)
+/**
+ * Get Student Profile
+ * 
+ * Retrieves profile information for a specific student.
+ * Students can view their own profile, instructors/admins can view any profile.
+ * 
+ * @route GET /students/:student_id
+ * @group Students - Student management operations
+ * @security JWT
+ * @param {number} student_id.path.required - Student ID
+ * @param {string} authorization.header.required - Bearer token
+ * @returns {object} 200 - Success response with student data
+ * @returns {object} 400 - Invalid student ID format
+ * @returns {object} 403 - Unauthorized access
+ * @returns {object} 404 - Student not found
+ * @returns {object} 500 - Server error
+ * 
+ * @example
+ * GET /students/42
+ * Authorization: Bearer <token>
+ */
 router.get("/:student_id", verifyToken, async (req, res) => {
   try {
     const { student_id } = req.params;
@@ -325,7 +476,7 @@ router.get("/:student_id", verifyToken, async (req, res) => {
       });
     }
 
-    // Ã¢Å“â€¦ NEW SCHEMA: Query users + user_profiles
+    // ✅ NEW SCHEMA: Query users + user_profiles
     const [students] = await db.query(
       `SELECT u.id, u.email, u.created_at,
               p.first_name, p.last_name, p.full_name
@@ -363,7 +514,34 @@ router.get("/:student_id", verifyToken, async (req, res) => {
   }
 });
 
-// Update student profile (PROTECTED)
+/**
+ * Update Student Profile
+ * 
+ * Updates student profile information including name and email.
+ * Only students can update their own profile, or admins.
+ * 
+ * @route PUT /students/:student_id
+ * @group Students - Student management operations
+ * @security JWT
+ * @param {number} student_id.path.required - Student ID
+ * @param {string} first_name.body.required - Updated first name
+ * @param {string} last_name.body.required - Updated last name
+ * @param {string} email.body.required - Updated email address
+ * @param {string} authorization.header.required - Bearer token
+ * @returns {object} 200 - Success response
+ * @returns {object} 400 - Validation error or email already in use
+ * @returns {object} 403 - Unauthorized access
+ * @returns {object} 404 - Student not found
+ * @returns {object} 500 - Server error
+ * 
+ * @example
+ * PUT /students/42
+ * {
+ *   "first_name": "John",
+ *   "last_name": "Smith",
+ *   "email": "john.smith@example.com"
+ * }
+ */
 router.put("/:student_id", verifyToken, async (req, res) => {
   try {
     const { student_id } = req.params;
@@ -407,13 +585,13 @@ router.put("/:student_id", verifyToken, async (req, res) => {
     const connection = await db.getConnection();
 
     try {
-      // Ã¢Å“â€¦ NEW SCHEMA: Update users table
+      // ✅ NEW SCHEMA: Update users table
       await connection.query(
         "UPDATE users SET email = ? WHERE id = ?",
         [email, parseInt(student_id)]
       );
 
-      // Ã¢Å“â€¦ NEW SCHEMA: Update user_profiles table
+      // ✅ NEW SCHEMA: Update user_profiles table
       const fullName = `${first_name} ${last_name}`.trim();
       const [result] = await connection.query(
         "UPDATE user_profiles SET first_name = ?, last_name = ?, full_name = ? WHERE user_id = ?",
@@ -446,7 +624,27 @@ router.put("/:student_id", verifyToken, async (req, res) => {
   }
 });
 
-// Delete student account (PROTECTED)
+/**
+ * Delete Student Account
+ * 
+ * Soft deletes a student account (sets deleted_at timestamp and status to inactive).
+ * Only students can delete their own account, or admins.
+ * 
+ * @route DELETE /students/:student_id
+ * @group Students - Student management operations
+ * @security JWT
+ * @param {number} student_id.path.required - Student ID
+ * @param {string} authorization.header.required - Bearer token
+ * @returns {object} 200 - Success response
+ * @returns {object} 400 - Invalid student ID format
+ * @returns {object} 403 - Unauthorized access
+ * @returns {object} 404 - Student not found
+ * @returns {object} 500 - Server error
+ * 
+ * @example
+ * DELETE /students/42
+ * Authorization: Bearer <token>
+ */
 router.delete("/:student_id", verifyToken, async (req, res) => {
   try {
     const { student_id } = req.params;
@@ -466,7 +664,7 @@ router.delete("/:student_id", verifyToken, async (req, res) => {
       });
     }
 
-    // Ã¢Å“â€¦ NEW SCHEMA: Soft delete using deleted_at
+    // ✅ NEW SCHEMA: Soft delete using deleted_at
     const [result] = await db.query(
       "UPDATE users SET deleted_at = NOW(), status = 'inactive' WHERE id = ? AND role = 'student'",
       [parseInt(student_id)]
@@ -494,7 +692,26 @@ router.delete("/:student_id", verifyToken, async (req, res) => {
 
 // ==================== STUDENT PREFERENCES ====================
 
-// Get student's submitted preferences (PROTECTED)
+/**
+ * Get Student Preferences
+ * 
+ * Retrieves student's submitted project preferences with full project details.
+ * Returns preferences ordered by rank, along with last updated timestamp and deadline.
+ * 
+ * @route GET /students/:student_id/preferences
+ * @group Preferences - Student preference management
+ * @security JWT
+ * @param {number} student_id.path.required - Student ID
+ * @param {string} authorization.header.required - Bearer token
+ * @returns {object} 200 - Success response with preferences, lastUpdated, and deadline
+ * @returns {object} 400 - Invalid student ID format
+ * @returns {object} 403 - Unauthorized access
+ * @returns {object} 500 - Server error
+ * 
+ * @example
+ * GET /students/42/preferences
+ * Authorization: Bearer <token>
+ */
 router.get("/:student_id/preferences", verifyToken, async (req, res) => {
   try {
     const { student_id } = req.params;
@@ -518,7 +735,7 @@ router.get("/:student_id/preferences", verifyToken, async (req, res) => {
       });
     }
 
-    // âœ… Query with correct column name: preference_rank
+    // ✅ Query with correct column name: preference_rank
     const [preferences] = await db.query(
       `SELECT 
          sp.student_id, 
@@ -572,7 +789,36 @@ router.get("/:student_id/preferences", verifyToken, async (req, res) => {
   }
 });
 
-// Submit or update student preferences (PROTECTED)
+/**
+ * Submit or Update Student Preferences
+ * 
+ * Submits or updates student's project preferences (maximum 3).
+ * Replaces any existing preferences with the new submission.
+ * Checks deadline before allowing submission.
+ * 
+ * @route POST /students/:student_id/preferences
+ * @group Preferences - Student preference management
+ * @security JWT
+ * @param {number} student_id.path.required - Student ID
+ * @param {Array<object>} preferences.body.required - Array of preference objects
+ * @param {number} preferences.project_id.required - Project ID
+ * @param {number} preferences.preference_rank.required - Rank (1-3, where 1 is highest)
+ * @param {string} authorization.header.required - Bearer token
+ * @returns {object} 200 - Success response
+ * @returns {object} 400 - Validation error or deadline passed
+ * @returns {object} 403 - Unauthorized access
+ * @returns {object} 500 - Server error
+ * 
+ * @example
+ * POST /students/42/preferences
+ * {
+ *   "preferences": [
+ *     { "project_id": 5, "preference_rank": 1 },
+ *     { "project_id": 12, "preference_rank": 2 },
+ *     { "project_id": 8, "preference_rank": 3 }
+ *   ]
+ * }
+ */
 router.post("/:student_id/preferences", verifyToken, async (req, res) => {
   try {
     const { student_id } = req.params;
@@ -657,7 +903,7 @@ router.post("/:student_id/preferences", verifyToken, async (req, res) => {
         [parseInt(student_id)]
       );
 
-      // âœ… Insert with correct column name: preference_rank
+      // ✅ Insert with correct column name: preference_rank
       for (const pref of preferences) {
         await connection.query(
           "INSERT INTO student_preferences (student_id, project_id, preference_rank) VALUES (?, ?, ?)",
@@ -688,7 +934,26 @@ router.post("/:student_id/preferences", verifyToken, async (req, res) => {
   }
 });
 
-// Clear student preferences (PROTECTED)
+/**
+ * Clear Student Preferences
+ * 
+ * Deletes all preferences for a student.
+ * Only students can clear their own preferences (or admins).
+ * 
+ * @route DELETE /students/:student_id/preferences
+ * @group Preferences - Student preference management
+ * @security JWT
+ * @param {number} student_id.path.required - Student ID
+ * @param {string} authorization.header.required - Bearer token
+ * @returns {object} 200 - Success response with deleted count
+ * @returns {object} 400 - Invalid student ID format
+ * @returns {object} 403 - Unauthorized access
+ * @returns {object} 500 - Server error
+ * 
+ * @example
+ * DELETE /students/42/preferences
+ * Authorization: Bearer <token>
+ */
 router.delete("/:student_id/preferences", verifyToken, async (req, res) => {
   try {
     const { student_id } = req.params;
@@ -731,7 +996,26 @@ router.delete("/:student_id/preferences", verifyToken, async (req, res) => {
 
 // ==================== GROUP ====================
 
-// Get student's assigned group (PROTECTED)
+/**
+ * Get Student's Assigned Group
+ * 
+ * Retrieves the group and project assigned to a student.
+ * Returns null if student is not yet assigned to a group.
+ * 
+ * @route GET /students/:student_id/group
+ * @group Groups - Student group management
+ * @security JWT
+ * @param {number} student_id.path.required - Student ID
+ * @param {string} authorization.header.required - Bearer token
+ * @returns {object} 200 - Success response with group and project data (or null)
+ * @returns {object} 400 - Invalid student ID format
+ * @returns {object} 403 - Unauthorized access
+ * @returns {object} 500 - Server error
+ * 
+ * @example
+ * GET /students/42/group
+ * Authorization: Bearer <token>
+ */
 router.get("/:student_id/group", verifyToken, async (req, res) => {
   try {
     const { student_id } = req.params;
@@ -755,7 +1039,7 @@ router.get("/:student_id/group", verifyToken, async (req, res) => {
       });
     }
 
-    // Ã¢Å“â€¦ NEW SCHEMA: Query with column aliases for backwards compatibility
+    // ✅ NEW SCHEMA: Query with column aliases for backwards compatibility
     const [groupData] = await db.query(
       `SELECT 
          sg.id, 
@@ -802,7 +1086,26 @@ router.get("/:student_id/group", verifyToken, async (req, res) => {
   }
 });
 
-// Get all group members for a student's group (PROTECTED)
+/**
+ * Get Group Members
+ * 
+ * Retrieves all members of the student's assigned group.
+ * Returns empty array if student is not in a group.
+ * 
+ * @route GET /students/:student_id/group/members
+ * @group Groups - Student group management
+ * @security JWT
+ * @param {number} student_id.path.required - Student ID
+ * @param {string} authorization.header.required - Bearer token
+ * @returns {object} 200 - Success response with array of group members
+ * @returns {object} 400 - Invalid student ID format
+ * @returns {object} 403 - Unauthorized access
+ * @returns {object} 500 - Server error
+ * 
+ * @example
+ * GET /students/42/group/members
+ * Authorization: Bearer <token>
+ */
 router.get("/:student_id/group/members", verifyToken, async (req, res) => {
   try {
     const { student_id } = req.params;
@@ -841,7 +1144,7 @@ router.get("/:student_id/group/members", verifyToken, async (req, res) => {
 
     const groupId = groupData[0].group_id;
 
-    // âœ… NEW SCHEMA: Query users + user_profiles for group members
+    // ✅ NEW SCHEMA: Query users + user_profiles for group members
     const [members] = await db.query(
       `SELECT gm.student_id, p.first_name, p.last_name, u.email 
        FROM group_members gm
@@ -867,7 +1170,27 @@ router.get("/:student_id/group/members", verifyToken, async (req, res) => {
 
 // ==================== EVALUATIONS ====================
 
-// Get evaluations for a student's group (PROTECTED)
+/**
+ * Get Student Evaluations
+ * 
+ * Retrieves all evaluations scheduled for the student's group or project.
+ * Includes group-specific, project-specific, and general evaluations.
+ * Returns empty array if student is not in a group or no evaluations exist.
+ * 
+ * @route GET /students/:student_id/evaluations
+ * @group Evaluations - Student evaluation operations
+ * @security JWT
+ * @param {number} student_id.path.required - Student ID
+ * @param {string} authorization.header.required - Bearer token
+ * @returns {object} 200 - Success response with evaluations array
+ * @returns {object} 400 - Invalid student ID format
+ * @returns {object} 403 - Unauthorized access
+ * @returns {object} 500 - Server error
+ * 
+ * @example
+ * GET /students/42/evaluations
+ * Authorization: Bearer <token>
+ */
 router.get("/:student_id/evaluations", verifyToken, async (req, res) => {
   try {
     const { student_id } = req.params;

@@ -1,8 +1,44 @@
+/**
+ * @fileoverview Student Controller
+ * Handles all student-related business logic including profile management,
+ * project preferences, group assignments, and project browsing
+ * 
+ * @requires ../../db
+ * @module controllers/studentController
+ */
+
 import db from "../../db.js";
 
 // ==================== STUDENT AUTHENTICATION ====================
 
-// Get all students (for admin/instructor purposes)
+/**
+ * Get All Students
+ * Retrieves list of all students for admin/instructor purposes
+ * 
+ * @async
+ * @function getAllStudents
+ * @param {Object} req - Express request object
+ * @param {Object} res - Express response object
+ * @returns {Promise<void>} JSON array of student objects
+ * 
+ * @description
+ * Queries the unified users table for all users with role='student'
+ * Joins with user_profiles to get additional information
+ * Excludes soft-deleted students (deleted_at IS NULL)
+ * Results are ordered by creation date (newest first)
+ * 
+ * @example
+ * // Response format
+ * [
+ *   {
+ *     "id": 1,
+ *     "first_name": "Alice",
+ *     "last_name": "Johnson",
+ *     "email": "alice@university.edu",
+ *     "created_at": "2025-01-15T10:30:00.000Z"
+ *   }
+ * ]
+ */
 export const getAllStudents = async (req, res) => {
   try {
     // ✅ NEW SCHEMA: Query users + user_profiles where role='student'
@@ -31,7 +67,36 @@ export const getAllStudents = async (req, res) => {
   }
 };
 
-// Get a single student by ID
+/**
+ * Get Student By ID
+ * Retrieves a single student's profile information
+ * 
+ * @async
+ * @function getStudentById
+ * @param {Object} req - Express request object
+ * @param {Object} req.params - URL parameters
+ * @param {string} req.params.id - Student ID
+ * @param {Object} res - Express response object
+ * @returns {Promise<void>} JSON object with student details
+ * 
+ * @description
+ * Fetches student profile from users and user_profiles tables
+ * Validates ID format and checks if student exists
+ * Returns 404 if student not found
+ * 
+ * @example
+ * // Request
+ * GET /students/123
+ * 
+ * @example
+ * // Response
+ * {
+ *   "id": 123,
+ *   "first_name": "Alice",
+ *   "last_name": "Johnson",
+ *   "email": "alice@university.edu"
+ * }
+ */
 export const getStudentById = async (req, res) => {
   try {
     const { id } = req.params;
@@ -68,7 +133,43 @@ export const getStudentById = async (req, res) => {
   }
 };
 
-// Update student profile
+/**
+ * Update Student Profile
+ * Updates student profile information in the database
+ * 
+ * @async
+ * @function updateStudent
+ * @param {Object} req - Express request object
+ * @param {Object} req.params - URL parameters
+ * @param {string} req.params.id - Student ID to update
+ * @param {Object} req.body - Request body
+ * @param {string} req.body.first_name - First name (required)
+ * @param {string} req.body.last_name - Last name (required)
+ * @param {string} req.body.email - Email address (required)
+ * @param {Object} res - Express response object
+ * @returns {Promise<void>} Success message
+ * 
+ * @description
+ * Updates both users and user_profiles tables in a transaction
+ * Validates required fields (first_name, last_name, email)
+ * Checks for email uniqueness (excluding current student)
+ * Generates full_name from first_name and last_name
+ * Uses database connection for transactional updates
+ * 
+ * @example
+ * // Request body
+ * {
+ *   "first_name": "Alice",
+ *   "last_name": "Johnson",
+ *   "email": "alice.johnson@university.edu"
+ * }
+ * 
+ * @example
+ * // Response
+ * {
+ *   "message": "Student profile updated successfully"
+ * }
+ */
 export const updateStudent = async (req, res) => {
   try {
     const { id } = req.params;
@@ -128,7 +229,36 @@ export const updateStudent = async (req, res) => {
   }
 };
 
-// Delete a student
+/**
+ * Delete Student
+ * Soft deletes a student account and removes related data
+ * 
+ * @async
+ * @function deleteStudent
+ * @param {Object} req - Express request object
+ * @param {Object} req.params - URL parameters
+ * @param {string} req.params.id - Student ID to delete
+ * @param {Object} res - Express response object
+ * @returns {Promise<void>} Success message
+ * 
+ * @description
+ * Performs a soft delete by setting deleted_at timestamp and status to inactive
+ * Cascades deletion to:
+ * - Student preferences (hard delete)
+ * - Group memberships (hard delete)
+ * Uses database transaction via connection for data consistency
+ * Returns 404 if student not found
+ * 
+ * @example
+ * // Request
+ * DELETE /students/123
+ * 
+ * @example
+ * // Response
+ * {
+ *   "message": "Student deleted successfully"
+ * }
+ */
 export const deleteStudent = async (req, res) => {
   try {
     const { id } = req.params;
@@ -177,7 +307,42 @@ export const deleteStudent = async (req, res) => {
 
 // ==================== STUDENT PREFERENCES ====================
 
-// Get student's submitted preferences
+/**
+ * Get Student Preferences
+ * Retrieves a student's submitted project preferences
+ * 
+ * @async
+ * @function getStudentPreferences
+ * @param {Object} req - Express request object
+ * @param {Object} req.params - URL parameters
+ * @param {string} req.params.student_id - Student ID
+ * @param {Object} res - Express response object
+ * @returns {Promise<void>} JSON array of project preferences with details
+ * 
+ * @description
+ * Fetches student's ranked project preferences with full project details
+ * Joins student_preferences with projects table
+ * Includes column aliases for backwards compatibility
+ * Results ordered by preference rank (highest priority first)
+ * 
+ * @example
+ * // Request
+ * GET /students/123/preferences
+ * 
+ * @example
+ * // Response
+ * [
+ *   {
+ *     "student_id": 123,
+ *     "project_id": 456,
+ *     "preference_rank": 1,
+ *     "title": "Mobile App Development",
+ *     "description": "Build iOS app",
+ *     "category": "Software",
+ *     "complexity_level": "Intermediate"
+ *   }
+ * ]
+ */
 export const getStudentPreferences = async (req, res) => {
   try {
     const { student_id } = req.params;
@@ -217,7 +382,45 @@ export const getStudentPreferences = async (req, res) => {
   }
 };
 
-// Submit or update student preferences
+/**
+ * Submit Student Preferences
+ * Creates or updates a student's project preferences
+ * 
+ * @async
+ * @function submitPreferences
+ * @param {Object} req - Express request object
+ * @param {Object} req.params - URL parameters
+ * @param {string} req.params.student_id - Student ID
+ * @param {Object} req.body - Request body
+ * @param {Array<Object>} req.body.preferences - Array of preferences (max 3)
+ * @param {number} req.body.preferences[].project_id - Project ID
+ * @param {number} req.body.preferences[].preference_rank - Rank (1-3)
+ * @param {Object} res - Express response object
+ * @returns {Promise<void>} Success message
+ * 
+ * @description
+ * Validates preferences array (non-empty, max 3 items)
+ * Validates each preference has project_id and preference_rank
+ * Verifies all referenced projects exist
+ * Deletes existing preferences before inserting new ones
+ * Uses rank column in database (maps from preference_rank in request)
+ * 
+ * @example
+ * // Request body
+ * {
+ *   "preferences": [
+ *     { "project_id": 456, "preference_rank": 1 },
+ *     { "project_id": 789, "preference_rank": 2 },
+ *     { "project_id": 101, "preference_rank": 3 }
+ *   ]
+ * }
+ * 
+ * @example
+ * // Response
+ * {
+ *   "message": "Preferences submitted successfully"
+ * }
+ */
 export const submitPreferences = async (req, res) => {
   try {
     const { student_id } = req.params;
@@ -281,7 +484,34 @@ export const submitPreferences = async (req, res) => {
   }
 };
 
-// Clear student preferences
+/**
+ * Clear Student Preferences
+ * Deletes all preferences for a student
+ * 
+ * @async
+ * @function clearPreferences
+ * @param {Object} req - Express request object
+ * @param {Object} req.params - URL parameters
+ * @param {string} req.params.student_id - Student ID
+ * @param {Object} res - Express response object
+ * @returns {Promise<void>} Success message with count of deleted preferences
+ * 
+ * @description
+ * Removes all preference records for the specified student
+ * Returns count of deleted records
+ * Useful for allowing students to restart preference selection
+ * 
+ * @example
+ * // Request
+ * DELETE /students/123/preferences
+ * 
+ * @example
+ * // Response
+ * {
+ *   "message": "Preferences cleared successfully",
+ *   "deletedCount": 3
+ * }
+ */
 export const clearPreferences = async (req, res) => {
   try {
     const { student_id } = req.params;
@@ -307,7 +537,46 @@ export const clearPreferences = async (req, res) => {
 
 // ==================== STUDENT GROUP ====================
 
-// Get student's assigned group
+/**
+ * Get Student Group
+ * Retrieves the student's assigned group and project information
+ * 
+ * @async
+ * @function getStudentGroup
+ * @param {Object} req - Express request object
+ * @param {Object} req.params - URL parameters
+ * @param {string} req.params.student_id - Student ID
+ * @param {Object} res - Express response object
+ * @returns {Promise<void>} JSON object with group and project details
+ * 
+ * @description
+ * Fetches student's group assignment along with full project details
+ * Joins group_members, student_groups, and projects tables
+ * Includes column aliases for backwards compatibility
+ * Returns message if no group assigned yet
+ * 
+ * @example
+ * // Request
+ * GET /students/123/group
+ * 
+ * @example
+ * // Response (with assignment)
+ * {
+ *   "id": 10,
+ *   "group_number": 1,
+ *   "project_id": 456,
+ *   "title": "Mobile App Development",
+ *   "description": "Build iOS app",
+ *   "status": "approved",
+ *   "client_id": 789
+ * }
+ * 
+ * @example
+ * // Response (no assignment)
+ * {
+ *   "message": "No group assigned yet"
+ * }
+ */
 export const getStudentGroup = async (req, res) => {
   try {
     const { student_id } = req.params;
@@ -354,7 +623,53 @@ export const getStudentGroup = async (req, res) => {
   }
 };
 
-// Get all group members for a student's group
+/**
+ * Get Student Group Members
+ * Retrieves all members of a student's assigned group
+ * 
+ * @async
+ * @function getStudentGroupMembers
+ * @param {Object} req - Express request object
+ * @param {Object} req.params - URL parameters
+ * @param {string} req.params.student_id - Student ID
+ * @param {Object} res - Express response object
+ * @returns {Promise<void>} JSON array of group member details
+ * 
+ * @description
+ * First finds the student's group_id
+ * Then fetches all members of that group with their profile information
+ * Joins group_members with users and user_profiles tables
+ * Results ordered by first name alphabetically
+ * Returns empty array if student not in a group
+ * 
+ * @example
+ * // Request
+ * GET /students/123/group/members
+ * 
+ * @example
+ * // Response (with group)
+ * [
+ *   {
+ *     "student_id": 123,
+ *     "first_name": "Alice",
+ *     "last_name": "Johnson",
+ *     "email": "alice@university.edu"
+ *   },
+ *   {
+ *     "student_id": 124,
+ *     "first_name": "Bob",
+ *     "last_name": "Smith",
+ *     "email": "bob@university.edu"
+ *   }
+ * ]
+ * 
+ * @example
+ * // Response (no group)
+ * {
+ *   "message": "Student not assigned to a group",
+ *   "members": []
+ * }
+ */
 export const getStudentGroupMembers = async (req, res) => {
   try {
     const { student_id } = req.params;
@@ -398,7 +713,43 @@ export const getStudentGroupMembers = async (req, res) => {
 
 // ==================== STUDENT PROJECTS ====================
 
-// Get all available projects (for browsing)
+/**
+ * Get Available Projects
+ * Retrieves all open projects available for student browsing
+ * 
+ * @async
+ * @function getAvailableProjects
+ * @param {Object} req - Express request object
+ * @param {Object} res - Express response object
+ * @returns {Promise<void>} JSON array of available project objects
+ * 
+ * @description
+ * Fetches all projects with status='open'
+ * Includes column aliases for backwards compatibility
+ * Results ordered by posting date (newest first)
+ * Used for student project browsing interface
+ * 
+ * @example
+ * // Request
+ * GET /students/projects
+ * 
+ * @example
+ * // Response
+ * [
+ *   {
+ *     "id": 456,
+ *     "client_id": 789,
+ *     "title": "Mobile App Development",
+ *     "description": "Build iOS app",
+ *     "skills_required": "Swift, iOS",
+ *     "category": "Software",
+ *     "team_size": 4,
+ *     "complexity_level": "Intermediate",
+ *     "status": "open",
+ *     "created_at": "2025-01-15T10:00:00.000Z"
+ *   }
+ * ]
+ */
 export const getAvailableProjects = async (req, res) => {
   try {
     // ✅ NEW SCHEMA: Query with column aliases for backwards compatibility
@@ -431,7 +782,39 @@ export const getAvailableProjects = async (req, res) => {
   }
 };
 
-// Get projects by category
+/**
+ * Get Projects By Category
+ * Retrieves open projects filtered by specific category
+ * 
+ * @async
+ * @function getProjectsByCategory
+ * @param {Object} req - Express request object
+ * @param {Object} req.params - URL parameters
+ * @param {string} req.params.category - Project category
+ * @param {Object} res - Express response object
+ * @returns {Promise<void>} JSON array of filtered project objects
+ * 
+ * @description
+ * Filters projects by category field
+ * Only returns projects with status='open'
+ * Includes all project details with backwards compatible column names
+ * Results ordered by posting date (newest first)
+ * 
+ * @example
+ * // Request
+ * GET /students/projects/category/Software
+ * 
+ * @example
+ * // Response
+ * [
+ *   {
+ *     "id": 456,
+ *     "title": "Mobile App",
+ *     "category": "Software",
+ *     "status": "open"
+ *   }
+ * ]
+ */
 export const getProjectsByCategory = async (req, res) => {
   try {
     const { category } = req.params;
@@ -471,7 +854,39 @@ export const getProjectsByCategory = async (req, res) => {
   }
 };
 
-// Get projects by complexity level
+/**
+ * Get Projects By Complexity
+ * Retrieves open projects filtered by difficulty level
+ * 
+ * @async
+ * @function getProjectsByComplexity
+ * @param {Object} req - Express request object
+ * @param {Object} req.params - URL parameters
+ * @param {string} req.params.complexity - Complexity level (Beginner, Intermediate, Advanced)
+ * @param {Object} res - Express response object
+ * @returns {Promise<void>} JSON array of filtered project objects
+ * 
+ * @description
+ * Validates complexity parameter against allowed values
+ * Filters projects by difficulty_level field
+ * Only returns projects with status='open'
+ * Results ordered by posting date (newest first)
+ * 
+ * @example
+ * // Request
+ * GET /students/projects/complexity/Intermediate
+ * 
+ * @example
+ * // Response
+ * [
+ *   {
+ *     "id": 456,
+ *     "title": "Mobile App",
+ *     "complexity_level": "Intermediate",
+ *     "status": "open"
+ *   }
+ * ]
+ */
 export const getProjectsByComplexity = async (req, res) => {
   try {
     const { complexity } = req.params;
@@ -516,7 +931,44 @@ export const getProjectsByComplexity = async (req, res) => {
   }
 };
 
-// Search projects by keyword
+/**
+ * Search Projects
+ * Searches for open projects by keyword in title, description, or skills
+ * 
+ * @async
+ * @function searchProjects
+ * @param {Object} req - Express request object
+ * @param {Object} req.query - Query parameters
+ * @param {string} req.query.keyword - Search keyword
+ * @param {Object} res - Express response object
+ * @returns {Promise<void>} JSON array of matching project objects
+ * 
+ * @description
+ * Searches across multiple fields:
+ * - Project title
+ * - Project description
+ * - Required skills
+ * 
+ * Uses SQL LIKE with wildcards for flexible matching
+ * Only returns projects with status='open'
+ * Results ordered by posting date (newest first)
+ * 
+ * @example
+ * // Request
+ * GET /students/projects/search?keyword=mobile
+ * 
+ * @example
+ * // Response
+ * [
+ *   {
+ *     "id": 456,
+ *     "title": "Mobile App Development",
+ *     "description": "Build iOS mobile application",
+ *     "skills_required": "Swift, Mobile UI",
+ *     "status": "open"
+ *   }
+ * ]
+ */
 export const searchProjects = async (req, res) => {
   try {
     const { keyword } = req.query;
