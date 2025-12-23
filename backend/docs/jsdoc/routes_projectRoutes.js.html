@@ -1,0 +1,1265 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>JSDoc: Source: routes/projectRoutes.js</title>
+
+    <script src="scripts/prettify/prettify.js"> </script>
+    <script src="scripts/prettify/lang-css.js"> </script>
+    <!--[if lt IE 9]>
+      <script src="//html5shiv.googlecode.com/svn/trunk/html5.js"></script>
+    <![endif]-->
+    <link type="text/css" rel="stylesheet" href="styles/prettify-tomorrow.css">
+    <link type="text/css" rel="stylesheet" href="styles/jsdoc-default.css">
+</head>
+
+<body>
+
+<div id="main">
+
+    <h1 class="page-title">Source: routes/projectRoutes.js</h1>
+
+    
+
+
+
+    
+    <section>
+        <article>
+            <pre class="prettyprint source linenums"><code>/**
+ * Project Routes Module
+ * 
+ * Handles all project-related API endpoints including project CRUD operations,
+ * approval workflows, preference management, and project browsing.
+ * 
+ * Routes are organized by functionality:
+ * 1. Project Listing (public/authenticated browsing)
+ * 2. Project Creation (client only)
+ * 3. Project Update (client only)
+ * 4. Project Delete (client only)
+ * 5. Project Details &amp; Preferences (client only)
+ * 6. Instructor Approval (instructor only)
+ * 
+ * @module routes/projectRoutes
+ * @requires express
+ * @requires ../../db
+ * @requires ../middleware/authMiddleware
+ */
+
+import express from "express";
+import db from "../../db.js";
+import { verifyToken, verifyRole } from "../middleware/authMiddleware.js";
+console.log("✅ projectRoutes.js is loading");
+const router = express.Router();
+
+// ==================== PROJECT LISTING ====================
+
+/**
+ * Get All Projects
+ * 
+ * Returns projects based on user authentication and role.
+ * - PUBLIC/UNAUTHENTICATED: Returns only approved projects
+ * - STUDENTS: Returns only approved projects
+ * - INSTRUCTORS/ADMINS: Returns ALL projects with client information
+ * 
+ * @route GET /projects
+ * @group Projects - Project browsing and management
+ * @returns {object} 200 - Success response with projects array
+ * @returns {object} 500 - Server error
+ * 
+ * @example
+ * // Public access (unauthenticated)
+ * GET /projects
+ * Response: { "success": true, "data": [approved projects only] }
+ * 
+ * @example
+ * // Instructor access (with JWT token)
+ * GET /projects
+ * Authorization: Bearer &lt;token>
+ * Response: { "success": true, "data": [all projects with client info] }
+ */
+router.get("/", async (req, res) => {
+  try {
+    // Check if user is authenticated and their role
+    const authHeader = req.headers.authorization;
+    let userRole = null;
+
+    if (authHeader &amp;&amp; authHeader.startsWith("Bearer ")) {
+      try {
+        const token = authHeader.split(" ")[1];
+        const jwt = await import("jsonwebtoken");
+        const decoded = jwt.default.verify(
+          token,
+          process.env.JWT_SECRET || "your-secret-key"
+        );
+        userRole = decoded.role;
+      } catch (err) {
+        // Token invalid or expired, treat as public
+        userRole = null;
+      }
+    }
+
+    // Build query based on user role
+    let query;
+    if (userRole === "instructor" || userRole === "admin") {
+      // Instructors and admins see ALL projects with client info
+      query = `SELECT 
+         p.id, 
+         p.owner_id as client_id,
+         p.title, 
+         p.description, 
+         p.required_skills as skills_required, 
+         p.category, 
+         p.max_team_size as team_size, 
+         p.start_date, 
+         p.end_date, 
+         p.difficulty_level as complexity_level, 
+         p.deliverables, 
+         p.location as project_location, 
+         p.industry_category as industry, 
+         p.status,
+         p.approval_status,
+         p.instructor_feedback,
+         p.created_at,
+         u.email as client_email,
+         up.first_name as client_first_name,
+         up.last_name as client_last_name,
+         up.full_name as client_name,
+         up.organization_name as client_organization,
+         up.website as client_website
+       FROM projects p
+       LEFT JOIN users u ON p.owner_id = u.id
+       LEFT JOIN user_profiles up ON u.id = up.user_id
+       ORDER BY p.created_at DESC`;
+    } else {
+      // Students and public see only approved projects
+      query = `SELECT 
+         id, 
+         owner_id as client_id,
+         title, 
+         description, 
+         required_skills as skills_required, 
+         category, 
+         max_team_size as team_size, 
+         start_date, 
+         end_date, 
+         difficulty_level as complexity_level, 
+         deliverables, 
+         location as project_location, 
+         industry_category as industry, 
+         status,
+         approval_status,
+         created_at
+       FROM projects 
+       WHERE approval_status = 'approved' 
+       ORDER BY created_at DESC`;
+    }
+
+    const [projects] = await db.query(query);
+
+    res.json({
+      success: true,
+      data: projects,
+    });
+  } catch (err) {
+    console.error("Error fetching projects:", err);
+    res.status(500).json({
+      success: false,
+      error: "Failed to fetch projects",
+    });
+  }
+});
+
+/**
+ * Get Projects by Client ID
+ * 
+ * Retrieves all projects owned by a specific client.
+ * Protected route - clients can only view their own projects.
+ * 
+ * @route GET /projects/client/:client_id
+ * @group Projects - Project browsing and management
+ * @security JWT
+ * @param {number} client_id.path.required - Client ID
+ * @param {string} authorization.header.required - Bearer token
+ * @returns {object} 200 - Success response with client's projects
+ * @returns {object} 400 - Invalid client ID format
+ * @returns {object} 403 - Unauthorized access
+ * @returns {object} 500 - Server error
+ * 
+ * @example
+ * GET /projects/client/5
+ * Authorization: Bearer &lt;token>
+ */
+router.get("/client/:client_id", verifyToken, async (req, res) => {
+  try {
+    const { client_id } = req.params;
+
+    if (isNaN(client_id)) {
+      return res.status(400).json({
+        success: false,
+        error: "Invalid client ID format",
+      });
+    }
+
+    // Authorization check - only allow clients to view their own projects
+    if (req.user.role !== "client" || parseInt(client_id) !== req.user.clientId) {
+      return res.status(403).json({
+        success: false,
+        error: "Unauthorized access",
+      });
+    }
+
+    const [projects] = await db.query(
+      `SELECT 
+         id, 
+         owner_id as client_id,
+         title, 
+         description, 
+         required_skills as skills_required, 
+         category, 
+         max_team_size as team_size, 
+         start_date, 
+         end_date, 
+         difficulty_level as complexity_level, 
+         deliverables, 
+         location as project_location, 
+         industry_category as industry, 
+         status, 
+         approval_status,
+         instructor_feedback,
+         created_at
+       FROM projects 
+       WHERE owner_id = ?
+       ORDER BY created_at DESC`,
+      [parseInt(client_id)]
+    );
+
+    res.json({
+      success: true,
+      data: projects,
+    });
+  } catch (err) {
+    console.error("Error fetching client projects:", err);
+    res.status(500).json({
+      success: false,
+      error: "Failed to fetch client projects",
+    });
+  }
+});
+
+/**
+ * Get Single Project by ID
+ * 
+ * Retrieves detailed information for a specific project.
+ * Public route - no authentication required.
+ * 
+ * @route GET /projects/:project_id
+ * @group Projects - Project browsing and management
+ * @param {number} project_id.path.required - Project ID
+ * @returns {object} 200 - Success response with project data
+ * @returns {object} 404 - Project not found
+ * @returns {object} 500 - Server error
+ * 
+ * @example
+ * GET /projects/42
+ */
+router.get("/:project_id", async (req, res) => {
+  try {
+    const { project_id } = req.params;
+
+    const [projects] = await db.query(
+      `SELECT 
+         id, 
+         owner_id as client_id,
+         title, 
+         description, 
+         required_skills as skills_required, 
+         category, 
+         max_team_size as team_size, 
+         start_date, 
+         end_date, 
+         difficulty_level as complexity_level, 
+         deliverables, 
+         location as project_location, 
+         industry_category as industry, 
+         status, 
+         created_at
+       FROM projects 
+       WHERE id = ?`,
+      [project_id]
+    );
+
+    if (projects.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: "Project not found",
+      });
+    }
+
+    res.json({
+      success: true,
+      data: projects[0],
+    });
+  } catch (err) {
+    console.error("Error fetching project:", err);
+    res.status(500).json({
+      success: false,
+      error: "Failed to fetch project",
+    });
+  }
+});
+
+/**
+ * Get Projects by Category
+ * 
+ * Retrieves all approved projects in a specific category.
+ * Public route - no authentication required.
+ * 
+ * @route GET /projects/category/:category
+ * @group Projects - Project browsing and management
+ * @param {string} category.path.required - Project category
+ * @returns {object} 200 - Success response with filtered projects
+ * @returns {object} 400 - Category is required
+ * @returns {object} 500 - Server error
+ * 
+ * @example
+ * GET /projects/category/Web Development
+ */
+router.get("/category/:category", async (req, res) => {
+  try {
+    const { category } = req.params;
+
+    if (!category) {
+      return res.status(400).json({
+        success: false,
+        error: "Category is required",
+      });
+    }
+
+    const [projects] = await db.query(
+      `SELECT 
+         id, 
+         owner_id as client_id,
+         title, 
+         description, 
+         required_skills as skills_required, 
+         category, 
+         max_team_size as team_size, 
+         start_date, 
+         end_date, 
+         difficulty_level as complexity_level, 
+         deliverables, 
+         location as project_location, 
+         industry_category as industry, 
+         status, 
+         created_at
+       FROM projects 
+       WHERE category = ? AND approval_status = 'approved'
+       ORDER BY created_at DESC`,
+      [category]
+    );
+
+    res.json({
+      success: true,
+      data: projects,
+    });
+  } catch (err) {
+    console.error("Error fetching projects by category:", err);
+    res.status(500).json({
+      success: false,
+      error: "Failed to fetch projects",
+    });
+  }
+});
+
+/**
+ * Get Projects by Complexity Level
+ * 
+ * Retrieves all approved projects filtered by difficulty level.
+ * Public route - no authentication required.
+ * 
+ * @route GET /projects/complexity/:complexity
+ * @group Projects - Project browsing and management
+ * @param {string} complexity.path.required - Complexity level (Beginner, Intermediate, or Advanced)
+ * @returns {object} 200 - Success response with filtered projects
+ * @returns {object} 400 - Invalid complexity level
+ * @returns {object} 500 - Server error
+ * 
+ * @example
+ * GET /projects/complexity/Intermediate
+ */
+router.get("/complexity/:complexity", async (req, res) => {
+  try {
+    const { complexity } = req.params;
+
+    const validComplexity = ["Beginner", "Intermediate", "Advanced"];
+    if (!validComplexity.includes(complexity)) {
+      return res.status(400).json({
+        success: false,
+        error: "Invalid complexity level. Must be: Beginner, Intermediate, or Advanced",
+      });
+    }
+
+    const [projects] = await db.query(
+      `SELECT 
+         id, 
+         owner_id as client_id,
+         title, 
+         description, 
+         required_skills as skills_required, 
+         category, 
+         max_team_size as team_size, 
+         start_date, 
+         end_date, 
+         difficulty_level as complexity_level, 
+         deliverables, 
+         location as project_location, 
+         industry_category as industry, 
+         status, 
+         created_at
+       FROM projects 
+       WHERE difficulty_level = ? AND approval_status = 'approved'
+       ORDER BY created_at DESC`,
+      [complexity]
+    );
+
+    res.json({
+      success: true,
+      data: projects,
+    });
+  } catch (err) {
+    console.error("Error fetching projects by complexity:", err);
+    res.status(500).json({
+      success: false,
+      error: "Failed to fetch projects",
+    });
+  }
+});
+
+/**
+ * Search Projects by Keyword
+ * 
+ * Searches projects by keyword in title, description, or required skills.
+ * Returns only projects with status 'open'.
+ * Public route - no authentication required.
+ * 
+ * @route GET /projects/search
+ * @group Projects - Project browsing and management
+ * @param {string} keyword.query.required - Search keyword
+ * @returns {object} 200 - Success response with matching projects
+ * @returns {object} 400 - Keyword is required
+ * @returns {object} 500 - Server error
+ * 
+ * @example
+ * GET /projects/search?keyword=machine learning
+ */
+router.get("/search", async (req, res) => {
+  try {
+    const { keyword } = req.query;
+
+    if (!keyword) {
+      return res.status(400).json({
+        success: false,
+        error: "Search keyword is required",
+      });
+    }
+
+    const searchTerm = `%${keyword}%`;
+
+    const [projects] = await db.query(
+      `SELECT 
+         id, 
+         owner_id as client_id,
+         title, 
+         description, 
+         required_skills as skills_required, 
+         category, 
+         max_team_size as team_size, 
+         start_date, 
+         end_date, 
+         difficulty_level as complexity_level, 
+         deliverables, 
+         location as project_location, 
+         industry_category as industry, 
+         status, 
+         created_at
+       FROM projects 
+       WHERE (title LIKE ? OR description LIKE ? OR required_skills LIKE ?) 
+             AND status = 'open'
+       ORDER BY created_at DESC`,
+      [searchTerm, searchTerm, searchTerm]
+    );
+
+    res.json({
+      success: true,
+      data: projects,
+    });
+  } catch (err) {
+    console.error("Error searching projects:", err);
+    res.status(500).json({
+      success: false,
+      error: "Failed to search projects",
+    });
+  }
+});
+
+// ==================== PROJECT CREATION (CLIENT ONLY) ====================
+
+/**
+ * Create New Project
+ * 
+ * Creates a new project proposal submitted by a client.
+ * Converts skills_required and deliverables to JSON arrays.
+ * Generates a unique slug from the title.
+ * Sets initial status to 'open' and approval_status to 'pending'.
+ * 
+ * @route POST /projects
+ * @group Projects - Project CRUD operations
+ * @security JWT
+ * @param {string} title.body.required - Project title
+ * @param {string} description.body.required - Project description
+ * @param {string|Array} skills_required.body.required - Required skills (comma-separated or array)
+ * @param {string} category.body - Project category
+ * @param {number} team_size.body - Maximum team size
+ * @param {string} start_date.body - Project start date (ISO format)
+ * @param {string} end_date.body - Project end date (ISO format)
+ * @param {string} complexity_level.body - Difficulty level (Beginner/Intermediate/Advanced)
+ * @param {string|Array} deliverables.body - Project deliverables (comma-separated or array)
+ * @param {string} project_location.body - Project location
+ * @param {string} industry.body - Industry category
+ * @param {number} client_id.body - Client ID (optional, defaults to token client ID)
+ * @param {string} authorization.header.required - Bearer token
+ * @returns {object} 201 - Success response with created project data
+ * @returns {object} 400 - Validation error
+ * @returns {object} 403 - Only clients can create projects
+ * @returns {object} 404 - Client not found
+ * @returns {object} 500 - Server error
+ * 
+ * @example
+ * POST /projects
+ * {
+ *   "title": "E-commerce Platform",
+ *   "description": "Build a modern e-commerce platform",
+ *   "skills_required": "React, Node.js, MongoDB",
+ *   "category": "Web Development",
+ *   "team_size": 4,
+ *   "complexity_level": "Advanced"
+ * }
+ */
+router.post("/", verifyToken, async (req, res) => {
+  try {
+    const { 
+      title, description, skills_required, category, team_size, 
+      start_date, end_date, complexity_level, deliverables, 
+      project_location, industry, client_id 
+    } = req.body;
+
+    // Check if user is a client
+    if (req.user.role !== "client") {
+      return res.status(403).json({
+        success: false,
+        error: "Only clients can create projects",
+      });
+    }
+
+    // Validation
+    if (!title || !description || !skills_required) {
+      return res.status(400).json({
+        success: false,
+        error: "Title, description, and skills_required are required",
+      });
+    }
+
+    // Use client_id from request body or from token
+    const finalClientId = client_id || req.user.clientId;
+
+    // Verify client exists in users table
+    const [clientCheck] = await db.query(
+      "SELECT id FROM users WHERE id = ? AND role = 'client' AND deleted_at IS NULL",
+      [finalClientId]
+    );
+
+    if (clientCheck.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: "Client not found",
+      });
+    }
+
+    // ✅ CONVERT SKILLS_REQUIRED TO JSON ARRAY
+    let skillsJson;
+    if (typeof skills_required === 'string') {
+      // Split by commas if it's a comma-separated string
+      const skillsArray = skills_required.split(',').map(s => s.trim()).filter(s => s);
+      skillsJson = JSON.stringify(skillsArray);
+    } else if (Array.isArray(skills_required)) {
+      skillsJson = JSON.stringify(skills_required);
+    } else {
+      skillsJson = JSON.stringify([skills_required]);
+    }
+
+    // ✅ CONVERT DELIVERABLES TO JSON ARRAY
+    let deliverablesJson = null;
+    if (deliverables) {
+      if (typeof deliverables === 'string') {
+        // Split by commas or newlines
+        const deliverablesArray = deliverables.split(/[,\n]/).map(d => d.trim()).filter(d => d);
+        deliverablesJson = JSON.stringify(deliverablesArray);
+      } else if (Array.isArray(deliverables)) {
+        deliverablesJson = JSON.stringify(deliverables);
+      } else {
+        deliverablesJson = JSON.stringify([deliverables]);
+      }
+    }
+
+    // ✅ GENERATE SLUG FROM TITLE (required unique field)
+    const slug = title
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '')
+      + '-' + Date.now();
+
+    // ✅ NEW SCHEMA: Insert with JSON values and slug
+    const [result] = await db.query(
+      `INSERT INTO projects 
+       (owner_id, title, slug, description, required_skills, category, 
+        max_team_size, start_date, end_date, difficulty_level, 
+        deliverables, location, industry_category, status) 
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'open')`,
+      [
+        finalClientId,
+        title,
+        slug,                         // ✅ Added slug (required)
+        description,
+        skillsJson,                   // ✅ JSON string
+        category || null,
+        team_size || null,
+        start_date || null,
+        end_date || null,
+        complexity_level || 'intermediate',  // ✅ Default value
+        deliverablesJson,             // ✅ JSON string or null
+        project_location || null,
+        industry || null,
+      ]
+    );
+
+    res.status(201).json({
+      success: true,
+      message: "Project created successfully",
+      data: {
+        id: result.insertId,
+        title,
+        description,
+        slug,
+      },
+    });
+  } catch (err) {
+    console.error("❌ Error creating project:", err);
+    res.status(500).json({
+      success: false,
+      error: "Failed to create project",
+      details: process.env.NODE_ENV === "development" ? err.message : undefined,
+    });
+  }
+});
+
+// ==================== PROJECT UPDATE (CLIENT ONLY) ====================
+
+/**
+ * Update Project
+ * 
+ * Updates an existing project. Only the project owner (client) can update their project.
+ * Dynamically builds UPDATE query based on provided fields.
+ * Converts skills_required and deliverables to JSON if provided.
+ * 
+ * @route PUT /projects/:project_id
+ * @group Projects - Project CRUD operations
+ * @security JWT
+ * @param {number} project_id.path.required - Project ID
+ * @param {string} title.body - Updated title
+ * @param {string} description.body - Updated description
+ * @param {string|Array} skills_required.body - Updated required skills
+ * @param {string} category.body - Updated category
+ * @param {number} team_size.body - Updated maximum team size
+ * @param {string} start_date.body - Updated start date
+ * @param {string} end_date.body - Updated end date
+ * @param {string} complexity_level.body - Updated difficulty level
+ * @param {string|Array} deliverables.body - Updated deliverables
+ * @param {string} project_location.body - Updated location
+ * @param {string} industry.body - Updated industry category
+ * @param {string} status.body - Updated status
+ * @param {string} authorization.header.required - Bearer token
+ * @returns {object} 200 - Success response
+ * @returns {object} 400 - Validation error or no fields to update
+ * @returns {object} 403 - Unauthorized (not project owner)
+ * @returns {object} 404 - Project not found
+ * @returns {object} 500 - Server error
+ * 
+ * @example
+ * PUT /projects/42
+ * {
+ *   "title": "Updated Project Title",
+ *   "team_size": 5,
+ *   "status": "closed"
+ * }
+ */
+router.put("/:project_id", verifyToken, async (req, res) => {
+  try {
+    const { project_id } = req.params;
+    const {
+      title, description, skills_required, category, team_size,
+      start_date, end_date, complexity_level, deliverables,
+      project_location, industry, status, feedback
+    } = req.body;
+
+    // Check if user is a client
+    if (req.user.role !== "client") {
+      return res.status(403).json({
+        success: false,
+        error: "Only clients can update projects",
+      });
+    }
+
+    // Verify project exists and belongs to this client
+    const [projectCheck] = await db.query(
+      "SELECT owner_id FROM projects WHERE id = ?",
+      [project_id]
+    );
+
+    if (projectCheck.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: "Project not found",
+      });
+    }
+
+    if (projectCheck[0].owner_id !== req.user.clientId) {
+      return res.status(403).json({
+        success: false,
+        error: "You can only update your own projects",
+      });
+    }
+
+    // Build dynamic update query
+    const updates = [];
+    const values = [];
+
+    if (title !== undefined) { updates.push("title = ?"); values.push(title); }
+    if (description !== undefined) { updates.push("description = ?"); values.push(description); }
+    
+    // ✅ Convert skills_required to JSON if provided
+    if (skills_required !== undefined) {
+      let skillsJson;
+      if (typeof skills_required === 'string') {
+        const skillsArray = skills_required.split(',').map(s => s.trim()).filter(s => s);
+        skillsJson = JSON.stringify(skillsArray);
+      } else if (Array.isArray(skills_required)) {
+        skillsJson = JSON.stringify(skills_required);
+      } else {
+        skillsJson = JSON.stringify([skills_required]);
+      }
+      updates.push("required_skills = ?");
+      values.push(skillsJson);
+    }
+    
+    if (category !== undefined) { updates.push("category = ?"); values.push(category); }
+    if (team_size !== undefined) { updates.push("max_team_size = ?"); values.push(team_size); }
+    if (start_date !== undefined) { updates.push("start_date = ?"); values.push(start_date); }
+    if (end_date !== undefined) { updates.push("end_date = ?"); values.push(end_date); }
+    if (complexity_level !== undefined) { updates.push("difficulty_level = ?"); values.push(complexity_level); }
+    
+    // ✅ Convert deliverables to JSON if provided
+    if (deliverables !== undefined) {
+      let deliverablesJson = null;
+      if (deliverables) {
+        if (typeof deliverables === 'string') {
+          const deliverablesArray = deliverables.split(/[,\n]/).map(d => d.trim()).filter(d => d);
+          deliverablesJson = JSON.stringify(deliverablesArray);
+        } else if (Array.isArray(deliverables)) {
+          deliverablesJson = JSON.stringify(deliverables);
+        } else {
+          deliverablesJson = JSON.stringify([deliverables]);
+        }
+      }
+      updates.push("deliverables = ?");
+      values.push(deliverablesJson);
+    }
+    
+    if (project_location !== undefined) { updates.push("location = ?"); values.push(project_location); }
+    if (industry !== undefined) { updates.push("industry_category = ?"); values.push(industry); }
+    if (status !== undefined) { updates.push("status = ?"); values.push(status); }
+
+    if (updates.length === 0) {
+      return res.status(400).json({
+        success: false,
+        error: "No fields to update",
+      });
+    }
+
+    values.push(project_id);
+
+    const [result] = await db.query(
+      `UPDATE projects SET ${updates.join(", ")} WHERE id = ?`,
+      values
+    );
+
+    if (result.affectedRows === 0) {
+      return res.status(404).json({
+        success: false,
+        error: "Project not found",
+      });
+    }
+
+    res.json({
+      success: true,
+      message: "Project updated successfully",
+    });
+  } catch (err) {
+    console.error("Error updating project:", err);
+    res.status(500).json({
+      success: false,
+      error: "Failed to update project",
+    });
+  }
+});
+
+// ==================== PROJECT DELETE (CLIENT ONLY) ====================
+
+/**
+ * Delete Project
+ * 
+ * Deletes a project and all associated data (preferences, groups, group members).
+ * Only the project owner (client) can delete their project.
+ * Uses database transaction to ensure data integrity with foreign key constraints.
+ * 
+ * Deletion order (respecting foreign keys):
+ * 1. student_preferences
+ * 2. group_members
+ * 3. student_groups
+ * 4. projects
+ * 
+ * @route DELETE /projects/:project_id
+ * @group Projects - Project CRUD operations
+ * @security JWT
+ * @param {number} project_id.path.required - Project ID
+ * @param {string} authorization.header.required - Bearer token
+ * @returns {object} 200 - Success response
+ * @returns {object} 403 - Unauthorized (not project owner)
+ * @returns {object} 404 - Project not found
+ * @returns {object} 500 - Server error
+ * 
+ * @example
+ * DELETE /projects/42
+ * Authorization: Bearer &lt;token>
+ */
+router.delete("/:project_id", verifyToken, async (req, res) => {
+  try {
+    const { project_id } = req.params;
+
+    // Check if user is a client
+    if (req.user.role !== "client") {
+      return res.status(403).json({
+        success: false,
+        error: "Only clients can delete projects",
+      });
+    }
+
+    // Verify project exists and belongs to this client
+    const [projectCheck] = await db.query(
+      "SELECT owner_id FROM projects WHERE id = ?",
+      [project_id]
+    );
+
+    if (projectCheck.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: "Project not found",
+      });
+    }
+
+    if (projectCheck[0].owner_id !== req.user.clientId) {
+      return res.status(403).json({
+        success: false,
+        error: "You can only delete your own projects",
+      });
+    }
+
+    // Get database connection for safe deletion
+    const connection = await db.getConnection();
+
+    try {
+      // Delete in correct order (respecting foreign key constraints)
+      
+      // 1. Delete student preferences for this project
+      await connection.query(
+        "DELETE FROM student_preferences WHERE project_id = ?",
+        [project_id]
+      );
+
+      // 2. Delete group members for groups of this project
+      await connection.query(
+        `DELETE FROM group_members 
+         WHERE group_id IN (SELECT id FROM student_groups WHERE project_id = ?)`,
+        [project_id]
+      );
+
+      // 3. Delete student groups for this project
+      await connection.query(
+        "DELETE FROM student_groups WHERE project_id = ?",
+        [project_id]
+      );
+
+      // 4. Delete the project
+      const [result] = await connection.query(
+        "DELETE FROM projects WHERE id = ?",
+        [project_id]
+      );
+
+      connection.release();
+
+      if (result.affectedRows === 0) {
+        return res.status(404).json({
+          success: false,
+          error: "Project not found",
+        });
+      }
+
+      res.json({
+        success: true,
+        message: "Project deleted successfully",
+      });
+    } catch (err) {
+      connection.release();
+      throw err;
+    }
+  } catch (err) {
+    console.error("Error deleting project:", err);
+    res.status(500).json({
+      success: false,
+      error: "Failed to delete project",
+    });
+  }
+});
+
+/**
+ * Get Project Details with Preferences and Groups
+ * 
+ * Retrieves comprehensive project information including:
+ * - Project details
+ * - Student preferences (ranked)
+ * - Assigned groups and member counts
+ * - Summary statistics
+ * 
+ * Protected route - only project owner (client) can view.
+ * 
+ * @route GET /projects/:project_id/details
+ * @group Projects - Project details and analytics
+ * @security JWT
+ * @param {number} project_id.path.required - Project ID
+ * @param {string} authorization.header.required - Bearer token
+ * @returns {object} 200 - Success response with project, preferences, groups, and stats
+ * @returns {object} 403 - Only clients can view project details
+ * @returns {object} 404 - Project not found
+ * @returns {object} 500 - Server error
+ * 
+ * @example
+ * GET /projects/42/details
+ * Authorization: Bearer &lt;token>
+ */
+router.get("/:project_id/details", verifyToken, async (req, res) => {
+  try {
+    const { project_id } = req.params;
+
+    // Check if user is a client
+    if (req.user.role !== "client") {
+      return res.status(403).json({
+        success: false,
+        error: "Only clients can view project details",
+      });
+    }
+
+    const [projects] = await db.query(
+      `SELECT 
+         id, 
+         owner_id as client_id,
+         title, 
+         description, 
+         required_skills as skills_required, 
+         category, 
+         max_team_size as team_size, 
+         start_date, 
+         end_date, 
+         difficulty_level as complexity_level, 
+         deliverables, 
+         location as project_location, 
+         industry_category as industry, 
+         status, 
+         created_at
+       FROM projects
+       WHERE id = ? AND owner_id = ?`,
+      [project_id, req.user.clientId]
+    );
+
+    if (projects.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: "Project not found",
+      });
+    }
+
+    const project = projects[0];
+
+    const [preferences] = await db.query(
+      `SELECT 
+         sp.student_id, 
+         sp.rank as preference_rank,
+         p.first_name, 
+         p.last_name, 
+         u.email
+       FROM student_preferences sp
+       JOIN users u ON sp.student_id = u.id
+       LEFT JOIN user_profiles p ON u.id = p.user_id
+       WHERE sp.project_id = ?
+       ORDER BY sp.rank ASC`,
+      [project_id]
+    );
+
+    // Get assigned groups
+    const [groups] = await db.query(
+      `SELECT sg.id, sg.group_number, COUNT(gm.student_id) as member_count
+       FROM student_groups sg
+       LEFT JOIN group_members gm ON sg.id = gm.group_id
+       WHERE sg.project_id = ?
+       GROUP BY sg.id`,
+      [project_id]
+    );
+
+    res.json({
+      success: true,
+      data: {
+        project,
+        preferences,
+        groups,
+        stats: {
+          preference_count: preferences.length,
+          group_count: groups.length,
+        },
+      },
+    });
+  } catch (err) {
+    console.error("Error fetching project details:", err);
+    res.status(500).json({
+      success: false,
+      error: "Failed to fetch project details",
+    });
+  }
+});
+
+/**
+ * Get Project Preferences
+ * 
+ * Retrieves all student preferences for a specific project with student information.
+ * Protected route - only project owner (client) can view preferences.
+ * 
+ * @route GET /projects/:project_id/preferences
+ * @group Projects - Project details and analytics
+ * @security JWT
+ * @param {number} project_id.path.required - Project ID
+ * @param {string} authorization.header.required - Bearer token
+ * @returns {object} 200 - Success response with preferences array
+ * @returns {object} 403 - Unauthorized (not project owner)
+ * @returns {object} 404 - Project not found
+ * @returns {object} 500 - Server error
+ * 
+ * @example
+ * GET /projects/42/preferences
+ * Authorization: Bearer &lt;token>
+ */
+router.get("/:project_id/preferences", verifyToken, async (req, res) => {
+  try {
+    const { project_id } = req.params;
+
+    // Check if user is a client
+    if (req.user.role !== "client") {
+      return res.status(403).json({
+        success: false,
+        error: "Only clients can view preferences",
+      });
+    }
+
+    // Verify project exists and belongs to this client
+    const [projectCheck] = await db.query(
+      "SELECT owner_id FROM projects WHERE id = ?",
+      [project_id]
+    );
+
+    if (projectCheck.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: "Project not found",
+      });
+    }
+
+    if (projectCheck[0].owner_id !== req.user.clientId) {
+      return res.status(403).json({
+        success: false,
+        error: "You can only view preferences for your own projects",
+      });
+    }
+
+    const [preferences] = await db.query(
+      `SELECT 
+         sp.student_id, 
+         sp.rank as preference_rank,
+         p.first_name, 
+         p.last_name, 
+         u.email
+       FROM student_preferences sp
+       JOIN users u ON sp.student_id = u.id
+       LEFT JOIN user_profiles p ON u.id = p.user_id
+       WHERE sp.project_id = ?
+       ORDER BY sp.rank ASC`,
+      [project_id]
+    );
+
+    res.json({
+      success: true,
+      data: preferences,
+    });
+  } catch (err) {
+    console.error("Error fetching preferences:", err);
+    res.status(500).json({
+      success: false,
+      error: "Failed to fetch preferences",
+    });
+  }
+});
+
+// ==================== INSTRUCTOR APPROVAL ====================
+
+/**
+ * Approve or Reject Project
+ * 
+ * Allows instructors to approve or reject client-submitted projects.
+ * Updates approval_status, approved_by, approved_at, and optional instructor_feedback.
+ * Protected route - only instructors and admins can approve/reject projects.
+ * 
+ * @route PUT /projects/:project_id/approval
+ * @group Projects - Project approval workflow
+ * @security JWT
+ * @param {number} project_id.path.required - Project ID
+ * @param {string} approval_status.body.required - Approval status ('approved' or 'rejected')
+ * @param {string} feedback.body - Instructor feedback (especially for rejections)
+ * @param {string} authorization.header.required - Bearer token
+ * @returns {object} 200 - Success response with approval details
+ * @returns {object} 400 - Invalid approval_status
+ * @returns {object} 403 - Only instructors can approve/reject
+ * @returns {object} 404 - Project not found
+ * @returns {object} 500 - Server error
+ * 
+ * @example
+ * PUT /projects/42/approval
+ * {
+ *   "approval_status": "approved",
+ *   "feedback": "Great project proposal!"
+ * }
+ * 
+ * @example
+ * PUT /projects/42/approval
+ * {
+ *   "approval_status": "rejected",
+ *   "feedback": "Project scope is too broad. Please narrow the focus."
+ * }
+ */
+router.put("/:project_id/approval", verifyToken, async (req, res) => {
+  try {
+    const { project_id } = req.params;
+    const { approval_status, feedback } = req.body;
+
+    // Check if user is an instructor
+    if (req.user.role !== "instructor" &amp;&amp; req.user.role !== "admin") {
+      return res.status(403).json({
+        success: false,
+        error: "Only instructors can approve or reject projects",
+      });
+    }
+
+    // Validate approval_status
+    if (!approval_status || !["approved", "rejected"].includes(approval_status)) {
+      return res.status(400).json({
+        success: false,
+        error: "approval_status must be 'approved' or 'rejected'",
+      });
+    }
+
+    // Verify project exists
+    const [projectCheck] = await db.query(
+      "SELECT id, title FROM projects WHERE id = ?",
+      [project_id]
+    );
+
+    if (projectCheck.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: "Project not found",
+      });
+    }
+
+    // Update project approval status and feedback
+    const updateFields = ["approval_status = ?", "approved_by = ?", "approved_at = NOW()"];
+    const updateValues = [approval_status, req.user.instructorId];
+
+    // Add feedback if provided (especially for rejections)
+    if (feedback) {
+      updateFields.push("instructor_feedback = ?");
+      updateValues.push(feedback);
+    }
+
+    updateValues.push(project_id);
+
+    await db.query(
+      `UPDATE projects SET ${updateFields.join(", ")} WHERE id = ?`,
+      updateValues
+    );
+
+    res.json({
+      success: true,
+      message: `Project ${approval_status} successfully`,
+      data: {
+        project_id: parseInt(project_id),
+        approval_status,
+        feedback: feedback || null,
+      },
+    });
+  } catch (err) {
+    console.error("Error updating project approval:", err);
+    res.status(500).json({
+      success: false,
+      error: "Failed to update project approval",
+    });
+  }
+});
+
+export default router;</code></pre>
+        </article>
+    </section>
+
+
+
+
+</div>
+
+<nav>
+    <h2><a href="index.html">Home</a></h2><h3>Modules</h3><ul><li><a href="module-controllers_clientController.html">controllers/clientController</a></li><li><a href="module-controllers_instructorController.html">controllers/instructorController</a></li><li><a href="module-controllers_studentController.html">controllers/studentController</a></li><li><a href="module-groupFormationAlgorithm.html">groupFormationAlgorithm</a></li><li><a href="module-middleware_authMiddleware.html">middleware/authMiddleware</a></li><li><a href="module-routes_clientRoutes.html">routes/clientRoutes</a></li><li><a href="module-routes_evaluationRoutes.html">routes/evaluationRoutes</a></li><li><a href="module-routes_instructorRoutes.html">routes/instructorRoutes</a></li><li><a href="module-routes_projectRoutes.html">routes/projectRoutes</a></li><li><a href="module-routes_studentRoutes.html">routes/studentRoutes</a></li><li><a href="module-utils_groupFormationAlgorithm.html">utils/groupFormationAlgorithm</a></li></ul><h3>Classes</h3><ul><li><a href="AppError.html">AppError</a></li></ul><h3>Global</h3><ul><li><a href="global.html#OPTIONAL_ENV_VARS">OPTIONAL_ENV_VARS</a></li><li><a href="global.html#REQUIRED_ENV_VARS">REQUIRED_ENV_VARS</a></li><li><a href="global.html#calculatePagination">calculatePagination</a></li><li><a href="global.html#errorHandler">errorHandler</a></li><li><a href="global.html#formatAuthError">formatAuthError</a></li><li><a href="global.html#formatConflict">formatConflict</a></li><li><a href="global.html#formatCreated">formatCreated</a></li><li><a href="global.html#formatDeleted">formatDeleted</a></li><li><a href="global.html#formatError">formatError</a></li><li><a href="global.html#formatForbidden">formatForbidden</a></li><li><a href="global.html#formatList">formatList</a></li><li><a href="global.html#formatNotFound">formatNotFound</a></li><li><a href="global.html#formatServerError">formatServerError</a></li><li><a href="global.html#formatSuccess">formatSuccess</a></li><li><a href="global.html#formatUpdated">formatUpdated</a></li><li><a href="global.html#formatValidationError">formatValidationError</a></li><li><a href="global.html#getEnv">getEnv</a></li><li><a href="global.html#isValidEmail">isValidEmail</a></li><li><a href="global.html#isValidUrl">isValidUrl</a></li><li><a href="global.html#mapFirebaseError">mapFirebaseError</a></li><li><a href="global.html#printEnvironmentSummary">printEnvironmentSummary</a></li><li><a href="global.html#printExampleEnvFile">printExampleEnvFile</a></li><li><a href="global.html#requestIdMiddleware">requestIdMiddleware</a></li><li><a href="global.html#requestLoggingMiddleware">requestLoggingMiddleware</a></li><li><a href="global.html#server">server</a></li><li><a href="global.html#validateClientLogin">validateClientLogin</a></li><li><a href="global.html#validateClientSignup">validateClientSignup</a></li><li><a href="global.html#validateDatabaseConfig">validateDatabaseConfig</a></li><li><a href="global.html#validateEnvironment">validateEnvironment</a></li><li><a href="global.html#validateFirebaseConfig">validateFirebaseConfig</a></li><li><a href="global.html#validateGroupAssignment">validateGroupAssignment</a></li><li><a href="global.html#validateInstructorLogin">validateInstructorLogin</a></li><li><a href="global.html#validateInstructorSignup">validateInstructorSignup</a></li><li><a href="global.html#validatePreferences">validatePreferences</a></li><li><a href="global.html#validateProject">validateProject</a></li><li><a href="global.html#validateStudentLogin">validateStudentLogin</a></li><li><a href="global.html#validateStudentSignup">validateStudentSignup</a></li></ul>
+</nav>
+
+<br class="clear">
+
+<footer>
+    Documentation generated by <a href="https://github.com/jsdoc/jsdoc">JSDoc 4.0.5</a> on Mon Dec 22 2025 22:20:27 GMT-0500 (Eastern Standard Time)
+</footer>
+
+<script> prettyPrint(); </script>
+<script src="scripts/linenumber.js"> </script>
+</body>
+</html>

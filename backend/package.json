@@ -1,16 +1,27 @@
 {
   "name": "backend",
   "version": "1.0.0",
-  "description": "",
+  "description": "Capstone Hub Backend API - Student Capstone Project Management System",
   "main": "index.js",
   "type": "module",
   "scripts": {
     "start": "node src/index.js",
     "dev": "nodemon src/index.js",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "docs:generate": "jsdoc -c jsdoc.json",
+    "docs:view": "open docs/jsdoc/index.html",
+    "docs:rebuild": "rm -rf docs/jsdoc && npm run docs:generate",
+    "docs:clean": "rm -rf docs/jsdoc",
+    "docs:deploy": "npm run docs:generate && gh-pages -d docs/jsdoc"
   },
-  "keywords": [],
-  "author": "",
+  "keywords": [
+    "capstone",
+    "project-management",
+    "api",
+    "express",
+    "mysql"
+  ],
+  "author": "Charan, Lohith, Bharath",
   "license": "ISC",
   "dependencies": {
     "bcrypt": "^6.0.0",
@@ -20,5 +31,9 @@
     "firebase-admin": "^13.5.0",
     "mongoose": "^8.19.0",
     "mysql2": "^3.15.1"
+  },
+  "devDependencies": {
+    "gh-pages": "^6.3.0",
+    "jsdoc": "^4.0.5"
   }
 }

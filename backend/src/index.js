@@ -1,3 +1,21 @@
+/**
+ * @fileoverview Main entry point for Capstone Hub Backend Server
+ * Sets up Express app with middleware, routes, and error handling
+ * Validates environment variables and establishes database connection
+ * 
+ * @requires express
+ * @requires cors
+ * @requires dotenv
+ * @requires ./config/validateEnv
+ * @requires ../db
+ * @requires ./middleware/errorHandler
+ * @requires ./routes/clientRoutes
+ * @requires ./routes/studentRoutes
+ * @requires ./routes/instructorRoutes
+ * @requires ./routes/projectRoutes
+ * @requires ./routes/evaluationRoutes
+ */
+
 import express from "express";
 import cors from "cors";
 import dotenv from "dotenv";
@@ -67,7 +85,28 @@ app.use(express.urlencoded({ limit: "10mb", extended: true }));
 
 // ==================== HEALTH CHECK ENDPOINT ====================
 
-// Health check (doesn't need authentication)
+/**
+ * Root Health Check Endpoint
+ * GET /
+ * 
+ * Returns server status and timestamp
+ * Does not require authentication
+ * 
+ * @name GET/
+ * @function
+ * @memberof module:index
+ * @param {Object} req - Express request object
+ * @param {Object} res - Express response object
+ * @returns {Object} JSON response with success status, message, and timestamp
+ * 
+ * @example
+ * // Response
+ * {
+ *   "success": true,
+ *   "message": "Backend is running",
+ *   "timestamp": "2025-12-20T12:00:00.000Z"
+ * }
+ */
 app.get("/", (req, res) => {
   res.json({
     success: true,
@@ -76,7 +115,27 @@ app.get("/", (req, res) => {
   });
 });
 
-// Health check for load balancers
+/**
+ * Health Check Endpoint for Load Balancers
+ * GET /health
+ * 
+ * Lightweight health check endpoint for monitoring systems
+ * Does not require authentication
+ * 
+ * @name GET/health
+ * @function
+ * @memberof module:index
+ * @param {Object} req - Express request object
+ * @param {Object} res - Express response object
+ * @returns {Object} JSON response with success status
+ * 
+ * @example
+ * // Response
+ * {
+ *   "success": true,
+ *   "status": "healthy"
+ * }
+ */
 app.get("/health", (req, res) => {
   res.json({
     success: true,
@@ -87,11 +146,40 @@ app.get("/health", (req, res) => {
 // ==================== EMAIL VALIDATION ENDPOINT ====================
 
 /**
- * ✅ UNIFIED SCHEMA: Check if email is available (prevents duplicate registrations)
+ * Check Email Availability Endpoint
+ * GET /check-email
+ * 
+ * Validates if an email address is available for registration
+ * Checks against unified users table to prevent duplicate registrations
+ * Does not require authentication
+ * 
+ * @name GET/check-email
+ * @function
+ * @memberof module:index
+ * @param {Object} req - Express request object
+ * @param {Object} req.query - Query parameters
+ * @param {string} req.query.email - Email address to check
+ * @param {Object} res - Express response object
+ * @returns {Object} JSON response indicating email availability
+ * 
+ * @example
+ * // Request
  * GET /check-email?email=user@example.com
  * 
- * Returns 200 if email is available
- * Returns 409 if email already exists in users table
+ * @example
+ * // Response - Email available
+ * {
+ *   "success": true,
+ *   "message": "Email is available",
+ *   "available": true
+ * }
+ * 
+ * @example
+ * // Response - Email taken
+ * {
+ *   "success": false,
+ *   "error": "Email already registered as a student"
+ * }
  */
 app.get("/check-email", async (req, res) => {
   try {
@@ -143,24 +231,70 @@ app.get("/check-email", async (req, res) => {
 
 // ==================== ROUTES ====================
 
-// Project routes
+/**
+ * Project Routes
+ * Handles all project-related endpoints
+ * Base path: /projects
+ * @see module:routes/projectRoutes
+ */
 app.use("/projects", projectRoutes);
 
-// Client routes
+/**
+ * Client Routes
+ * Handles all client-related endpoints
+ * Base path: /clients
+ * @see module:routes/clientRoutes
+ */
 app.use("/clients", clientRoutes);
 
-// Student routes
+/**
+ * Student Routes
+ * Handles all student-related endpoints
+ * Base path: /students
+ * @see module:routes/studentRoutes
+ */
 app.use("/students", studentRoutes);
 
-// Instructor routes
+/**
+ * Instructor Routes
+ * Handles all instructor-related endpoints
+ * Base path: /instructors
+ * @see module:routes/instructorRoutes
+ */
 app.use("/instructors", instructorRoutes);
 
-// Evaluation routes
+/**
+ * Evaluation Routes
+ * Handles all evaluation-related endpoints
+ * Base path: /evaluations
+ * @see module:routes/evaluationRoutes
+ */
 app.use("/evaluations", evaluationRoutes);
 
 // ==================== 404 HANDLER ====================
 
-// If no route matches, return 404
+/**
+ * 404 Not Found Handler
+ * Catches all requests that don't match any defined routes
+ * Returns standardized error response
+ * 
+ * @name 404Handler
+ * @function
+ * @memberof module:index
+ * @param {Object} req - Express request object
+ * @param {Object} res - Express response object
+ * @returns {Object} JSON error response with 404 status
+ * 
+ * @example
+ * // Response
+ * {
+ *   "success": false,
+ *   "error": "Endpoint not found",
+ *   "code": "NOT_FOUND",
+ *   "path": "/invalid/path",
+ *   "method": "GET"
+ * }
+ */
 app.use((req, res) => {
   res.status(404).json({
     success: false,
@@ -173,8 +307,12 @@ app.use((req, res) => {
 
 // ==================== ERROR HANDLER (MUST BE LAST) ====================
 
-// Global error handler (catches all errors from routes)
-// MUST be after all other middleware and routes
+/**
+ * Global Error Handler
+ * Catches all errors thrown in routes and middleware
+ * MUST be registered after all other middleware and routes
+ * @see module:middleware/errorHandler
+ */
 app.use(errorHandler);
 
 // ==================== SERVER STARTUP ====================
@@ -182,6 +320,13 @@ app.use(errorHandler);
 const PORT = process.env.PORT || 5050;
 const NODE_ENV = process.env.NODE_ENV || "development";
 
+/**
+ * Start Express Server
+ * Listens on configured PORT and logs startup information
+ * Displays environment summary in development mode
+ * 
+ * @constant {Server} server - Express server instance
+ */
 const server = app.listen(PORT, () => {
   console.log("\n" + "=".repeat(50));
   console.log("🚀 Capstone Hub Backend Server");
@@ -199,7 +344,13 @@ const server = app.listen(PORT, () => {
 
 // ==================== GRACEFUL SHUTDOWN ====================
 
-// Handle graceful shutdown
+/**
+ * SIGTERM Signal Handler
+ * Handles graceful shutdown when SIGTERM signal is received
+ * Closes server and exits process cleanly
+ * 
+ * @listens process#SIGTERM
+ */
 process.on("SIGTERM", () => {
   console.log("\n🔴 SIGTERM signal received: closing HTTP server");
   server.close(() => {
@@ -208,6 +359,13 @@ process.on("SIGTERM", () => {
   });
 });
 
+/**
+ * SIGINT Signal Handler
+ * Handles graceful shutdown when SIGINT signal is received (Ctrl+C)
+ * Closes server and exits process cleanly
+ * 
+ * @listens process#SIGINT
+ */
 process.on("SIGINT", () => {
   console.log("\n🔴 SIGINT signal received: closing HTTP server");
   server.close(() => {
@@ -216,13 +374,28 @@ process.on("SIGINT", () => {
   });
 });
 
-// Handle uncaught exceptions
+/**
+ * Uncaught Exception Handler
+ * Catches any uncaught exceptions and logs them
+ * Exits process with error code
+ * 
+ * @listens process#uncaughtException
+ * @param {Error} err - The uncaught exception
+ */
 process.on("uncaughtException", (err) => {
   console.error("❌ Uncaught Exception:", err);
   process.exit(1);
 });
 
-// Handle unhandled promise rejections
+/**
+ * Unhandled Promise Rejection Handler
+ * Catches any unhandled promise rejections and logs them
+ * Exits process with error code
+ * 
+ * @listens process#unhandledRejection
+ * @param {*} reason - Rejection reason
+ * @param {Promise} promise - The rejected promise
+ */
 process.on("unhandledRejection", (reason, promise) => {
   console.error("❌ Unhandled Rejection at:", promise, "reason:", reason);
   process.exit(1);

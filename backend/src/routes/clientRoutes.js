@@ -1,3 +1,24 @@
+/**
+ * Client Routes Module
+ * 
+ * Handles all client-related API endpoints including authentication, profile management,
+ * project management, and team/group assignments.
+ * 
+ * Routes are organized by functionality:
+ * 1. Authentication (signup, login)
+ * 2. Client Profile (CRUD operations)
+ * 3. Client Projects (list, statistics)
+ * 4. Teams/Groups (assigned to client's projects)
+ * 
+ * @module routes/clientRoutes
+ * @requires express
+ * @requires jsonwebtoken
+ * @requires ../../db
+ * @requires ../../firebaseAdmin
+ * @requires ../middleware/authMiddleware
+ * @requires ../middleware/validateRequest
+ */
+
 import express from "express";
 import jwt from "jsonwebtoken";
 import db from "../../db.js";
@@ -7,6 +28,22 @@ import { validateClientSignup, validateClientLogin } from "../middleware/validat
 
 const router = express.Router();
 
+/**
+ * Generate JWT Token for Client
+ * 
+ * Creates a signed JWT token containing client authentication data.
+ * Token expires in 7 days.
+ * 
+ * @function generateJWT
+ * @param {string} uid - Firebase user ID
+ * @param {string} email - Client email address
+ * @param {string} role - User role (should be 'client')
+ * @param {number} clientId - Numeric database client ID
+ * @returns {string} Signed JWT token
+ * 
+ * @example
+ * const token = generateJWT('firebase-uid-123', 'client@example.com', 'client', 42);
+ */
 const generateJWT = (uid, email, role, clientId) => {
   return jwt.sign(
     { uid, email, role, clientId },
@@ -17,7 +54,35 @@ const generateJWT = (uid, email, role, clientId) => {
 
 // ==================== AUTHENTICATION ====================
 
-// Client Signup with Firebase
+/**
+ * Client Signup with Firebase
+ * 
+ * Registers a new client account with Firebase authentication.
+ * Creates entries in both users and user_profiles tables.
+ * Automatically splits full name into first_name and last_name.
+ * 
+ * @route POST /clients/signup
+ * @group Authentication - Client authentication operations
+ * @param {string} email.body.required - Client email address
+ * @param {string} idToken.body.required - Firebase ID token
+ * @param {string} name.body.required - Client full name
+ * @param {string} organization_name.body.required - Organization/company name
+ * @param {string} website.body - Organization website URL
+ * @returns {object} 201 - Success response with token and client data
+ * @returns {object} 400 - Email already registered
+ * @returns {object} 401 - Invalid Firebase token
+ * @returns {object} 500 - Server error
+ * 
+ * @example
+ * POST /clients/signup
+ * {
+ *   "email": "john.doe@techcorp.com",
+ *   "idToken": "firebase-id-token...",
+ *   "name": "John Doe",
+ *   "organization_name": "TechCorp Inc.",
+ *   "website": "https://techcorp.com"
+ * }
+ */
 router.post("/signup", validateClientSignup, async (req, res) => {
   try {
     const { email, idToken, name, organization_name, website } = req.body;
@@ -62,7 +127,7 @@ router.post("/signup", validateClientSignup, async (req, res) => {
     const connection = await db.getConnection();
 
     try {
-      // âœ… NEW SCHEMA: Insert into users table
+      // ✅ NEW SCHEMA: Insert into users table
       const [userResult] = await connection.query(
         "INSERT INTO users (email, firebase_uid, role, email_verified, status) VALUES (?, ?, 'client', 1, 'active')",
         [email, uid]
@@ -70,7 +135,7 @@ router.post("/signup", validateClientSignup, async (req, res) => {
 
       const userId = userResult.insertId;
 
-      // âœ… NEW SCHEMA: Insert into user_profiles table
+      // ✅ NEW SCHEMA: Insert into user_profiles table
       await connection.query(
         `INSERT INTO user_profiles 
          (user_id, first_name, last_name, full_name, organization_name, website) 
@@ -83,7 +148,7 @@ router.post("/signup", validateClientSignup, async (req, res) => {
       // Generate JWT token
       const token = generateJWT(uid, email, "client", userId);
 
-      // âœ… BACKWARDS COMPATIBLE RESPONSE
+      // ✅ BACKWARDS COMPATIBLE RESPONSE
       res.status(201).json({
         success: true,
         message: "Client registered successfully",
@@ -118,7 +183,27 @@ router.post("/signup", validateClientSignup, async (req, res) => {
   }
 });
 
-// Client Login with Firebase
+/**
+ * Client Login with Firebase
+ * 
+ * Authenticates an existing client using Firebase ID token.
+ * Updates last login timestamp and returns JWT token.
+ * 
+ * @route POST /clients/login
+ * @group Authentication - Client authentication operations
+ * @param {string} email.body.required - Client email address
+ * @param {string} idToken.body.required - Firebase ID token
+ * @returns {object} 200 - Success response with token and client data
+ * @returns {object} 401 - Invalid credentials or token
+ * @returns {object} 500 - Server error
+ * 
+ * @example
+ * POST /clients/login
+ * {
+ *   "email": "john.doe@techcorp.com",
+ *   "idToken": "firebase-id-token..."
+ * }
+ */
 router.post("/login", validateClientLogin, async (req, res) => {
   try {
     const { email, idToken } = req.body;
@@ -137,7 +222,7 @@ router.post("/login", validateClientLogin, async (req, res) => {
 
     const uid = decodedToken.uid;
 
-    // âœ… NEW SCHEMA: Query users + user_profiles
+    // ✅ NEW SCHEMA: Query users + user_profiles
     const [users] = await db.query(
       `SELECT u.id, u.email, u.role, 
               p.first_name, p.last_name, p.full_name, p.organization_name
@@ -166,7 +251,7 @@ router.post("/login", validateClientLogin, async (req, res) => {
     // Generate JWT token
     const token = generateJWT(uid, email, "client", clientId);
 
-    // âœ… BACKWARDS COMPATIBLE RESPONSE
+    // ✅ BACKWARDS COMPATIBLE RESPONSE
     res.json({
       success: true,
       message: "Login successful",
@@ -192,7 +277,27 @@ router.post("/login", validateClientLogin, async (req, res) => {
 
 // ==================== CLIENT PROFILE ====================
 
-// Get client profile (PROTECTED)
+/**
+ * Get Client Profile
+ * 
+ * Retrieves profile information for a specific client.
+ * Clients can view their own profile, admins can view any profile.
+ * 
+ * @route GET /clients/:client_id
+ * @group Clients - Client management operations
+ * @security JWT
+ * @param {number} client_id.path.required - Client ID
+ * @param {string} authorization.header.required - Bearer token
+ * @returns {object} 200 - Success response with client data
+ * @returns {object} 400 - Invalid client ID format
+ * @returns {object} 403 - Unauthorized access
+ * @returns {object} 404 - Client not found
+ * @returns {object} 500 - Server error
+ * 
+ * @example
+ * GET /clients/42
+ * Authorization: Bearer <token>
+ */
 router.get("/:client_id", verifyToken, async (req, res) => {
   try {
     const { client_id } = req.params;
@@ -212,7 +317,7 @@ router.get("/:client_id", verifyToken, async (req, res) => {
       });
     }
 
-    // âœ… NEW SCHEMA: Query users + user_profiles
+    // ✅ NEW SCHEMA: Query users + user_profiles
     const [clients] = await db.query(
       `SELECT u.id, u.email, u.created_at,
               p.first_name, p.last_name, p.full_name, 
@@ -254,7 +359,38 @@ router.get("/:client_id", verifyToken, async (req, res) => {
   }
 });
 
-// Update client profile (PROTECTED)
+/**
+ * Update Client Profile
+ * 
+ * Updates client profile information including name, organization, and website.
+ * Supports both legacy (name) and new (first_name, last_name) formats.
+ * Only clients can update their own profile, or admins.
+ * 
+ * @route PUT /clients/:client_id
+ * @group Clients - Client management operations
+ * @security JWT
+ * @param {number} client_id.path.required - Client ID
+ * @param {string} name.body - Full name (legacy format)
+ * @param {string} first_name.body - First name (new format)
+ * @param {string} last_name.body - Last name (new format)
+ * @param {string} organization_name.body.required - Organization/company name
+ * @param {string} website.body - Organization website URL
+ * @param {string} authorization.header.required - Bearer token
+ * @returns {object} 200 - Success response
+ * @returns {object} 400 - Validation error
+ * @returns {object} 403 - Unauthorized access
+ * @returns {object} 404 - Client not found
+ * @returns {object} 500 - Server error
+ * 
+ * @example
+ * PUT /clients/42
+ * {
+ *   "first_name": "John",
+ *   "last_name": "Smith",
+ *   "organization_name": "TechCorp International",
+ *   "website": "https://techcorp-intl.com"
+ * }
+ */
 router.put("/:client_id", verifyToken, async (req, res) => {
   try {
     const { client_id } = req.params;
@@ -301,7 +437,7 @@ router.put("/:client_id", verifyToken, async (req, res) => {
       });
     }
 
-    // âœ… NEW SCHEMA: Update user_profiles table
+    // ✅ NEW SCHEMA: Update user_profiles table
     const [result] = await db.query(
       `UPDATE user_profiles 
        SET first_name = ?, last_name = ?, full_name = ?, 
@@ -330,7 +466,27 @@ router.put("/:client_id", verifyToken, async (req, res) => {
   }
 });
 
-// Delete client account (PROTECTED)
+/**
+ * Delete Client Account
+ * 
+ * Soft deletes a client account (sets deleted_at timestamp and status to inactive).
+ * Only clients can delete their own account, or admins.
+ * 
+ * @route DELETE /clients/:client_id
+ * @group Clients - Client management operations
+ * @security JWT
+ * @param {number} client_id.path.required - Client ID
+ * @param {string} authorization.header.required - Bearer token
+ * @returns {object} 200 - Success response
+ * @returns {object} 400 - Invalid client ID format
+ * @returns {object} 403 - Unauthorized access
+ * @returns {object} 404 - Client not found
+ * @returns {object} 500 - Server error
+ * 
+ * @example
+ * DELETE /clients/42
+ * Authorization: Bearer <token>
+ */
 router.delete("/:client_id", verifyToken, async (req, res) => {
   try {
     const { client_id } = req.params;
@@ -353,7 +509,7 @@ router.delete("/:client_id", verifyToken, async (req, res) => {
     const connection = await db.getConnection();
 
     try {
-      // âœ… NEW SCHEMA: Soft delete using deleted_at
+      // ✅ NEW SCHEMA: Soft delete using deleted_at
       const [result] = await connection.query(
         "UPDATE users SET deleted_at = NOW(), status = 'inactive' WHERE id = ? AND role = 'client'",
         [parseInt(client_id)]
@@ -387,7 +543,27 @@ router.delete("/:client_id", verifyToken, async (req, res) => {
 
 // ==================== CLIENT PROJECTS ====================
 
-// Get all projects for a specific client (PROTECTED)
+/**
+ * Get Client Projects
+ * 
+ * Retrieves all projects owned by a specific client with full details including
+ * approval status and instructor feedback.
+ * Protected route - clients can only view their own projects.
+ * 
+ * @route GET /clients/:client_id/projects
+ * @group Clients - Client project operations
+ * @security JWT
+ * @param {number} client_id.path.required - Client ID
+ * @param {string} authorization.header.required - Bearer token
+ * @returns {object} 200 - Success response with projects array
+ * @returns {object} 400 - Invalid client ID format
+ * @returns {object} 403 - Unauthorized access
+ * @returns {object} 500 - Server error
+ * 
+ * @example
+ * GET /clients/42/projects
+ * Authorization: Bearer <token>
+ */
 router.get("/:client_id/projects", verifyToken, async (req, res) => {
   try {
     const { client_id } = req.params;
@@ -446,7 +622,37 @@ router.get("/:client_id/projects", verifyToken, async (req, res) => {
   }
 });
 
-// Get project statistics for a client (PROTECTED)
+/**
+ * Get Client Statistics
+ * 
+ * Retrieves comprehensive statistics for a client including:
+ * - Project counts by approval status (pending, approved, rejected)
+ * - Student interest metrics (interested students, total preferences)
+ * 
+ * Protected route - clients can only view their own statistics.
+ * 
+ * @route GET /clients/:client_id/stats
+ * @group Clients - Client analytics operations
+ * @security JWT
+ * @param {number} client_id.path.required - Client ID
+ * @param {string} authorization.header.required - Bearer token
+ * @returns {object} 200 - Success response with statistics
+ * @returns {object} 200.data.projects - Project statistics
+ * @returns {number} 200.data.projects.total_projects - Total number of projects
+ * @returns {number} 200.data.projects.pending_projects - Projects pending approval
+ * @returns {number} 200.data.projects.approved_projects - Approved projects
+ * @returns {number} 200.data.projects.rejected_projects - Rejected projects
+ * @returns {object} 200.data.preferences - Student preference statistics
+ * @returns {number} 200.data.preferences.interested_students - Unique students interested
+ * @returns {number} 200.data.preferences.total_preferences - Total preference submissions
+ * @returns {object} 400 - Invalid client ID format
+ * @returns {object} 403 - Unauthorized access
+ * @returns {object} 500 - Server error
+ * 
+ * @example
+ * GET /clients/42/stats
+ * Authorization: Bearer <token>
+ */
 router.get("/:client_id/stats", verifyToken, async (req, res) => {
   try {
     const { client_id } = req.params;
@@ -513,8 +719,37 @@ router.get("/:client_id/stats", verifyToken, async (req, res) => {
 // ==================== GET TEAMS FOR CLIENT'S PROJECTS ====================
 
 /**
- * GET /clients/:client_id/teams
- * Get all student groups/teams assigned to this client's projects
+ * Get Client Teams
+ * 
+ * Retrieves all student groups/teams assigned to the client's projects.
+ * Includes group details, project information, and active member lists.
+ * Each team includes:
+ * - Group metadata (ID, name, number, status)
+ * - Associated project details
+ * - Complete member roster with roles and contact info
+ * 
+ * Protected route - clients can only view teams for their own projects.
+ * 
+ * @route GET /clients/:client_id/teams
+ * @group Clients - Client team operations
+ * @security JWT
+ * @param {number} client_id.path.required - Client ID
+ * @param {string} authorization.header.required - Bearer token
+ * @returns {object} 200 - Success response with teams array
+ * @returns {Array<Object>} 200.data - Array of team objects
+ * @returns {number} 200.data[].group_id - Group ID
+ * @returns {string} 200.data[].group_name - Group name
+ * @returns {number} 200.data[].group_number - Group number
+ * @returns {string} 200.data[].group_status - Group status
+ * @returns {number} 200.data[].project_id - Associated project ID
+ * @returns {string} 200.data[].project_title - Project title
+ * @returns {Array<Object>} 200.data[].members - Array of active group members
+ * @returns {number} 200.data[].member_count - Total number of members
+ * @returns {object} 500 - Server error
+ * 
+ * @example
+ * GET /clients/42/teams
+ * Authorization: Bearer <token>
  */
 router.get("/:client_id/teams", verifyToken, async (req, res) => {
   try {

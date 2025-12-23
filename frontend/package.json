@@ -7,7 +7,12 @@
     "dev": "vite",
     "build": "vite build",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "docs:generate": "jsdoc -c jsdoc.json",
+    "docs:view": "open docs/jsdoc/index.html",
+    "docs:rebuild": "rm -rf docs/jsdoc && npm run docs:generate",
+    "docs:clean": "rm -rf docs/jsdoc",
+    "docs:deploy": "npm run docs:generate && gh-pages -d docs/jsdoc"
   },
   "dependencies": {
     "@tailwindcss/vite": "^4.1.14",
@@ -28,7 +33,9 @@
     "eslint": "^9.36.0",
     "eslint-plugin-react-hooks": "^5.2.0",
     "eslint-plugin-react-refresh": "^0.4.22",
+    "gh-pages": "^6.3.0",
     "globals": "^16.4.0",
+    "jsdoc": "^4.0.5",
     "vite": "^7.1.7"
   }
 }

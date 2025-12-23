@@ -1,9 +1,57 @@
 import jwt from "jsonwebtoken";
 
 /**
+ * Authentication Middleware Module
+ * 
+ * Provides JWT token verification and role-based access control middleware
+ * for protecting API routes. Implements ownership verification to ensure users
+ * can only access their own resources.
+ * 
+ * Middleware Chain Order:
+ * 1. verifyToken - Always first to authenticate the user
+ * 2. verifyRole/verifyOwnership - Check permissions
+ * 3. Route handler - Process the request
+ * 
+ * @module middleware/authMiddleware
+ * @requires jsonwebtoken
+ */
+
+/**
  * Verify JWT Token Middleware
- * Checks for valid JWT token in Authorization header
- * Attaches decoded user info to req.user
+ * 
+ * Authenticates requests by validating JWT tokens in the Authorization header.
+ * Extracts and decodes user information from the token and attaches it to req.user
+ * for use in subsequent middleware and route handlers.
+ * 
+ * Token Format: "Bearer <JWT_TOKEN>"
+ * 
+ * Sets req.user with decoded token data:
+ * - uid: Firebase user ID
+ * - email: User email address
+ * - role: User role (client, student, instructor)
+ * - clientId: Numeric client ID (if role is client)
+ * - studentId: Numeric student ID (if role is student)
+ * - instructorId: Numeric instructor ID (if role is instructor)
+ * 
+ * @function verifyToken
+ * @param {Object} req - Express request object
+ * @param {Object} res - Express response object
+ * @param {Function} next - Express next middleware function
+ * @returns {void}
+ * 
+ * @example
+ * // Protect a route with authentication
+ * router.get('/profile', verifyToken, (req, res) => {
+ *   res.json({ user: req.user });
+ * });
+ * 
+ * @example
+ * // Client request with token
+ * fetch('/api/profile', {
+ *   headers: {
+ *     'Authorization': 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...'
+ *   }
+ * });
  */
 export const verifyToken = (req, res, next) => {
   try {
@@ -72,12 +120,39 @@ export const verifyToken = (req, res, next) => {
 };
 
 /**
- * Verify User Role Middleware
- * Checks if authenticated user has one of the allowed roles
- * Must be used after verifyToken middleware
+ * Verify User Role Middleware Factory
  * 
- * @param {array} allowedRoles - Array of allowed roles (e.g., ["client", "admin"])
- * @returns {function} Middleware function
+ * Creates middleware that checks if the authenticated user has one of the allowed roles.
+ * Returns a 403 Forbidden error if the user's role is not in the allowed list.
+ * Must be used after verifyToken middleware.
+ * 
+ * @function verifyRole
+ * @param {Array<string>} allowedRoles - Array of allowed roles (e.g., ["client", "admin"])
+ * @returns {Function} Express middleware function
+ * 
+ * @example
+ * // Allow only clients and admins
+ * router.post('/projects', 
+ *   verifyToken, 
+ *   verifyRole(['client', 'admin']), 
+ *   createProject
+ * );
+ * 
+ * @example
+ * // Single role restriction
+ * router.get('/admin/dashboard', 
+ *   verifyToken, 
+ *   verifyRole(['admin']), 
+ *   getAdminDashboard
+ * );
+ * 
+ * @example
+ * // Multiple roles allowed
+ * router.get('/projects', 
+ *   verifyToken, 
+ *   verifyRole(['student', 'instructor', 'client']), 
+ *   getAllProjects
+ * );
  */
 export const verifyRole = (allowedRoles) => {
   return (req, res, next) => {
@@ -112,10 +187,39 @@ export const verifyRole = (allowedRoles) => {
 
 /**
  * Verify Client Ownership Middleware
- * Ensures a client can only access their own resources
- * Must be used after verifyToken middleware
  * 
- * Usage: router.get("/:client_id", verifyToken, verifyClientOwnership, handler)
+ * Ensures that clients can only access their own resources by comparing
+ * the client ID from the route parameter with the client ID from the JWT token.
+ * Prevents unauthorized access to other clients' data.
+ * 
+ * Must be used after verifyToken middleware.
+ * Requires :client_id parameter in the route path.
+ * 
+ * @function verifyClientOwnership
+ * @param {Object} req - Express request object
+ * @param {Object} req.params - Route parameters
+ * @param {string} req.params.client_id - Client ID from URL parameter
+ * @param {Object} req.user - User object attached by verifyToken
+ * @param {number} req.user.clientId - Client ID from JWT token
+ * @param {Object} res - Express response object
+ * @param {Function} next - Express next middleware function
+ * @returns {void}
+ * 
+ * @example
+ * // Protect client-specific routes
+ * router.get('/clients/:client_id/projects', 
+ *   verifyToken, 
+ *   verifyClientOwnership, 
+ *   getClientProjects
+ * );
+ * 
+ * @example
+ * // Update client profile
+ * router.put('/clients/:client_id/profile', 
+ *   verifyToken, 
+ *   verifyClientOwnership, 
+ *   updateClientProfile
+ * );
  */
 export const verifyClientOwnership = (req, res, next) => {
   try {
@@ -149,10 +253,39 @@ export const verifyClientOwnership = (req, res, next) => {
 
 /**
  * Verify Student Ownership Middleware
- * Ensures a student can only access their own resources
- * Must be used after verifyToken middleware
  * 
- * Usage: router.get("/:student_id", verifyToken, verifyStudentOwnership, handler)
+ * Ensures that students can only access their own resources by comparing
+ * the student ID from the route parameter with the student ID from the JWT token.
+ * Prevents unauthorized access to other students' data.
+ * 
+ * Must be used after verifyToken middleware.
+ * Requires :student_id parameter in the route path.
+ * 
+ * @function verifyStudentOwnership
+ * @param {Object} req - Express request object
+ * @param {Object} req.params - Route parameters
+ * @param {string} req.params.student_id - Student ID from URL parameter
+ * @param {Object} req.user - User object attached by verifyToken
+ * @param {number} req.user.studentId - Student ID from JWT token
+ * @param {Object} res - Express response object
+ * @param {Function} next - Express next middleware function
+ * @returns {void}
+ * 
+ * @example
+ * // Protect student-specific routes
+ * router.get('/students/:student_id/preferences', 
+ *   verifyToken, 
+ *   verifyStudentOwnership, 
+ *   getStudentPreferences
+ * );
+ * 
+ * @example
+ * // Submit student preferences
+ * router.post('/students/:student_id/preferences', 
+ *   verifyToken, 
+ *   verifyStudentOwnership, 
+ *   submitPreferences
+ * );
  */
 export const verifyStudentOwnership = (req, res, next) => {
   try {
@@ -186,10 +319,39 @@ export const verifyStudentOwnership = (req, res, next) => {
 
 /**
  * Verify Instructor Ownership Middleware
- * Ensures an instructor can only access their own resources
- * Must be used after verifyToken middleware
  * 
- * Usage: router.get("/:instructor_id", verifyToken, verifyInstructorOwnership, handler)
+ * Ensures that instructors can only access their own resources by comparing
+ * the instructor ID from the route parameter with the instructor ID from the JWT token.
+ * Prevents unauthorized access to other instructors' data.
+ * 
+ * Must be used after verifyToken middleware.
+ * Requires :instructor_id parameter in the route path.
+ * 
+ * @function verifyInstructorOwnership
+ * @param {Object} req - Express request object
+ * @param {Object} req.params - Route parameters
+ * @param {string} req.params.instructor_id - Instructor ID from URL parameter
+ * @param {Object} req.user - User object attached by verifyToken
+ * @param {number} req.user.instructorId - Instructor ID from JWT token
+ * @param {Object} res - Express response object
+ * @param {Function} next - Express next middleware function
+ * @returns {void}
+ * 
+ * @example
+ * // Protect instructor-specific routes
+ * router.get('/instructors/:instructor_id/courses', 
+ *   verifyToken, 
+ *   verifyInstructorOwnership, 
+ *   getInstructorCourses
+ * );
+ * 
+ * @example
+ * // Update instructor profile
+ * router.put('/instructors/:instructor_id/profile', 
+ *   verifyToken, 
+ *   verifyInstructorOwnership, 
+ *   updateInstructorProfile
+ * );
  */
 export const verifyInstructorOwnership = (req, res, next) => {
   try {
@@ -223,10 +385,35 @@ export const verifyInstructorOwnership = (req, res, next) => {
 
 /**
  * Verify Client-Only Access Middleware
- * Ensures only clients can access the route
- * Must be used after verifyToken middleware
  * 
- * Usage: router.post("/", verifyToken, verifyClientOnly, handler)
+ * Restricts route access to only users with the "client" role.
+ * Returns 403 Forbidden if the authenticated user is not a client.
+ * 
+ * Must be used after verifyToken middleware.
+ * 
+ * @function verifyClientOnly
+ * @param {Object} req - Express request object
+ * @param {Object} req.user - User object attached by verifyToken
+ * @param {string} req.user.role - User's role
+ * @param {Object} res - Express response object
+ * @param {Function} next - Express next middleware function
+ * @returns {void}
+ * 
+ * @example
+ * // Create project (clients only)
+ * router.post('/projects', 
+ *   verifyToken, 
+ *   verifyClientOnly, 
+ *   createProject
+ * );
+ * 
+ * @example
+ * // View client dashboard
+ * router.get('/client/dashboard', 
+ *   verifyToken, 
+ *   verifyClientOnly, 
+ *   getClientDashboard
+ * );
  */
 export const verifyClientOnly = (req, res, next) => {
   try {
@@ -250,10 +437,35 @@ export const verifyClientOnly = (req, res, next) => {
 
 /**
  * Verify Student-Only Access Middleware
- * Ensures only students can access the route
- * Must be used after verifyToken middleware
  * 
- * Usage: router.post("/", verifyToken, verifyStudentOnly, handler)
+ * Restricts route access to only users with the "student" role.
+ * Returns 403 Forbidden if the authenticated user is not a student.
+ * 
+ * Must be used after verifyToken middleware.
+ * 
+ * @function verifyStudentOnly
+ * @param {Object} req - Express request object
+ * @param {Object} req.user - User object attached by verifyToken
+ * @param {string} req.user.role - User's role
+ * @param {Object} res - Express response object
+ * @param {Function} next - Express next middleware function
+ * @returns {void}
+ * 
+ * @example
+ * // Submit preferences (students only)
+ * router.post('/preferences', 
+ *   verifyToken, 
+ *   verifyStudentOnly, 
+ *   submitPreferences
+ * );
+ * 
+ * @example
+ * // View student dashboard
+ * router.get('/student/dashboard', 
+ *   verifyToken, 
+ *   verifyStudentOnly, 
+ *   getStudentDashboard
+ * );
  */
 export const verifyStudentOnly = (req, res, next) => {
   try {
@@ -277,10 +489,43 @@ export const verifyStudentOnly = (req, res, next) => {
 
 /**
  * Verify Instructor-Only Access Middleware
- * Ensures only instructors can access the route
- * Must be used after verifyToken middleware
  * 
- * Usage: router.post("/", verifyToken, verifyInstructorOnly, handler)
+ * Restricts route access to only users with the "instructor" role.
+ * Returns 403 Forbidden if the authenticated user is not an instructor.
+ * 
+ * Must be used after verifyToken middleware.
+ * 
+ * @function verifyInstructorOnly
+ * @param {Object} req - Express request object
+ * @param {Object} req.user - User object attached by verifyToken
+ * @param {string} req.user.role - User's role
+ * @param {Object} res - Express response object
+ * @param {Function} next - Express next middleware function
+ * @returns {void}
+ * 
+ * @example
+ * // Approve projects (instructors only)
+ * router.post('/projects/:id/approve', 
+ *   verifyToken, 
+ *   verifyInstructorOnly, 
+ *   approveProject
+ * );
+ * 
+ * @example
+ * // View instructor dashboard
+ * router.get('/instructor/dashboard', 
+ *   verifyToken, 
+ *   verifyInstructorOnly, 
+ *   getInstructorDashboard
+ * );
+ * 
+ * @example
+ * // Create groups (instructors only)
+ * router.post('/groups', 
+ *   verifyToken, 
+ *   verifyInstructorOnly, 
+ *   createGroup
+ * );
  */
 export const verifyInstructorOnly = (req, res, next) => {
   try {

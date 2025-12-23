@@ -1,10 +1,62 @@
 import { useMemo } from "react";
 
 /**
- * Custom hook to extract and manage student ID from localStorage
- * Handles both Firebase UID (string) and numeric ID formats
+ * Custom React hook to extract and manage student ID from localStorage
  * 
- * Returns the numeric student ID or null if not found/invalid
+ * Handles both Firebase UID (string) and numeric ID formats with robust
+ * extraction logic and multiple fallback strategies to ensure the correct
+ * numeric student ID is retrieved.
+ * 
+ * The hook checks in the following priority order:
+ * 1. Direct numeric `id` field
+ * 2. Explicit `numeric_id` field (when id is Firebase UID)
+ * 3. String-to-number conversion of `id` field
+ * 4. Fallback to `numeric_id` if main ID is a Firebase UID
+ * 
+ * Uses React's useMemo to prevent recalculation on every render,
+ * making it efficient for use in components that re-render frequently.
+ * 
+ * @hook
+ * @returns {number|null} Numeric student ID or null if not found/invalid
+ * 
+ * @example
+ * // Basic usage in student dashboard
+ * function StudentDashboard() {
+ *   const studentId = useStudentId();
+ *   
+ *   if (!studentId) {
+ *     return <div>Please log in as a student</div>;
+ *   }
+ *   
+ *   return <div>Welcome, Student #{studentId}</div>;
+ * }
+ * 
+ * @example
+ * // Using with other hooks
+ * function StudentPreferences() {
+ *   const studentId = useStudentId();
+ *   const { preferences, loading } = useStudentPreferences(studentId);
+ *   
+ *   if (!studentId) return <Navigate to="/login" />;
+ *   if (loading) return <Spinner />;
+ *   
+ *   return <PreferencesList preferences={preferences} />;
+ * }
+ * 
+ * @example
+ * // Conditional rendering based on student ID
+ * function ProtectedStudentRoute() {
+ *   const studentId = useStudentId();
+ *   
+ *   useEffect(() => {
+ *     if (!studentId) {
+ *       console.error('No valid student ID found');
+ *       // Redirect to login or show error
+ *     }
+ *   }, [studentId]);
+ *   
+ *   return studentId ? <Outlet /> : <LoginPrompt />;
+ * }
  */
 export const useStudentId = () => {
   return useMemo(() => {

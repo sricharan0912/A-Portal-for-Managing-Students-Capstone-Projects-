@@ -1,3 +1,30 @@
+/**
+ * Instructor Routes Module
+ * 
+ * Handles all instructor-related API endpoints including authentication, profile management,
+ * course settings, student management, group formation, and dashboard statistics.
+ * 
+ * Routes are organized by functionality:
+ * 1. Authentication (signup, login)
+ * 2. Settings Management (preference deadline, course configuration)
+ * 3. Student Management (add students, view all students)
+ * 4. Group Formation (auto-assign, preview, manual management)
+ * 5. Instructor Profile (CRUD operations)
+ * 6. Dashboard Statistics
+ * 
+ * IMPORTANT: Group-related routes MUST be defined BEFORE /:instructor_id routes
+ * to prevent Express from treating "groups" as an instructor ID parameter.
+ * 
+ * @module routes/instructorRoutes
+ * @requires express
+ * @requires jsonwebtoken
+ * @requires ../../db
+ * @requires ../../firebaseAdmin
+ * @requires ../middleware/authMiddleware
+ * @requires ../middleware/validateRequest
+ * @requires ./groupAlgorithmRoutes
+ */
+
 import express from "express";
 import jwt from "jsonwebtoken";
 import db from "../../db.js";
@@ -8,6 +35,22 @@ import { runGroupFormationAlgorithm } from "./groupAlgorithmRoutes.js";
 
 const router = express.Router();
 
+/**
+ * Generate JWT Token for Instructor
+ * 
+ * Creates a signed JWT token containing instructor authentication data.
+ * Token expires in 7 days.
+ * 
+ * @function generateJWT
+ * @param {string} uid - Firebase user ID
+ * @param {string} email - Instructor email address
+ * @param {string} role - User role (should be 'instructor')
+ * @param {number} instructorId - Numeric database instructor ID
+ * @returns {string} Signed JWT token
+ * 
+ * @example
+ * const token = generateJWT('firebase-uid-123', 'prof@university.edu', 'instructor', 42);
+ */
 const generateJWT = (uid, email, role, instructorId) => {
   return jwt.sign(
     { uid, email, role, instructorId },
@@ -16,7 +59,20 @@ const generateJWT = (uid, email, role, instructorId) => {
   );
 };
 
-// Generate a random temporary password
+/**
+ * Generate Temporary Password
+ * 
+ * Creates a random temporary password for student accounts.
+ * Uses alphanumeric characters excluding ambiguous ones (0, O, I, l).
+ * 
+ * @function generateTempPassword
+ * @param {number} length - Password length (default: 10)
+ * @returns {string} Random temporary password
+ * 
+ * @example
+ * const tempPass = generateTempPassword(12);
+ * // Returns something like: "aB3xK9mPqR2w"
+ */
 function generateTempPassword(length = 10) {
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789';
   let password = '';
@@ -28,7 +84,32 @@ function generateTempPassword(length = 10) {
 
 // ==================== AUTHENTICATION ====================
 
-// Instructor Signup with Firebase
+/**
+ * Instructor Signup with Firebase
+ * 
+ * Registers a new instructor account with Firebase authentication.
+ * Creates entries in both users and user_profiles tables.
+ * 
+ * @route POST /instructors/signup
+ * @group Authentication - Instructor authentication operations
+ * @param {string} email.body.required - Instructor email address
+ * @param {string} first_name.body.required - Instructor first name
+ * @param {string} last_name.body.required - Instructor last name
+ * @param {string} idToken.body.required - Firebase ID token
+ * @returns {object} 201 - Success response with token and instructor data
+ * @returns {object} 400 - Email already registered
+ * @returns {object} 401 - Invalid Firebase token
+ * @returns {object} 500 - Server error
+ * 
+ * @example
+ * POST /instructors/signup
+ * {
+ *   "email": "prof.smith@university.edu",
+ *   "first_name": "Jane",
+ *   "last_name": "Smith",
+ *   "idToken": "firebase-id-token..."
+ * }
+ */
 router.post("/signup", validateInstructorSignup, async (req, res) => {
   try {
     const { email, first_name, last_name, idToken } = req.body;
@@ -110,7 +191,27 @@ router.post("/signup", validateInstructorSignup, async (req, res) => {
   }
 });
 
-// Instructor Login with Firebase
+/**
+ * Instructor Login with Firebase
+ * 
+ * Authenticates an existing instructor using Firebase ID token.
+ * Updates last login timestamp and returns JWT token.
+ * 
+ * @route POST /instructors/login
+ * @group Authentication - Instructor authentication operations
+ * @param {string} email.body.required - Instructor email address
+ * @param {string} idToken.body.required - Firebase ID token
+ * @returns {object} 200 - Success response with token and instructor data
+ * @returns {object} 401 - Invalid credentials or token
+ * @returns {object} 500 - Server error
+ * 
+ * @example
+ * POST /instructors/login
+ * {
+ *   "email": "prof.smith@university.edu",
+ *   "idToken": "firebase-id-token..."
+ * }
+ */
 router.post("/login", validateInstructorLogin, async (req, res) => {
   try {
     const { email, idToken } = req.body;
@@ -177,7 +278,24 @@ router.post("/login", validateInstructorLogin, async (req, res) => {
 
 // ==================== SETTINGS ====================
 
-// Get all settings (PROTECTED - instructors only)
+/**
+ * Get All Settings
+ * 
+ * Retrieves all application settings from the app_settings table.
+ * Protected route - only instructors and admins can access.
+ * 
+ * @route GET /instructors/settings/all
+ * @group Settings - Course configuration operations
+ * @security JWT
+ * @param {string} authorization.header.required - Bearer token
+ * @returns {object} 200 - Success response with settings object
+ * @returns {object} 403 - Unauthorized access
+ * @returns {object} 500 - Server error
+ * 
+ * @example
+ * GET /instructors/settings/all
+ * Authorization: Bearer <token>
+ */
 router.get("/settings/all", verifyToken, async (req, res) => {
   try {
     if (req.user.role !== "instructor" && req.user.role !== "admin") {
@@ -214,7 +332,21 @@ router.get("/settings/all", verifyToken, async (req, res) => {
   }
 });
 
-// Get preference deadline (PUBLIC - students need this)
+/**
+ * Get Preference Deadline
+ * 
+ * Retrieves the student preference submission deadline.
+ * Public route - students need this to check if they can still submit preferences.
+ * 
+ * @route GET /instructors/settings/preference-deadline
+ * @group Settings - Course configuration operations
+ * @returns {object} 200 - Success response with deadline value
+ * @returns {object} 500 - Server error
+ * 
+ * @example
+ * GET /instructors/settings/preference-deadline
+ * Response: { "success": true, "data": { "deadline": "2025-01-15T23:59:59Z" } }
+ */
 router.get("/settings/preference-deadline", async (req, res) => {
   try {
     const [settings] = await db.query(
@@ -236,7 +368,30 @@ router.get("/settings/preference-deadline", async (req, res) => {
   }
 });
 
-// Update a setting (PROTECTED - instructors only)
+/**
+ * Update Setting
+ * 
+ * Updates a specific application setting.
+ * Protected route - only instructors and admins can modify settings.
+ * Currently supports: preference_deadline
+ * 
+ * @route PUT /instructors/settings/:key
+ * @group Settings - Course configuration operations
+ * @security JWT
+ * @param {string} key.path.required - Setting key (e.g., "preference_deadline")
+ * @param {string} value.body.required - New setting value
+ * @param {string} authorization.header.required - Bearer token
+ * @returns {object} 200 - Success response
+ * @returns {object} 400 - Invalid setting key or value format
+ * @returns {object} 403 - Unauthorized access
+ * @returns {object} 500 - Server error
+ * 
+ * @example
+ * PUT /instructors/settings/preference_deadline
+ * {
+ *   "value": "2025-01-15T23:59:59Z"
+ * }
+ */
 router.put("/settings/:key", verifyToken, async (req, res) => {
   try {
     const { key } = req.params;
@@ -297,7 +452,34 @@ router.put("/settings/:key", verifyToken, async (req, res) => {
 
 // ==================== ADD STUDENT (INSTRUCTOR) ====================
 
-// Add student with temporary password (PROTECTED - Instructor only)
+/**
+ * Add Student with Temporary Password
+ * 
+ * Allows instructors to manually add students to the system.
+ * Creates a Firebase account with a temporary password and database entries.
+ * Protected route - only instructors and admins can add students.
+ * 
+ * @route POST /instructors/add-student
+ * @group Student Management - Student administration operations
+ * @security JWT
+ * @param {string} first_name.body.required - Student first name
+ * @param {string} last_name.body.required - Student last name
+ * @param {string} email.body.required - Student email address
+ * @param {string} authorization.header.required - Bearer token
+ * @returns {object} 201 - Success response with student data and temporary password
+ * @returns {object} 400 - Validation error or email already exists
+ * @returns {object} 403 - Access denied (not instructor)
+ * @returns {object} 500 - Server error
+ * 
+ * @example
+ * POST /instructors/add-student
+ * {
+ *   "first_name": "John",
+ *   "last_name": "Doe",
+ *   "email": "john.doe@university.edu"
+ * }
+ * Response includes tempPassword that should be shared with the student
+ */
 router.post("/add-student", verifyToken, async (req, res) => {
   try {
     // Verify instructor role
@@ -431,7 +613,24 @@ router.post("/add-student", verifyToken, async (req, res) => {
 // NOTE: These routes MUST be defined BEFORE /:instructor_id routes
 // to prevent Express from treating "groups" as an instructor ID
 
-// Get all unassigned students (students not in any group)
+/**
+ * Get Unassigned Students
+ * 
+ * Retrieves all students who are not currently assigned to any group.
+ * Protected route - only instructors and admins can access.
+ * 
+ * @route GET /instructors/unassigned-students
+ * @group Group Formation - Group management operations
+ * @security JWT
+ * @param {string} authorization.header.required - Bearer token
+ * @returns {object} 200 - Success response with unassigned students array
+ * @returns {object} 403 - Access denied
+ * @returns {object} 500 - Server error
+ * 
+ * @example
+ * GET /instructors/unassigned-students
+ * Authorization: Bearer <token>
+ */
 router.get("/unassigned-students", verifyToken, async (req, res) => {
   try {
     if (req.user.role !== "instructor" && req.user.role !== "admin") {
@@ -475,7 +674,25 @@ router.get("/unassigned-students", verifyToken, async (req, res) => {
   }
 });
 
-// Get all students with group assignment status (for Create Group modal)
+/**
+ * Get All Students with Group Status
+ * 
+ * Retrieves all students with their current group assignment status.
+ * Used for manual group creation and management.
+ * Protected route - only instructors and admins can access.
+ * 
+ * @route GET /instructors/all-students
+ * @group Student Management - Student administration operations
+ * @security JWT
+ * @param {string} authorization.header.required - Bearer token
+ * @returns {object} 200 - Success response with students array including group_id
+ * @returns {object} 403 - Access denied
+ * @returns {object} 500 - Server error
+ * 
+ * @example
+ * GET /instructors/all-students
+ * Authorization: Bearer <token>
+ */
 router.get("/all-students", verifyToken, async (req, res) => {
   try {
     if (req.user.role !== "instructor" && req.user.role !== "admin") {
@@ -520,7 +737,25 @@ router.get("/all-students", verifyToken, async (req, res) => {
   }
 });
 
-// Get all groups with members (PROTECTED - Instructor only)
+/**
+ * Get All Groups
+ * 
+ * Retrieves all student groups with their members and project assignments.
+ * Includes preference rank information for each member.
+ * Protected route - only instructors and admins can access.
+ * 
+ * @route GET /instructors/groups
+ * @group Group Formation - Group management operations
+ * @security JWT
+ * @param {string} authorization.header.required - Bearer token
+ * @returns {object} 200 - Success response with groups array
+ * @returns {object} 403 - Access denied
+ * @returns {object} 500 - Server error
+ * 
+ * @example
+ * GET /instructors/groups
+ * Authorization: Bearer <token>
+ */
 router.get("/groups", verifyToken, async (req, res) => {
   try {
     // Verify instructor role
@@ -583,7 +818,27 @@ router.get("/groups", verifyToken, async (req, res) => {
   }
 });
 
-// Run group formation algorithm (PROTECTED - Instructor only)
+/**
+ * Auto-Assign Groups (Run Algorithm)
+ * 
+ * Executes the group formation algorithm to automatically assign students to projects.
+ * Clears existing groups and creates new assignments based on student preferences.
+ * Uses the greedy optimization algorithm from groupFormationAlgorithm module.
+ * Protected route - only instructors and admins can execute.
+ * 
+ * @route POST /instructors/auto-assign-groups
+ * @group Group Formation - Group management operations
+ * @security JWT
+ * @param {string} authorization.header.required - Bearer token
+ * @returns {object} 200 - Success response with algorithm results and statistics
+ * @returns {object} 400 - No approved projects or validation error
+ * @returns {object} 403 - Access denied
+ * @returns {object} 500 - Server error
+ * 
+ * @example
+ * POST /instructors/auto-assign-groups
+ * Authorization: Bearer <token>
+ */
 router.post("/auto-assign-groups", verifyToken, async (req, res) => {
   try {
     // Verify instructor role
@@ -701,7 +956,26 @@ router.post("/auto-assign-groups", verifyToken, async (req, res) => {
   }
 });
 
-// Preview group formation without saving (PROTECTED - Instructor only)
+/**
+ * Preview Group Formation
+ * 
+ * Runs the group formation algorithm without saving results to the database.
+ * Allows instructors to preview assignments before committing.
+ * Protected route - only instructors and admins can execute.
+ * 
+ * @route POST /instructors/preview-groups
+ * @group Group Formation - Group management operations
+ * @security JWT
+ * @param {string} authorization.header.required - Bearer token
+ * @returns {object} 200 - Success response with preview results and statistics
+ * @returns {object} 400 - No approved projects available
+ * @returns {object} 403 - Access denied
+ * @returns {object} 500 - Server error
+ * 
+ * @example
+ * POST /instructors/preview-groups
+ * Authorization: Bearer <token>
+ */
 router.post("/preview-groups", verifyToken, async (req, res) => {
   try {
     if (req.user.role !== "instructor" && req.user.role !== "admin") {
@@ -775,7 +1049,25 @@ router.post("/preview-groups", verifyToken, async (req, res) => {
   }
 });
 
-// Clear all groups (PROTECTED - Instructor only)
+/**
+ * Clear All Groups
+ * 
+ * Deletes all student groups and group memberships from the database.
+ * Uses transaction to ensure data integrity.
+ * Protected route - only instructors and admins can execute.
+ * 
+ * @route DELETE /instructors/groups
+ * @group Group Formation - Group management operations
+ * @security JWT
+ * @param {string} authorization.header.required - Bearer token
+ * @returns {object} 200 - Success response
+ * @returns {object} 403 - Access denied
+ * @returns {object} 500 - Server error
+ * 
+ * @example
+ * DELETE /instructors/groups
+ * Authorization: Bearer <token>
+ */
 router.delete("/groups", verifyToken, async (req, res) => {
   try {
     if (req.user.role !== "instructor" && req.user.role !== "admin") {
@@ -811,7 +1103,27 @@ router.delete("/groups", verifyToken, async (req, res) => {
   }
 });
 
-// Get a specific group by ID (PROTECTED - Instructor only)
+/**
+ * Get Specific Group by ID
+ * 
+ * Retrieves detailed information for a specific group including members,
+ * project details, and student preference ranks.
+ * Protected route - only instructors and admins can access.
+ * 
+ * @route GET /instructors/groups/:group_id
+ * @group Group Formation - Group management operations
+ * @security JWT
+ * @param {number} group_id.path.required - Group ID
+ * @param {string} authorization.header.required - Bearer token
+ * @returns {object} 200 - Success response with group details and members
+ * @returns {object} 403 - Access denied
+ * @returns {object} 404 - Group not found
+ * @returns {object} 500 - Server error
+ * 
+ * @example
+ * GET /instructors/groups/5
+ * Authorization: Bearer <token>
+ */
 router.get("/groups/:group_id", verifyToken, async (req, res) => {
   try {
     const { group_id } = req.params;
@@ -881,7 +1193,28 @@ router.get("/groups/:group_id", verifyToken, async (req, res) => {
 
 // ==================== INSTRUCTOR PROFILE ====================
 
-// Remove student from a group (PROTECTED - Instructor only)
+/**
+ * Remove Student from Group
+ * 
+ * Removes a specific student from a group.
+ * Protected route - only instructors and admins can execute.
+ * 
+ * @route DELETE /instructors/groups/:group_id/members/:student_id
+ * @group Group Formation - Group management operations
+ * @security JWT
+ * @param {number} group_id.path.required - Group ID
+ * @param {number} student_id.path.required - Student ID
+ * @param {string} authorization.header.required - Bearer token
+ * @returns {object} 200 - Success response with remaining member count
+ * @returns {object} 400 - Invalid ID format
+ * @returns {object} 403 - Access denied
+ * @returns {object} 404 - Student not in group
+ * @returns {object} 500 - Server error
+ * 
+ * @example
+ * DELETE /instructors/groups/5/members/42
+ * Authorization: Bearer <token>
+ */
 router.delete("/groups/:group_id/members/:student_id", verifyToken, async (req, res) => {
   try {
     const { group_id, student_id } = req.params;
@@ -945,7 +1278,31 @@ router.delete("/groups/:group_id/members/:student_id", verifyToken, async (req, 
   }
 });
 
-// Add student to a group (PROTECTED - Instructor only)
+/**
+ * Add Student to Group
+ * 
+ * Manually adds a student to a specific group.
+ * Validates that student exists and is not already in another group.
+ * Protected route - only instructors and admins can execute.
+ * 
+ * @route POST /instructors/groups/:group_id/members
+ * @group Group Formation - Group management operations
+ * @security JWT
+ * @param {number} group_id.path.required - Group ID
+ * @param {number} student_id.body.required - Student ID to add
+ * @param {string} authorization.header.required - Bearer token
+ * @returns {object} 201 - Success response
+ * @returns {object} 400 - Invalid ID format or student already in a group
+ * @returns {object} 403 - Access denied
+ * @returns {object} 404 - Student or group not found
+ * @returns {object} 500 - Server error
+ * 
+ * @example
+ * POST /instructors/groups/5/members
+ * {
+ *   "student_id": 42
+ * }
+ */
 router.post("/groups/:group_id/members", verifyToken, async (req, res) => {
   try {
     const { group_id } = req.params;
@@ -1029,7 +1386,27 @@ router.post("/groups/:group_id/members", verifyToken, async (req, res) => {
   }
 });
 
-// Get instructor profile (PROTECTED)
+/**
+ * Get Instructor Profile
+ * 
+ * Retrieves profile information for a specific instructor.
+ * Instructors can view their own profile, admins can view any profile.
+ * 
+ * @route GET /instructors/:instructor_id
+ * @group Instructors - Instructor management operations
+ * @security JWT
+ * @param {number} instructor_id.path.required - Instructor ID
+ * @param {string} authorization.header.required - Bearer token
+ * @returns {object} 200 - Success response with instructor data
+ * @returns {object} 400 - Invalid instructor ID format
+ * @returns {object} 403 - Unauthorized access
+ * @returns {object} 404 - Instructor not found
+ * @returns {object} 500 - Server error
+ * 
+ * @example
+ * GET /instructors/42
+ * Authorization: Bearer <token>
+ */
 router.get("/:instructor_id", verifyToken, async (req, res) => {
   try {
     const { instructor_id } = req.params;
@@ -1086,7 +1463,36 @@ router.get("/:instructor_id", verifyToken, async (req, res) => {
   }
 });
 
-// Update instructor profile (PROTECTED)
+/**
+ * Update Instructor Profile
+ * 
+ * Updates instructor profile information including name, email, and department.
+ * Only instructors can update their own profile, or admins.
+ * 
+ * @route PUT /instructors/:instructor_id
+ * @group Instructors - Instructor management operations
+ * @security JWT
+ * @param {number} instructor_id.path.required - Instructor ID
+ * @param {string} first_name.body.required - Updated first name
+ * @param {string} last_name.body.required - Updated last name
+ * @param {string} email.body.required - Updated email address
+ * @param {string} department.body - Updated department
+ * @param {string} authorization.header.required - Bearer token
+ * @returns {object} 200 - Success response
+ * @returns {object} 400 - Validation error or email already in use
+ * @returns {object} 403 - Unauthorized access
+ * @returns {object} 404 - Instructor not found
+ * @returns {object} 500 - Server error
+ * 
+ * @example
+ * PUT /instructors/42
+ * {
+ *   "first_name": "Jane",
+ *   "last_name": "Smith",
+ *   "email": "jane.smith@university.edu",
+ *   "department": "Computer Science"
+ * }
+ */
 router.put("/:instructor_id", verifyToken, async (req, res) => {
   try {
     const { instructor_id } = req.params;
@@ -1165,7 +1571,27 @@ router.put("/:instructor_id", verifyToken, async (req, res) => {
   }
 });
 
-// Delete instructor account (PROTECTED)
+/**
+ * Delete Instructor Account
+ * 
+ * Soft deletes an instructor account (sets deleted_at timestamp and status to inactive).
+ * Only instructors can delete their own account, or admins.
+ * 
+ * @route DELETE /instructors/:instructor_id
+ * @group Instructors - Instructor management operations
+ * @security JWT
+ * @param {number} instructor_id.path.required - Instructor ID
+ * @param {string} authorization.header.required - Bearer token
+ * @returns {object} 200 - Success response
+ * @returns {object} 400 - Invalid instructor ID format
+ * @returns {object} 403 - Unauthorized access
+ * @returns {object} 404 - Instructor not found
+ * @returns {object} 500 - Server error
+ * 
+ * @example
+ * DELETE /instructors/42
+ * Authorization: Bearer <token>
+ */
 router.delete("/:instructor_id", verifyToken, async (req, res) => {
   try {
     const { instructor_id } = req.params;
@@ -1211,7 +1637,39 @@ router.delete("/:instructor_id", verifyToken, async (req, res) => {
 
 // ==================== INSTRUCTOR DASHBOARD ====================
 
-// Get instructor dashboard statistics (PROTECTED)
+/**
+ * Get Instructor Dashboard Statistics
+ * 
+ * Retrieves comprehensive statistics for the instructor dashboard including:
+ * - Total student count
+ * - Project counts by approval status
+ * - Total group count
+ * 
+ * Protected route - instructors can view their own stats, admins can view any.
+ * 
+ * @route GET /instructors/:instructor_id/stats
+ * @group Instructors - Instructor dashboard operations
+ * @security JWT
+ * @param {number} instructor_id.path.required - Instructor ID
+ * @param {string} authorization.header.required - Bearer token
+ * @returns {object} 200 - Success response with dashboard statistics
+ * @returns {object} 200.data.students - Student statistics
+ * @returns {number} 200.data.students.total_students - Total active students
+ * @returns {object} 200.data.projects - Project statistics
+ * @returns {number} 200.data.projects.total_projects - Total projects
+ * @returns {number} 200.data.projects.pending_projects - Projects pending approval
+ * @returns {number} 200.data.projects.approved_projects - Approved projects
+ * @returns {number} 200.data.projects.rejected_projects - Rejected projects
+ * @returns {object} 200.data.groups - Group statistics
+ * @returns {number} 200.data.groups.total_groups - Total active groups
+ * @returns {object} 400 - Invalid instructor ID format
+ * @returns {object} 403 - Unauthorized access
+ * @returns {object} 500 - Server error
+ * 
+ * @example
+ * GET /instructors/42/stats
+ * Authorization: Bearer <token>
+ */
 router.get("/:instructor_id/stats", verifyToken, async (req, res) => {
   try {
     const { instructor_id } = req.params;
@@ -1273,7 +1731,22 @@ router.get("/:instructor_id/stats", verifyToken, async (req, res) => {
 
 // ==================== INSTRUCTOR PROJECT DETAILS ====================
 
-// Get a single project by ID (for instructor "View Details")
+/**
+ * Get Project by ID
+ * 
+ * Retrieves detailed information for a specific project including client details.
+ * Used by instructors to view project details.
+ * 
+ * @route GET /instructors/projects/:id
+ * @group Projects - Project viewing operations
+ * @param {number} id.path.required - Project ID
+ * @returns {object} 200 - Success response with project data and client info
+ * @returns {object} 404 - Project not found
+ * @returns {object} 500 - Server error
+ * 
+ * @example
+ * GET /instructors/projects/42
+ */
 router.get("/projects/:id", async (req, res) => {
   try {
     const { id } = req.params;

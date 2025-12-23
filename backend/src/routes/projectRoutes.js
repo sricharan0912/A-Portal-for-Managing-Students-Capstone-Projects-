@@ -1,14 +1,55 @@
+/**
+ * Project Routes Module
+ * 
+ * Handles all project-related API endpoints including project CRUD operations,
+ * approval workflows, preference management, and project browsing.
+ * 
+ * Routes are organized by functionality:
+ * 1. Project Listing (public/authenticated browsing)
+ * 2. Project Creation (client only)
+ * 3. Project Update (client only)
+ * 4. Project Delete (client only)
+ * 5. Project Details & Preferences (client only)
+ * 6. Instructor Approval (instructor only)
+ * 
+ * @module routes/projectRoutes
+ * @requires express
+ * @requires ../../db
+ * @requires ../middleware/authMiddleware
+ */
+
 import express from "express";
 import db from "../../db.js";
 import { verifyToken, verifyRole } from "../middleware/authMiddleware.js";
-console.log("âœ… projectRoutes.js is loading");
+console.log("✅ projectRoutes.js is loading");
 const router = express.Router();
 
 // ==================== PROJECT LISTING ====================
 
-// Get all available projects
-// - PUBLIC/NO AUTH: Returns only 'open' projects (for students to browse)
-// - INSTRUCTOR/ADMIN: Returns ALL projects regardless of status
+/**
+ * Get All Projects
+ * 
+ * Returns projects based on user authentication and role.
+ * - PUBLIC/UNAUTHENTICATED: Returns only approved projects
+ * - STUDENTS: Returns only approved projects
+ * - INSTRUCTORS/ADMINS: Returns ALL projects with client information
+ * 
+ * @route GET /projects
+ * @group Projects - Project browsing and management
+ * @returns {object} 200 - Success response with projects array
+ * @returns {object} 500 - Server error
+ * 
+ * @example
+ * // Public access (unauthenticated)
+ * GET /projects
+ * Response: { "success": true, "data": [approved projects only] }
+ * 
+ * @example
+ * // Instructor access (with JWT token)
+ * GET /projects
+ * Authorization: Bearer <token>
+ * Response: { "success": true, "data": [all projects with client info] }
+ */
 router.get("/", async (req, res) => {
   try {
     // Check if user is authenticated and their role
@@ -101,7 +142,26 @@ router.get("/", async (req, res) => {
   }
 });
 
-// Get projects by client ID (PROTECTED - client only)
+/**
+ * Get Projects by Client ID
+ * 
+ * Retrieves all projects owned by a specific client.
+ * Protected route - clients can only view their own projects.
+ * 
+ * @route GET /projects/client/:client_id
+ * @group Projects - Project browsing and management
+ * @security JWT
+ * @param {number} client_id.path.required - Client ID
+ * @param {string} authorization.header.required - Bearer token
+ * @returns {object} 200 - Success response with client's projects
+ * @returns {object} 400 - Invalid client ID format
+ * @returns {object} 403 - Unauthorized access
+ * @returns {object} 500 - Server error
+ * 
+ * @example
+ * GET /projects/client/5
+ * Authorization: Bearer <token>
+ */
 router.get("/client/:client_id", verifyToken, async (req, res) => {
   try {
     const { client_id } = req.params;
@@ -159,7 +219,22 @@ router.get("/client/:client_id", verifyToken, async (req, res) => {
   }
 });
 
-// Get single project by ID (PUBLIC)
+/**
+ * Get Single Project by ID
+ * 
+ * Retrieves detailed information for a specific project.
+ * Public route - no authentication required.
+ * 
+ * @route GET /projects/:project_id
+ * @group Projects - Project browsing and management
+ * @param {number} project_id.path.required - Project ID
+ * @returns {object} 200 - Success response with project data
+ * @returns {object} 404 - Project not found
+ * @returns {object} 500 - Server error
+ * 
+ * @example
+ * GET /projects/42
+ */
 router.get("/:project_id", async (req, res) => {
   try {
     const { project_id } = req.params;
@@ -206,7 +281,22 @@ router.get("/:project_id", async (req, res) => {
   }
 });
 
-// Get projects by category (PUBLIC)
+/**
+ * Get Projects by Category
+ * 
+ * Retrieves all approved projects in a specific category.
+ * Public route - no authentication required.
+ * 
+ * @route GET /projects/category/:category
+ * @group Projects - Project browsing and management
+ * @param {string} category.path.required - Project category
+ * @returns {object} 200 - Success response with filtered projects
+ * @returns {object} 400 - Category is required
+ * @returns {object} 500 - Server error
+ * 
+ * @example
+ * GET /projects/category/Web Development
+ */
 router.get("/category/:category", async (req, res) => {
   try {
     const { category } = req.params;
@@ -254,7 +344,22 @@ router.get("/category/:category", async (req, res) => {
   }
 });
 
-// Get projects by complexity level (PUBLIC)
+/**
+ * Get Projects by Complexity Level
+ * 
+ * Retrieves all approved projects filtered by difficulty level.
+ * Public route - no authentication required.
+ * 
+ * @route GET /projects/complexity/:complexity
+ * @group Projects - Project browsing and management
+ * @param {string} complexity.path.required - Complexity level (Beginner, Intermediate, or Advanced)
+ * @returns {object} 200 - Success response with filtered projects
+ * @returns {object} 400 - Invalid complexity level
+ * @returns {object} 500 - Server error
+ * 
+ * @example
+ * GET /projects/complexity/Intermediate
+ */
 router.get("/complexity/:complexity", async (req, res) => {
   try {
     const { complexity } = req.params;
@@ -303,7 +408,23 @@ router.get("/complexity/:complexity", async (req, res) => {
   }
 });
 
-// Search projects by keyword (PUBLIC)
+/**
+ * Search Projects by Keyword
+ * 
+ * Searches projects by keyword in title, description, or required skills.
+ * Returns only projects with status 'open'.
+ * Public route - no authentication required.
+ * 
+ * @route GET /projects/search
+ * @group Projects - Project browsing and management
+ * @param {string} keyword.query.required - Search keyword
+ * @returns {object} 200 - Success response with matching projects
+ * @returns {object} 400 - Keyword is required
+ * @returns {object} 500 - Server error
+ * 
+ * @example
+ * GET /projects/search?keyword=machine learning
+ */
 router.get("/search", async (req, res) => {
   try {
     const { keyword } = req.query;
@@ -356,7 +477,47 @@ router.get("/search", async (req, res) => {
 
 // ==================== PROJECT CREATION (CLIENT ONLY) ====================
 
-// Create new project (PROTECTED - client only)
+/**
+ * Create New Project
+ * 
+ * Creates a new project proposal submitted by a client.
+ * Converts skills_required and deliverables to JSON arrays.
+ * Generates a unique slug from the title.
+ * Sets initial status to 'open' and approval_status to 'pending'.
+ * 
+ * @route POST /projects
+ * @group Projects - Project CRUD operations
+ * @security JWT
+ * @param {string} title.body.required - Project title
+ * @param {string} description.body.required - Project description
+ * @param {string|Array} skills_required.body.required - Required skills (comma-separated or array)
+ * @param {string} category.body - Project category
+ * @param {number} team_size.body - Maximum team size
+ * @param {string} start_date.body - Project start date (ISO format)
+ * @param {string} end_date.body - Project end date (ISO format)
+ * @param {string} complexity_level.body - Difficulty level (Beginner/Intermediate/Advanced)
+ * @param {string|Array} deliverables.body - Project deliverables (comma-separated or array)
+ * @param {string} project_location.body - Project location
+ * @param {string} industry.body - Industry category
+ * @param {number} client_id.body - Client ID (optional, defaults to token client ID)
+ * @param {string} authorization.header.required - Bearer token
+ * @returns {object} 201 - Success response with created project data
+ * @returns {object} 400 - Validation error
+ * @returns {object} 403 - Only clients can create projects
+ * @returns {object} 404 - Client not found
+ * @returns {object} 500 - Server error
+ * 
+ * @example
+ * POST /projects
+ * {
+ *   "title": "E-commerce Platform",
+ *   "description": "Build a modern e-commerce platform",
+ *   "skills_required": "React, Node.js, MongoDB",
+ *   "category": "Web Development",
+ *   "team_size": 4,
+ *   "complexity_level": "Advanced"
+ * }
+ */
 router.post("/", verifyToken, async (req, res) => {
   try {
     const { 
@@ -397,7 +558,7 @@ router.post("/", verifyToken, async (req, res) => {
       });
     }
 
-    // âœ… CONVERT SKILLS_REQUIRED TO JSON ARRAY
+    // ✅ CONVERT SKILLS_REQUIRED TO JSON ARRAY
     let skillsJson;
     if (typeof skills_required === 'string') {
       // Split by commas if it's a comma-separated string
@@ -409,7 +570,7 @@ router.post("/", verifyToken, async (req, res) => {
       skillsJson = JSON.stringify([skills_required]);
     }
 
-    // âœ… CONVERT DELIVERABLES TO JSON ARRAY
+    // ✅ CONVERT DELIVERABLES TO JSON ARRAY
     let deliverablesJson = null;
     if (deliverables) {
       if (typeof deliverables === 'string') {
@@ -423,14 +584,14 @@ router.post("/", verifyToken, async (req, res) => {
       }
     }
 
-    // âœ… GENERATE SLUG FROM TITLE (required unique field)
+    // ✅ GENERATE SLUG FROM TITLE (required unique field)
     const slug = title
       .toLowerCase()
       .replace(/[^a-z0-9]+/g, '-')
       .replace(/^-+|-+$/g, '')
       + '-' + Date.now();
 
-    // âœ… NEW SCHEMA: Insert with JSON values and slug
+    // ✅ NEW SCHEMA: Insert with JSON values and slug
     const [result] = await db.query(
       `INSERT INTO projects 
        (owner_id, title, slug, description, required_skills, category, 
@@ -440,15 +601,15 @@ router.post("/", verifyToken, async (req, res) => {
       [
         finalClientId,
         title,
-        slug,                         // âœ… Added slug (required)
+        slug,                         // ✅ Added slug (required)
         description,
-        skillsJson,                   // âœ… JSON string
+        skillsJson,                   // ✅ JSON string
         category || null,
         team_size || null,
         start_date || null,
         end_date || null,
-        complexity_level || 'intermediate',  // âœ… Default value
-        deliverablesJson,             // âœ… JSON string or null
+        complexity_level || 'intermediate',  // ✅ Default value
+        deliverablesJson,             // ✅ JSON string or null
         project_location || null,
         industry || null,
       ]
@@ -465,7 +626,7 @@ router.post("/", verifyToken, async (req, res) => {
       },
     });
   } catch (err) {
-    console.error("âŒ Error creating project:", err);
+    console.error("❌ Error creating project:", err);
     res.status(500).json({
       success: false,
       error: "Failed to create project",
@@ -476,7 +637,44 @@ router.post("/", verifyToken, async (req, res) => {
 
 // ==================== PROJECT UPDATE (CLIENT ONLY) ====================
 
-// Update project (PROTECTED - client only, must own project)
+/**
+ * Update Project
+ * 
+ * Updates an existing project. Only the project owner (client) can update their project.
+ * Dynamically builds UPDATE query based on provided fields.
+ * Converts skills_required and deliverables to JSON if provided.
+ * 
+ * @route PUT /projects/:project_id
+ * @group Projects - Project CRUD operations
+ * @security JWT
+ * @param {number} project_id.path.required - Project ID
+ * @param {string} title.body - Updated title
+ * @param {string} description.body - Updated description
+ * @param {string|Array} skills_required.body - Updated required skills
+ * @param {string} category.body - Updated category
+ * @param {number} team_size.body - Updated maximum team size
+ * @param {string} start_date.body - Updated start date
+ * @param {string} end_date.body - Updated end date
+ * @param {string} complexity_level.body - Updated difficulty level
+ * @param {string|Array} deliverables.body - Updated deliverables
+ * @param {string} project_location.body - Updated location
+ * @param {string} industry.body - Updated industry category
+ * @param {string} status.body - Updated status
+ * @param {string} authorization.header.required - Bearer token
+ * @returns {object} 200 - Success response
+ * @returns {object} 400 - Validation error or no fields to update
+ * @returns {object} 403 - Unauthorized (not project owner)
+ * @returns {object} 404 - Project not found
+ * @returns {object} 500 - Server error
+ * 
+ * @example
+ * PUT /projects/42
+ * {
+ *   "title": "Updated Project Title",
+ *   "team_size": 5,
+ *   "status": "closed"
+ * }
+ */
 router.put("/:project_id", verifyToken, async (req, res) => {
   try {
     const { project_id } = req.params;
@@ -521,7 +719,7 @@ router.put("/:project_id", verifyToken, async (req, res) => {
     if (title !== undefined) { updates.push("title = ?"); values.push(title); }
     if (description !== undefined) { updates.push("description = ?"); values.push(description); }
     
-    // âœ… Convert skills_required to JSON if provided
+    // ✅ Convert skills_required to JSON if provided
     if (skills_required !== undefined) {
       let skillsJson;
       if (typeof skills_required === 'string') {
@@ -542,7 +740,7 @@ router.put("/:project_id", verifyToken, async (req, res) => {
     if (end_date !== undefined) { updates.push("end_date = ?"); values.push(end_date); }
     if (complexity_level !== undefined) { updates.push("difficulty_level = ?"); values.push(complexity_level); }
     
-    // âœ… Convert deliverables to JSON if provided
+    // ✅ Convert deliverables to JSON if provided
     if (deliverables !== undefined) {
       let deliverablesJson = null;
       if (deliverables) {
@@ -599,7 +797,33 @@ router.put("/:project_id", verifyToken, async (req, res) => {
 
 // ==================== PROJECT DELETE (CLIENT ONLY) ====================
 
-// Delete project (PROTECTED - client only, must own project)
+/**
+ * Delete Project
+ * 
+ * Deletes a project and all associated data (preferences, groups, group members).
+ * Only the project owner (client) can delete their project.
+ * Uses database transaction to ensure data integrity with foreign key constraints.
+ * 
+ * Deletion order (respecting foreign keys):
+ * 1. student_preferences
+ * 2. group_members
+ * 3. student_groups
+ * 4. projects
+ * 
+ * @route DELETE /projects/:project_id
+ * @group Projects - Project CRUD operations
+ * @security JWT
+ * @param {number} project_id.path.required - Project ID
+ * @param {string} authorization.header.required - Bearer token
+ * @returns {object} 200 - Success response
+ * @returns {object} 403 - Unauthorized (not project owner)
+ * @returns {object} 404 - Project not found
+ * @returns {object} 500 - Server error
+ * 
+ * @example
+ * DELETE /projects/42
+ * Authorization: Bearer <token>
+ */
 router.delete("/:project_id", verifyToken, async (req, res) => {
   try {
     const { project_id } = req.params;
@@ -689,9 +913,31 @@ router.delete("/:project_id", verifyToken, async (req, res) => {
   }
 });
 
-// ==================== PROJECT DETAILS & PREFERENCES ====================
-
-// Get project details with preferences (PROTECTED - client only)
+/**
+ * Get Project Details with Preferences and Groups
+ * 
+ * Retrieves comprehensive project information including:
+ * - Project details
+ * - Student preferences (ranked)
+ * - Assigned groups and member counts
+ * - Summary statistics
+ * 
+ * Protected route - only project owner (client) can view.
+ * 
+ * @route GET /projects/:project_id/details
+ * @group Projects - Project details and analytics
+ * @security JWT
+ * @param {number} project_id.path.required - Project ID
+ * @param {string} authorization.header.required - Bearer token
+ * @returns {object} 200 - Success response with project, preferences, groups, and stats
+ * @returns {object} 403 - Only clients can view project details
+ * @returns {object} 404 - Project not found
+ * @returns {object} 500 - Server error
+ * 
+ * @example
+ * GET /projects/42/details
+ * Authorization: Bearer <token>
+ */
 router.get("/:project_id/details", verifyToken, async (req, res) => {
   try {
     const { project_id } = req.params;
@@ -781,7 +1027,26 @@ router.get("/:project_id/details", verifyToken, async (req, res) => {
   }
 });
 
-// Get preferences for a specific project (PROTECTED - client only)
+/**
+ * Get Project Preferences
+ * 
+ * Retrieves all student preferences for a specific project with student information.
+ * Protected route - only project owner (client) can view preferences.
+ * 
+ * @route GET /projects/:project_id/preferences
+ * @group Projects - Project details and analytics
+ * @security JWT
+ * @param {number} project_id.path.required - Project ID
+ * @param {string} authorization.header.required - Bearer token
+ * @returns {object} 200 - Success response with preferences array
+ * @returns {object} 403 - Unauthorized (not project owner)
+ * @returns {object} 404 - Project not found
+ * @returns {object} 500 - Server error
+ * 
+ * @example
+ * GET /projects/42/preferences
+ * Authorization: Bearer <token>
+ */
 router.get("/:project_id/preferences", verifyToken, async (req, res) => {
   try {
     const { project_id } = req.params;
@@ -844,7 +1109,40 @@ router.get("/:project_id/preferences", verifyToken, async (req, res) => {
 
 // ==================== INSTRUCTOR APPROVAL ====================
 
-// Approve or reject a project (PROTECTED - instructor only)
+/**
+ * Approve or Reject Project
+ * 
+ * Allows instructors to approve or reject client-submitted projects.
+ * Updates approval_status, approved_by, approved_at, and optional instructor_feedback.
+ * Protected route - only instructors and admins can approve/reject projects.
+ * 
+ * @route PUT /projects/:project_id/approval
+ * @group Projects - Project approval workflow
+ * @security JWT
+ * @param {number} project_id.path.required - Project ID
+ * @param {string} approval_status.body.required - Approval status ('approved' or 'rejected')
+ * @param {string} feedback.body - Instructor feedback (especially for rejections)
+ * @param {string} authorization.header.required - Bearer token
+ * @returns {object} 200 - Success response with approval details
+ * @returns {object} 400 - Invalid approval_status
+ * @returns {object} 403 - Only instructors can approve/reject
+ * @returns {object} 404 - Project not found
+ * @returns {object} 500 - Server error
+ * 
+ * @example
+ * PUT /projects/42/approval
+ * {
+ *   "approval_status": "approved",
+ *   "feedback": "Great project proposal!"
+ * }
+ * 
+ * @example
+ * PUT /projects/42/approval
+ * {
+ *   "approval_status": "rejected",
+ *   "feedback": "Project scope is too broad. Please narrow the focus."
+ * }
+ */
 router.put("/:project_id/approval", verifyToken, async (req, res) => {
   try {
     const { project_id } = req.params;

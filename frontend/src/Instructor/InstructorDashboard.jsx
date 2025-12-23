@@ -18,26 +18,148 @@ import ScheduleEvaluationForm from "./ScheduleEvaluationForm";
 import ProfileSettingsView from "./ProfileSettingsView";
 import CourseSettingsView from "./CourseSettingsView";
 
+/**
+ * Layout constant: Height of the top navigation bar in pixels
+ * Used for calculating content area margins
+ * @constant {number}
+ */
 const NAVBAR_HEIGHT = 64;
+
+/**
+ * Layout constant: Width of the sidebar drawer in pixels when open
+ * Used for calculating content area margins
+ * @constant {number}
+ */
 const DRAWER_WIDTH = 280;
 
+/**
+ * Instructor Dashboard Component
+ * 
+ * Main container component for the instructor portal dashboard.
+ * Manages navigation between multiple views including project approvals, student management,
+ * group formation, evaluations, and settings. Uses URL-based routing for proper browser
+ * history and deep linking support.
+ * 
+ * Features:
+ * - URL-based routing with React Router for proper navigation history
+ * - Multi-view navigation (dashboard, students, projects, groups, evaluations, settings)
+ * - Project approval workflow
+ * - Automated and manual group formation
+ * - Student management (view, add)
+ * - Evaluation scheduling
+ * - Responsive sidebar with toggle
+ * - Authentication guard with redirect
+ * - Profile and course settings
+ * 
+ * Available Views:
+ * - dashboard: Overview stats and quick actions
+ * - students: Student list view
+ * - add-student: Add new student form
+ * - projects: All projects view
+ * - project-details: Individual project details
+ * - create-project: Create new project form
+ * - approval: Project approval queue
+ * - groups: View all groups
+ * - manage-groups: Group management interface
+ * - auto-groups: Automated group formation
+ * - create-group: Manual group creation
+ * - evaluations: Evaluation list
+ * - schedule-evaluation: Schedule new evaluation
+ * - settings: Course settings
+ * - profile: Instructor profile settings
+ * 
+ * @component
+ * @returns {React.ReactElement} Instructor dashboard with URL-based routing
+ * 
+ * @example
+ * // Used in App.jsx routing
+ * <Route 
+ *   path="/instructor-dashboard/*" 
+ *   element={<InstructorDashboard />} 
+ * />
+ * 
+ * @example
+ * // Direct navigation to specific view
+ * <Link to="/instructor-dashboard/approval">Project Approvals</Link>
+ * 
+ * @example
+ * // Protected route implementation
+ * <Route 
+ *   path="/instructor-dashboard/*" 
+ *   element={
+ *     <ProtectedRoute role="instructor">
+ *       <InstructorDashboard />
+ *     </ProtectedRoute>
+ *   } 
+ * />
+ */
 export default function InstructorDashboard() {
+  /**
+   * Retrieve and parse instructor data from localStorage
+   * Contains instructor information like name, email, and ID
+   * @type {string|null}
+   */
   const instructorData = localStorage.getItem("instructor");
+  
+  /**
+   * Parsed instructor object from localStorage
+   * @type {Object|null}
+   */
   const instructor = instructorData ? JSON.parse(instructorData) : null;
 
-  // Extract instructor ID (numeric database ID)
+  /**
+   * Extract numeric instructor database ID
+   * Used for API calls and data fetching
+   * @type {number|null}
+   */
   const instructorId = instructor?.id || null;
   
-  // Combine first_name and last_name for display
+  /**
+   * Combine first_name and last_name for display in navbar
+   * Falls back to name field or generic "Instructor" if not available
+   * @type {string}
+   */
   const instructorName = instructor?.first_name && instructor?.last_name
     ? `${instructor.first_name} ${instructor.last_name}`
     : instructor?.name || "Instructor";
 
+  /**
+   * React Router location hook for accessing current URL
+   * Used to determine active view from pathname
+   * @type {Location}
+   */
   const location = useLocation();
+  
+  /**
+   * React Router navigation hook for programmatic navigation
+   * Used to change views and handle redirects
+   * @type {NavigateFunction}
+   */
   const navigate = useNavigate();
+  
+  /**
+   * UI State: Controls sidebar visibility
+   * @type {boolean}
+   */
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
-  // ✅ Determine active view from URL path
+  /**
+   * Determine active view from current URL path
+   * 
+   * Parses the current pathname to identify which view should be displayed.
+   * Checks URL segments in priority order to match the most specific route first.
+   * 
+   * @function getActiveFromPath
+   * @returns {string} Active view identifier
+   * 
+   * @example
+   * // URL: /instructor-dashboard/approval
+   * getActiveFromPath() // Returns: "approval"
+   * 
+   * @example
+   * // URL: /instructor-dashboard/projects/123
+   * getActiveFromPath() // Returns: "project-details"
+   */
   const getActiveFromPath = () => {
     const path = location.pathname;
     
@@ -58,9 +180,34 @@ export default function InstructorDashboard() {
     return "dashboard";
   };
 
+  /**
+   * Current active view based on URL path
+   * Automatically updates when URL changes
+   * @type {string}
+   */
   const active = getActiveFromPath();
 
-  // ✅ Navigate to different views using URL (adds to browser history)
+  /**
+   * Navigate to different views using URL routing
+   * 
+   * Updates the browser URL to reflect the selected view, which adds to browser history
+   * and enables proper back/forward button functionality. Each view has a unique URL path.
+   * 
+   * @function setActive
+   * @param {string} view - View identifier to navigate to
+   * 
+   * @example
+   * // Navigate to students view
+   * setActive('students') // URL becomes: /instructor-dashboard/students
+   * 
+   * @example
+   * // Navigate to approval view
+   * setActive('approval') // URL becomes: /instructor-dashboard/approval
+   * 
+   * @example
+   * // Logout action
+   * setActive('logout') // Clears localStorage and redirects to login
+   */
   const setActive = (view) => {
     const basePath = "/instructor-dashboard";
     switch (view) {
@@ -113,21 +260,43 @@ export default function InstructorDashboard() {
     }
   };
 
-  // ✅ Redirect if not logged in using useEffect
+  /**
+   * Effect: Redirect to login if not authenticated
+   * 
+   * Checks for valid instructor data and ID on mount and whenever they change.
+   * Uses replace: true to prevent adding to browser history (can't go back to dashboard).
+   * 
+   * Dependencies: [instructor, instructorId, navigate]
+   */
   useEffect(() => {
     if (!instructor || !instructorId) {
       navigate("/login", { replace: true });
     }
   }, [instructor, instructorId, navigate]);
 
-  // Handle logout - ✅ Use navigate with replace
+  /**
+   * Handle logout
+   * 
+   * Clears instructor data and auth token from localStorage,
+   * then redirects to login page with replace navigation
+   * 
+   * @function handleLogout
+   * 
+   * @example
+   * <button onClick={handleLogout}>Logout</button>
+   */
   const handleLogout = () => {
     localStorage.removeItem("instructor");
     localStorage.removeItem("authToken");
     navigate("/login", { replace: true });
   };
 
-  // Show loading state while checking auth
+  /**
+   * Loading State: Show while authentication check is in progress
+   * 
+   * Displays loading spinner during the brief moment when authentication
+   * is being verified and before redirect to login occurs
+   */
   if (!instructor || !instructorId) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-slate-50">
@@ -193,12 +362,12 @@ export default function InstructorDashboard() {
       {/* Footer */}
       <footer className="mt-auto border-t border-slate-200 bg-white py-6 text-center text-sm text-slate-500">
         © 2025 Capstone Hub. All rights reserved. | Contact:{" "}
-        <a
+        
           className="text-blue-600 hover:underline"
           href="mailto:support@capstonehub.com"
-        >
+        &gt
           support@capstonehub.com
-        </a>
+        
       </footer>
     </div>
   );

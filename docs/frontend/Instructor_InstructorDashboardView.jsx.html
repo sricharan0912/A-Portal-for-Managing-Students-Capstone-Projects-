@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>JSDoc: Source: Instructor/InstructorDashboardView.jsx</title>
+
+    <script src="scripts/prettify/prettify.js"> </script>
+    <script src="scripts/prettify/lang-css.js"> </script>
+    <!--[if lt IE 9]>
+      <script src="//html5shiv.googlecode.com/svn/trunk/html5.js"></script>
+    <![endif]-->
+    <link type="text/css" rel="stylesheet" href="styles/prettify-tomorrow.css">
+    <link type="text/css" rel="stylesheet" href="styles/jsdoc-default.css">
+</head>
+
+<body>
+
+<div id="main">
+
+    <h1 class="page-title">Source: Instructor/InstructorDashboardView.jsx</h1>
+
+    
+
+
+
+    
+    <section>
+        <article>
+            <pre class="prettyprint source linenums"><code>import React, { useEffect, useState } from "react";
+import { useLocation } from "react-router-dom";
+import { getInstructorStats } from "../utils/apiHelper";
+
+/**
+ * InstructorDashboardView Component
+ */
+export default function InstructorDashboardView({ instructorId }) {
+  const location = useLocation();
+  const [stats, setStats] = useState({
+    totalStudents: 0,
+    activeProjects: 0,
+    pendingEvaluations: 0,
+    totalGroups: 0,
+  });
+  const [recentStudents, setRecentStudents] = useState([]);
+  const [upcomingEvaluations, setUpcomingEvaluations] = useState([]);
+  const [announcements, setAnnouncements] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  // Refresh stats when navigating back to dashboard or when instructorId changes
+  useEffect(() => {
+    const fetchStats = async () => {
+      if (!instructorId) {
+        console.error("No instructor ID provided");
+        setLoading(false);
+        return;
+      }
+
+      try {
+        setLoading(true);
+        const res = await getInstructorStats(instructorId);
+        const data = res.data || {};
+
+        // Map backend response structure to frontend expectations
+        setStats({
+          totalStudents: data.students?.total_students || 0,
+          activeProjects: data.projects?.approved_projects || 0,
+          pendingEvaluations: data.projects?.pending_projects || 0,
+          totalGroups: data.groups?.total_groups || 0,
+        });
+
+        // These would need separate API endpoints or backend enhancement
+        setRecentStudents(data.recentStudents || []);
+        setUpcomingEvaluations(data.upcomingEvaluations || []);
+        setAnnouncements(data.announcements || []);
+      } catch (err) {
+        console.error("Failed to load instructor stats:", err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchStats();
+  }, [instructorId, location.pathname]); // Re-fetch when path changes (navigating back)
+
+  if (loading) {
+    return (
+      &lt;div className="flex justify-center items-center h-64">
+        &lt;div className="text-slate-600">Loading dashboard...&lt;/div>
+      &lt;/div>
+    );
+  }
+
+  return (
+    &lt;div className="space-y-8">
+      {/* Welcome Header */}
+      &lt;div className="bg-gradient-to-r from-blue-700 to-blue-800 text-white rounded-xl p-6 shadow-md">
+        &lt;h2 className="text-3xl font-bold">Welcome back, Instructor!&lt;/h2>
+        &lt;p className="mt-2 text-blue-100 text-sm">
+          Manage students, review projects, and monitor ongoing evaluations all in one place.
+        &lt;/p>
+      &lt;/div>
+
+      {/* Quick Stats */}
+      &lt;div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        &lt;StatCard label="Total Students" count={stats.totalStudents} color="blue" />
+        &lt;StatCard label="Active Projects" count={stats.activeProjects} color="green" />
+        &lt;StatCard label="Pending Approval" count={stats.pendingEvaluations} color="yellow" />
+        &lt;StatCard label="Total Groups" count={stats.totalGroups} color="indigo" />
+      &lt;/div>
+
+      {/* Dashboard Sections */}
+      &lt;div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+        {/* Recent Students */}
+        &lt;section className="lg:col-span-1 rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+          &lt;h3 className="mb-4 text-lg font-semibold text-slate-800">Recent Students&lt;/h3>
+          {recentStudents.length > 0 ? (
+            &lt;ul className="space-y-3">
+              {recentStudents.slice(0, 5).map((student) => (
+                &lt;li
+                  key={student.id}
+                  className="flex items-center justify-between border border-slate-100 rounded-lg p-3 hover:bg-slate-50 transition"
+                >
+                  &lt;div className="flex items-center gap-3">
+                    &lt;div className="h-9 w-9 rounded-full bg-blue-100 flex items-center justify-center text-blue-700 font-semibold">
+                      {student.name?.[0]?.toUpperCase() || "S"}
+                    &lt;/div>
+                    &lt;div>
+                      &lt;p className="text-sm font-semibold text-slate-800">
+                        {student.name}
+                      &lt;/p>
+                      &lt;p className="text-xs text-slate-500">{student.email}&lt;/p>
+                    &lt;/div>
+                  &lt;/div>
+                  &lt;span className="text-xs bg-green-100 text-green-700 px-2 py-1 rounded">
+                    Active
+                  &lt;/span>
+                &lt;/li>
+              ))}
+            &lt;/ul>
+          ) : (
+            &lt;p className="text-slate-500 text-sm">No recent students.&lt;/p>
+          )}
+        &lt;/section>
+
+        {/* Upcoming Evaluations */}
+        &lt;section className="lg:col-span-1 rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+          &lt;h3 className="mb-4 text-lg font-semibold text-slate-800">
+            Upcoming Evaluations
+          &lt;/h3>
+          {upcomingEvaluations.length > 0 ? (
+            &lt;ul className="space-y-3">
+              {upcomingEvaluations.slice(0, 4).map((evalItem) => (
+                &lt;li
+                  key={evalItem.id}
+                  className="flex justify-between items-start border border-slate-100 rounded-lg p-3 hover:bg-slate-50 transition"
+                >
+                  &lt;div>
+                    &lt;p className="font-medium text-slate-800">
+                      {evalItem.teamName || "Team"}
+                    &lt;/p>
+                    &lt;p className="text-xs text-slate-500 mt-1">
+                      {new Date(evalItem.date).toLocaleDateString()} at{" "}
+                      {evalItem.time || "TBD"}
+                    &lt;/p>
+                  &lt;/div>
+                  &lt;span className="text-xs bg-yellow-100 text-yellow-700 px-2 py-1 rounded">
+                    {evalItem.status || "Scheduled"}
+                  &lt;/span>
+                &lt;/li>
+              ))}
+            &lt;/ul>
+          ) : (
+            &lt;p className="text-slate-500 text-sm">No upcoming evaluations.&lt;/p>
+          )}
+        &lt;/section>
+
+        {/* Announcements */}
+        &lt;section className="lg:col-span-1 rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+          &lt;h3 className="mb-4 text-lg font-semibold text-slate-800">
+            Announcements
+          &lt;/h3>
+          {announcements.length > 0 ? (
+            &lt;ul className="space-y-3">
+              {announcements.slice(0, 4).map((note, index) => (
+                &lt;li
+                  key={index}
+                  className="border border-slate-100 rounded-lg p-3 bg-blue-50/40"
+                >
+                  &lt;p className="text-sm font-medium text-slate-800">{note.title}&lt;/p>
+                  &lt;p className="text-xs text-slate-600 mt-1">{note.message}&lt;/p>
+                &lt;/li>
+              ))}
+            &lt;/ul>
+          ) : (
+            &lt;p className="text-slate-500 text-sm">No new announcements.&lt;/p>
+          )}
+        &lt;/section>
+      &lt;/div>
+    &lt;/div>
+  );
+}
+
+/** Quick Stats Card */
+function StatCard({ label, count, color }) {
+  const colorClasses = {
+    blue: "bg-blue-100 text-blue-700",
+    green: "bg-green-100 text-green-700",
+    yellow: "bg-yellow-100 text-yellow-700",
+    indigo: "bg-indigo-100 text-indigo-700",
+  };
+
+  return (
+    &lt;div className="rounded-xl border border-slate-200 p-6 bg-white shadow-sm hover:shadow-md transition">
+      &lt;div className="flex items-center justify-between">
+        &lt;div>
+          &lt;p className="text-sm font-medium text-slate-600 mb-1">{label}&lt;/p>
+          &lt;p className="text-4xl font-bold text-slate-900">{count}&lt;/p>
+        &lt;/div>
+        &lt;div className={`rounded-lg p-3 ${colorClasses[color]}`}>
+          &lt;svg
+            className="h-6 w-6"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+          >
+            &lt;path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              d="M3 10h11M9 21V3"
+            />
+          &lt;/svg>
+        &lt;/div>
+      &lt;/div>
+    &lt;/div>
+  );
+}</code></pre>
+        </article>
+    </section>
+
+
+
+
+</div>
+
+<nav>
+    <h2><a href="index.html">Home</a></h2><h3>Modules</h3><ul><li><a href="module-apiHelper.html">apiHelper</a></li><li><a href="module-firebaseConfig.html">firebaseConfig</a></li></ul><h3>Global</h3><ul><li><a href="global.html#API_BASE_URL">API_BASE_URL</a></li><li><a href="global.html#DRAWER_WIDTH">DRAWER_WIDTH</a></li><li><a href="global.html#NAVBAR_HEIGHT">NAVBAR_HEIGHT</a></li><li><a href="global.html#StatCard">StatCard</a></li><li><a href="global.html#animationStyles">animationStyles</a></li><li><a href="global.html#getActiveFromPath">getActiveFromPath</a></li><li><a href="global.html#handleEditProject">handleEditProject</a></li><li><a href="global.html#handleFormClose">handleFormClose</a></li><li><a href="global.html#handleFormSave">handleFormSave</a></li><li><a href="global.html#handleLogout">handleLogout</a></li><li><a href="global.html#handleProjectCreated">handleProjectCreated</a></li><li><a href="global.html#handleSelectProject">handleSelectProject</a></li><li><a href="global.html#handleShowForm">handleShowForm</a></li><li><a href="global.html#handleSubmitPreferences">handleSubmitPreferences</a></li><li><a href="global.html#loadDeadline">loadDeadline</a></li><li><a href="global.html#loadGroupData">loadGroupData</a></li><li><a href="global.html#loadPreferences">loadPreferences</a></li><li><a href="global.html#loadProjects">loadProjects</a></li><li><a href="global.html#refetchProjects">refetchProjects</a></li><li><a href="global.html#setActive">setActive</a></li><li><a href="global.html#submitPreferences">submitPreferences</a></li><li><a href="global.html#useClientId">useClientId</a></li><li><a href="global.html#useProjects">useProjects</a></li><li><a href="global.html#useStudentId">useStudentId</a></li><li><a href="global.html#useStudentPreferences">useStudentPreferences</a></li><li><a href="global.html#useStudentProjects">useStudentProjects</a></li></ul>
+</nav>
+
+<br class="clear">
+
+<footer>
+    Documentation generated by <a href="https://github.com/jsdoc/jsdoc">JSDoc 4.0.5</a> on Mon Dec 22 2025 22:20:27 GMT-0500 (Eastern Standard Time)
+</footer>
+
+<script> prettyPrint(); </script>
+<script src="scripts/linenumber.js"> </script>
+</body>
+</html>

@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>JSDoc: Source: Instructor/AutoGroupFormationView.jsx</title>
+
+    <script src="scripts/prettify/prettify.js"> </script>
+    <script src="scripts/prettify/lang-css.js"> </script>
+    <!--[if lt IE 9]>
+      <script src="//html5shiv.googlecode.com/svn/trunk/html5.js"></script>
+    <![endif]-->
+    <link type="text/css" rel="stylesheet" href="styles/prettify-tomorrow.css">
+    <link type="text/css" rel="stylesheet" href="styles/jsdoc-default.css">
+</head>
+
+<body>
+
+<div id="main">
+
+    <h1 class="page-title">Source: Instructor/AutoGroupFormationView.jsx</h1>
+
+    
+
+
+
+    
+    <section>
+        <article>
+            <pre class="prettyprint source linenums"><code>import React, { useEffect, useState } from "react";
+import { getAutoGroupStats, confirmAutoGroups, rerunAutoGrouping } from "../utils/apiHelper";
+
+/**
+ * Instructor → Auto Group Formation Page
+ * Shows formation summary, stats, satisfaction chart, and group preview table.
+ */
+export default function AutoGroupFormationView() {
+  const [stats, setStats] = useState(null);
+  const [groups, setGroups] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [message, setMessage] = useState("");
+
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        const res = await getAutoGroupStats();
+        setStats(res.stats);
+        setGroups(res.groups);
+      } catch (err) {
+        console.error("Error fetching auto-group stats:", err);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchData();
+  }, []);
+
+  const handleConfirm = async () => {
+    try {
+      const res = await confirmAutoGroups();
+      setMessage(res.success ? "✅ Groups confirmed successfully!" : "⚠️ Failed to confirm groups.");
+    } catch {
+      setMessage("❌ Something went wrong.");
+    }
+  };
+
+  const handleRerun = async () => {
+    try {
+      const res = await rerunAutoGrouping();
+      setMessage(res.success ? "🔄 Re-ran grouping algorithm successfully!" : "⚠️ Failed to rerun.");
+    } catch {
+      setMessage("❌ Something went wrong.");
+    }
+  };
+
+  if (loading)
+    return (
+      &lt;div className="flex justify-center items-center h-64 text-slate-600">
+        Loading auto-group stats...
+      &lt;/div>
+    );
+
+  return (
+    &lt;div className="space-y-6">
+      {/* Header */}
+      &lt;div className="flex flex-col sm:flex-row items-center justify-between gap-4">
+        &lt;h2 className="text-2xl font-bold text-slate-800">Auto Group Formation&lt;/h2>
+        &lt;div className="flex gap-3">
+          &lt;button
+            onClick={handleRerun}
+            className="rounded-lg border border-blue-600 bg-white px-4 py-2 text-sm font-medium text-blue-700 hover:bg-blue-50 focus:ring-2 focus:ring-blue-200 transition"
+          >
+            Re-run Algorithm
+          &lt;/button>
+          &lt;button
+            onClick={handleConfirm}
+            className="rounded-lg bg-blue-700 px-4 py-2 text-sm font-medium text-white hover:bg-blue-600 focus:ring-2 focus:ring-blue-300 transition"
+          >
+            Confirm Groups
+          &lt;/button>
+        &lt;/div>
+      &lt;/div>
+
+      {/* Feedback message */}
+      {message &amp;&amp; (
+        &lt;div
+          className={`rounded-lg px-4 py-3 text-sm font-medium ${
+            message.includes("✅") || message.includes("🔄")
+              ? "bg-green-100 text-green-700"
+              : "bg-red-100 text-red-700"
+          }`}
+        >
+          {message}
+        &lt;/div>
+      )}
+
+      {/* Stats Summary Cards */}
+      &lt;div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-6">
+        &lt;StatCard label="Total Students" value={stats?.students || 0} />
+        &lt;StatCard label="Groups Formed" value={stats?.groups || 0} />
+        &lt;StatCard
+          label="Average Satisfaction"
+          value={`${stats?.satisfaction || 0}%`}
+          progress={stats?.satisfaction || 0}
+        />
+        &lt;StatCard label="Projects Assigned" value={stats?.projects || 0} />
+      &lt;/div>
+
+      {/* Satisfaction Bar */}
+      &lt;div className="bg-white border border-slate-200 rounded-xl p-6 shadow-sm">
+        &lt;h3 className="text-lg font-semibold text-slate-800 mb-3">
+          Overall Satisfaction
+        &lt;/h3>
+        &lt;div className="w-full bg-slate-100 rounded-full h-4 overflow-hidden">
+          &lt;div
+            className="h-4 bg-blue-600 transition-all duration-700"
+            style={{ width: `${stats?.satisfaction || 0}%` }}
+          >&lt;/div>
+        &lt;/div>
+        &lt;p className="text-sm text-slate-600 mt-2">
+          {stats?.satisfaction || 0}% of students are satisfied with group allocation.
+        &lt;/p>
+      &lt;/div>
+
+      {/* Groups Preview Table */}
+      &lt;div className="overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-sm">
+        &lt;table className="min-w-full text-sm text-slate-700">
+          &lt;thead className="bg-slate-100 text-slate-600 uppercase text-xs font-medium">
+            &lt;tr>
+              &lt;th className="px-6 py-3 text-left">Group&lt;/th>
+              &lt;th className="px-6 py-3 text-left">Members&lt;/th>
+              &lt;th className="px-6 py-3 text-left">Project&lt;/th>
+              &lt;th className="px-6 py-3 text-left">Satisfaction&lt;/th>
+              &lt;th className="px-6 py-3 text-center">Actions&lt;/th>
+            &lt;/tr>
+          &lt;/thead>
+          &lt;tbody>
+            {groups.length > 0 ? (
+              groups.map((g) => (
+                &lt;tr key={g.id} className="border-b border-slate-100 hover:bg-slate-50 transition">
+                  &lt;td className="px-6 py-3 font-medium text-slate-800">{g.name}&lt;/td>
+                  &lt;td className="px-6 py-3 text-slate-600">{g.members?.join(", ") || "N/A"}&lt;/td>
+                  &lt;td className="px-6 py-3 text-slate-600">{g.project || "Unassigned"}&lt;/td>
+                  &lt;td className="px-6 py-3">
+                    &lt;div className="w-24 bg-slate-100 rounded-full h-3 overflow-hidden">
+                      &lt;div
+                        className="h-3 bg-blue-600"
+                        style={{ width: `${g.satisfaction || 0}%` }}
+                      >&lt;/div>
+                    &lt;/div>
+                    &lt;p className="text-xs text-slate-500 mt-1">
+                      {g.satisfaction || 0}%
+                    &lt;/p>
+                  &lt;/td>
+                  &lt;td className="px-6 py-3 text-center">
+                    &lt;button
+                      className="text-blue-700 hover:text-blue-900 text-sm font-medium"
+                      onClick={() =>
+                        (window.location.href = `/instructor-dashboard/groups/${g.id}`)
+                      }
+                    >
+                      View
+                    &lt;/button>
+                  &lt;/td>
+                &lt;/tr>
+              ))
+            ) : (
+              &lt;tr>
+                &lt;td
+                  colSpan="5"
+                  className="text-center py-6 text-slate-500 text-sm"
+                >
+                  No auto-formed groups available.
+                &lt;/td>
+              &lt;/tr>
+            )}
+          &lt;/tbody>
+        &lt;/table>
+      &lt;/div>
+    &lt;/div>
+  );
+}
+
+/** Summary Card Component */
+function StatCard({ label, value, progress }) {
+  return (
+    &lt;div className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm space-y-2">
+      &lt;p className="text-sm text-slate-500">{label}&lt;/p>
+      &lt;h3 className="text-2xl font-bold text-slate-800">{value}&lt;/h3>
+      {progress !== undefined &amp;&amp; (
+        &lt;div className="w-full bg-slate-100 rounded-full h-2">
+          &lt;div
+            className="h-2 bg-blue-600 rounded-full"
+            style={{ width: `${progress}%` }}
+          >&lt;/div>
+        &lt;/div>
+      )}
+    &lt;/div>
+  );
+}
+</code></pre>
+        </article>
+    </section>
+
+
+
+
+</div>
+
+<nav>
+    <h2><a href="index.html">Home</a></h2><h3>Modules</h3><ul><li><a href="module-apiHelper.html">apiHelper</a></li><li><a href="module-firebaseConfig.html">firebaseConfig</a></li></ul><h3>Global</h3><ul><li><a href="global.html#API_BASE_URL">API_BASE_URL</a></li><li><a href="global.html#DRAWER_WIDTH">DRAWER_WIDTH</a></li><li><a href="global.html#NAVBAR_HEIGHT">NAVBAR_HEIGHT</a></li><li><a href="global.html#StatCard">StatCard</a></li><li><a href="global.html#animationStyles">animationStyles</a></li><li><a href="global.html#getActiveFromPath">getActiveFromPath</a></li><li><a href="global.html#handleEditProject">handleEditProject</a></li><li><a href="global.html#handleFormClose">handleFormClose</a></li><li><a href="global.html#handleFormSave">handleFormSave</a></li><li><a href="global.html#handleLogout">handleLogout</a></li><li><a href="global.html#handleProjectCreated">handleProjectCreated</a></li><li><a href="global.html#handleSelectProject">handleSelectProject</a></li><li><a href="global.html#handleShowForm">handleShowForm</a></li><li><a href="global.html#handleSubmitPreferences">handleSubmitPreferences</a></li><li><a href="global.html#loadDeadline">loadDeadline</a></li><li><a href="global.html#loadGroupData">loadGroupData</a></li><li><a href="global.html#loadPreferences">loadPreferences</a></li><li><a href="global.html#loadProjects">loadProjects</a></li><li><a href="global.html#refetchProjects">refetchProjects</a></li><li><a href="global.html#setActive">setActive</a></li><li><a href="global.html#submitPreferences">submitPreferences</a></li><li><a href="global.html#useClientId">useClientId</a></li><li><a href="global.html#useProjects">useProjects</a></li><li><a href="global.html#useStudentId">useStudentId</a></li><li><a href="global.html#useStudentPreferences">useStudentPreferences</a></li><li><a href="global.html#useStudentProjects">useStudentProjects</a></li></ul>
+</nav>
+
+<br class="clear">
+
+<footer>
+    Documentation generated by <a href="https://github.com/jsdoc/jsdoc">JSDoc 4.0.5</a> on Mon Dec 22 2025 22:20:27 GMT-0500 (Eastern Standard Time)
+</footer>
+
+<script> prettyPrint(); </script>
+<script src="scripts/linenumber.js"> </script>
+</body>
+</html>

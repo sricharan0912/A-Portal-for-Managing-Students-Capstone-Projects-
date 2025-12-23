@@ -1,8 +1,45 @@
+/**
+ * @fileoverview Client Controller
+ * Handles all client-related business logic including profile management,
+ * project operations, statistics, and preferences tracking
+ * 
+ * @requires ../../db
+ * @module controllers/clientController
+ */
+
 import db from "../../db.js";
 
 // ==================== CLIENT PROFILE ====================
 
-// Get all clients (for admin/instructor purposes)
+/**
+ * Get All Clients
+ * Retrieves list of all clients for admin/instructor purposes
+ * 
+ * @async
+ * @function getAllClients
+ * @param {Object} req - Express request object
+ * @param {Object} res - Express response object
+ * @returns {Promise<void>} JSON array of client objects
+ * 
+ * @description
+ * Queries the unified users table for all users with role='client'
+ * Joins with user_profiles to get additional information
+ * Excludes soft-deleted clients (deleted_at IS NULL)
+ * Results are ordered by creation date (newest first)
+ * 
+ * @example
+ * // Response format
+ * [
+ *   {
+ *     "id": 1,
+ *     "name": "John Doe",
+ *     "email": "john@company.com",
+ *     "organization_name": "Tech Corp",
+ *     "website": "https://techcorp.com",
+ *     "created_at": "2025-01-15T10:30:00.000Z"
+ *   }
+ * ]
+ */
 export const getAllClients = async (req, res) => {
   try {
     // ✅ NEW SCHEMA: Query users + user_profiles where role='client'
@@ -33,7 +70,37 @@ export const getAllClients = async (req, res) => {
   }
 };
 
-// Get a single client by ID
+/**
+ * Get Client By ID
+ * Retrieves a single client's profile information
+ * 
+ * @async
+ * @function getClientById
+ * @param {Object} req - Express request object
+ * @param {Object} req.params - URL parameters
+ * @param {string} req.params.id - Client ID
+ * @param {Object} res - Express response object
+ * @returns {Promise<void>} JSON object with client details
+ * 
+ * @description
+ * Fetches client profile from users and user_profiles tables
+ * Validates ID format and checks if client exists
+ * Returns 404 if client not found
+ * 
+ * @example
+ * // Request
+ * GET /clients/123
+ * 
+ * @example
+ * // Response
+ * {
+ *   "id": 123,
+ *   "name": "John Doe",
+ *   "email": "john@company.com",
+ *   "organization_name": "Tech Corp",
+ *   "website": "https://techcorp.com"
+ * }
+ */
 export const getClientById = async (req, res) => {
   try {
     const { id } = req.params;
@@ -72,7 +139,45 @@ export const getClientById = async (req, res) => {
   }
 };
 
-// Update client profile
+/**
+ * Update Client Profile
+ * Updates client profile information in the database
+ * 
+ * @async
+ * @function updateClient
+ * @param {Object} req - Express request object
+ * @param {Object} req.params - URL parameters
+ * @param {string} req.params.id - Client ID to update
+ * @param {Object} req.body - Request body
+ * @param {string} [req.body.name] - Full name (legacy format)
+ * @param {string} [req.body.first_name] - First name (new format)
+ * @param {string} [req.body.last_name] - Last name (new format)
+ * @param {string} req.body.organization_name - Organization name (required)
+ * @param {string} [req.body.website] - Organization website URL
+ * @param {Object} res - Express response object
+ * @returns {Promise<void>} Success message
+ * 
+ * @description
+ * Accepts both legacy (name) and new (first_name, last_name) formats
+ * If only name provided, splits it into first and last names
+ * Updates user_profiles table with new information
+ * Returns 404 if client not found
+ * 
+ * @example
+ * // Request body (new format)
+ * {
+ *   "first_name": "John",
+ *   "last_name": "Doe",
+ *   "organization_name": "Tech Corp",
+ *   "website": "https://techcorp.com"
+ * }
+ * 
+ * @example
+ * // Response
+ * {
+ *   "message": "Client profile updated successfully"
+ * }
+ */
 export const updateClient = async (req, res) => {
   try {
     const { id } = req.params;
@@ -127,7 +232,37 @@ export const updateClient = async (req, res) => {
   }
 };
 
-// Delete a client
+/**
+ * Delete Client
+ * Soft deletes a client and cascades deletion to related records
+ * 
+ * @async
+ * @function deleteClient
+ * @param {Object} req - Express request object
+ * @param {Object} req.params - URL parameters
+ * @param {string} req.params.id - Client ID to delete
+ * @param {Object} res - Express response object
+ * @returns {Promise<void>} Success message
+ * 
+ * @description
+ * Performs a soft delete by setting deleted_at timestamp and status to inactive
+ * Cascades deletion to:
+ * - Student preferences for client's projects
+ * - Group members in client's project groups
+ * - Student groups for client's projects
+ * - All projects owned by the client
+ * Uses database transaction via connection for data consistency
+ * 
+ * @example
+ * // Request
+ * DELETE /clients/123
+ * 
+ * @example
+ * // Response
+ * {
+ *   "message": "Client deleted successfully"
+ * }
+ */
 export const deleteClient = async (req, res) => {
   try {
     const { id } = req.params;
@@ -201,7 +336,41 @@ export const deleteClient = async (req, res) => {
 
 // ==================== CLIENT PROJECTS ====================
 
-// Get all projects for a specific client
+/**
+ * Get Client Projects
+ * Retrieves all projects owned by a specific client
+ * 
+ * @async
+ * @function getClientProjects
+ * @param {Object} req - Express request object
+ * @param {Object} req.params - URL parameters
+ * @param {string} req.params.client_id - Client ID
+ * @param {Object} res - Express response object
+ * @returns {Promise<void>} JSON array of project objects
+ * 
+ * @description
+ * Fetches all projects where owner_id matches the client_id
+ * Includes column aliases for backwards compatibility with old schema
+ * Results ordered by posting date (newest first)
+ * 
+ * @example
+ * // Request
+ * GET /clients/123/projects
+ * 
+ * @example
+ * // Response
+ * [
+ *   {
+ *     "id": 456,
+ *     "client_id": 123,
+ *     "title": "Mobile App Development",
+ *     "description": "Build iOS app",
+ *     "skills_required": "Swift, iOS",
+ *     "status": "open",
+ *     "created_at": "2025-01-15T10:00:00.000Z"
+ *   }
+ * ]
+ */
 export const getClientProjects = async (req, res) => {
   try {
     const { client_id } = req.params;
@@ -241,7 +410,36 @@ export const getClientProjects = async (req, res) => {
   }
 };
 
-// Get project count for a client
+/**
+ * Get Client Project Count
+ * Returns count of projects grouped by status for a client
+ * 
+ * @async
+ * @function getClientProjectCount
+ * @param {Object} req - Express request object
+ * @param {Object} req.params - URL parameters
+ * @param {string} req.params.client_id - Client ID
+ * @param {Object} res - Express response object
+ * @returns {Promise<void>} JSON object with project counts by status
+ * 
+ * @description
+ * Aggregates project counts across different statuses:
+ * - total: All projects
+ * - open: Available for student selection
+ * - approved: Approved by instructor
+ * - rejected: Rejected by instructor
+ * - closed: Completed or cancelled
+ * 
+ * @example
+ * // Response
+ * {
+ *   "total": 10,
+ *   "open": 5,
+ *   "approved": 3,
+ *   "rejected": 1,
+ *   "closed": 1
+ * }
+ */
 export const getClientProjectCount = async (req, res) => {
   try {
     const { client_id } = req.params;
@@ -276,7 +474,39 @@ export const getClientProjectCount = async (req, res) => {
   }
 };
 
-// Get projects by status for a client
+/**
+ * Get Client Projects By Status
+ * Retrieves projects filtered by specific status
+ * 
+ * @async
+ * @function getClientProjectsByStatus
+ * @param {Object} req - Express request object
+ * @param {Object} req.params - URL parameters
+ * @param {string} req.params.client_id - Client ID
+ * @param {string} req.params.status - Project status (open, approved, rejected, closed)
+ * @param {Object} res - Express response object
+ * @returns {Promise<void>} JSON array of filtered projects
+ * 
+ * @description
+ * Validates status parameter against allowed values
+ * Returns only projects matching the specified status
+ * Includes full project details with backwards compatible column names
+ * 
+ * @example
+ * // Request
+ * GET /clients/123/projects/status/open
+ * 
+ * @example
+ * // Response
+ * [
+ *   {
+ *     "id": 456,
+ *     "client_id": 123,
+ *     "title": "Mobile App",
+ *     "status": "open"
+ *   }
+ * ]
+ */
 export const getClientProjectsByStatus = async (req, res) => {
   try {
     const { client_id, status } = req.params;
@@ -324,7 +554,44 @@ export const getClientProjectsByStatus = async (req, res) => {
 
 // ==================== CLIENT PROJECT DETAILS ====================
 
-// Get single project with preferences and team info
+/**
+ * Get Client Project Details
+ * Retrieves comprehensive project information including preferences and groups
+ * 
+ * @async
+ * @function getClientProjectDetails
+ * @param {Object} req - Express request object
+ * @param {Object} req.params - URL parameters
+ * @param {string} req.params.client_id - Client ID
+ * @param {string} req.params.project_id - Project ID
+ * @param {Object} res - Express response object
+ * @returns {Promise<void>} JSON object with project, preferences, groups, and statistics
+ * 
+ * @description
+ * Fetches complete project information including:
+ * - Project details with all fields
+ * - Student preferences (ranked list of interested students)
+ * - Assigned groups with member counts
+ * - Summary statistics (preference count, group count)
+ * 
+ * Verifies project ownership before returning data
+ * 
+ * @example
+ * // Response
+ * {
+ *   "project": { "id": 456, "title": "Mobile App", ... },
+ *   "preferences": [
+ *     { "student_id": 789, "preference_rank": 1, "first_name": "Alice" }
+ *   ],
+ *   "groups": [
+ *     { "id": 1, "group_number": 1, "member_count": 4 }
+ *   ],
+ *   "stats": {
+ *     "preference_count": 15,
+ *     "group_count": 3
+ *   }
+ * }
+ */
 export const getClientProjectDetails = async (req, res) => {
   try {
     const { client_id, project_id } = req.params;
@@ -403,7 +670,37 @@ export const getClientProjectDetails = async (req, res) => {
   }
 };
 
-// Get students who submitted preferences for a project
+/**
+ * Get Project Preferences
+ * Retrieves list of students who submitted preferences for a project
+ * 
+ * @async
+ * @function getProjectPreferences
+ * @param {Object} req - Express request object
+ * @param {Object} req.params - URL parameters
+ * @param {string} req.params.client_id - Client ID
+ * @param {string} req.params.project_id - Project ID
+ * @param {Object} res - Express response object
+ * @returns {Promise<void>} JSON array of student preferences
+ * 
+ * @description
+ * Returns students who ranked this project in their preferences
+ * Includes student details (name, email) and their preference rank
+ * Verifies project ownership before returning data
+ * Results ordered by preference rank (highest ranked first)
+ * 
+ * @example
+ * // Response
+ * [
+ *   {
+ *     "student_id": 789,
+ *     "preference_rank": 1,
+ *     "first_name": "Alice",
+ *     "last_name": "Smith",
+ *     "email": "alice@university.edu"
+ *   }
+ * ]
+ */
 export const getProjectPreferences = async (req, res) => {
   try {
     const { client_id, project_id } = req.params;
@@ -447,7 +744,52 @@ export const getProjectPreferences = async (req, res) => {
 
 // ==================== CLIENT STATISTICS ====================
 
-// Get client dashboard statistics
+/**
+ * Get Client Statistics
+ * Retrieves comprehensive dashboard statistics for a client
+ * 
+ * @async
+ * @function getClientStats
+ * @param {Object} req - Express request object
+ * @param {Object} req.params - URL parameters
+ * @param {string} req.params.client_id - Client ID
+ * @param {Object} res - Express response object
+ * @returns {Promise<void>} JSON object with statistics grouped by category
+ * 
+ * @description
+ * Aggregates data across three main categories:
+ * 
+ * Projects:
+ * - Total project count
+ * - Count by status (open, approved, closed)
+ * 
+ * Preferences:
+ * - Total interested students (unique)
+ * - Total preference submissions
+ * 
+ * Groups:
+ * - Total groups created
+ * - Total students assigned to groups
+ * 
+ * @example
+ * // Response
+ * {
+ *   "projects": {
+ *     "total_projects": 10,
+ *     "open_projects": 5,
+ *     "approved_projects": 3,
+ *     "closed_projects": 2
+ *   },
+ *   "preferences": {
+ *     "total_interested_students": 45,
+ *     "total_preferences": 120
+ *   },
+ *   "groups": {
+ *     "total_groups": 8,
+ *     "total_assigned_students": 32
+ *   }
+ * }
+ */
 export const getClientStats = async (req, res) => {
   try {
     const { client_id } = req.params;

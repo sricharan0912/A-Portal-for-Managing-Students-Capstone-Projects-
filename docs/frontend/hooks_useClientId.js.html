@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>JSDoc: Source: hooks/useClientId.js</title>
+
+    <script src="scripts/prettify/prettify.js"> </script>
+    <script src="scripts/prettify/lang-css.js"> </script>
+    <!--[if lt IE 9]>
+      <script src="//html5shiv.googlecode.com/svn/trunk/html5.js"></script>
+    <![endif]-->
+    <link type="text/css" rel="stylesheet" href="styles/prettify-tomorrow.css">
+    <link type="text/css" rel="stylesheet" href="styles/jsdoc-default.css">
+</head>
+
+<body>
+
+<div id="main">
+
+    <h1 class="page-title">Source: hooks/useClientId.js</h1>
+
+    
+
+
+
+    
+    <section>
+        <article>
+            <pre class="prettyprint source linenums"><code>import { useMemo } from "react";
+
+/**
+ * Custom React hook to extract and manage client ID from localStorage
+ * 
+ * Handles both Firebase UID (string) and numeric ID formats.
+ * Implements robust extraction logic with multiple fallback strategies
+ * to ensure numeric client ID is retrieved correctly.
+ * 
+ * The hook checks in the following order:
+ * 1. Direct numeric `id` field
+ * 2. Explicit `numeric_id` field
+ * 3. String-to-number conversion of `id`
+ * 4. Fallback to `numeric_id` if main ID is Firebase UID
+ * 
+ * @hook
+ * @returns {number|null} Numeric client ID or null if not found/invalid
+ * 
+ * @example
+ * function ClientDashboard() {
+ *   const clientId = useClientId();
+ *   
+ *   if (!clientId) {
+ *     return &lt;div>Please log in as a client&lt;/div>;
+ *   }
+ *   
+ *   return &lt;div>Welcome, Client #{clientId}&lt;/div>;
+ * }
+ * 
+ * @example
+ * // Using in API calls
+ * function ClientProjects() {
+ *   const clientId = useClientId();
+ *   const { data: projects } = useQuery(['projects', clientId], () => 
+ *     fetchClientProjects(clientId)
+ *   );
+ * }
+ */
+export const useClientId = () => {
+  return useMemo(() => {
+    try {
+      const clientData = localStorage.getItem("client");
+      
+      if (!clientData) {
+        console.warn("No client data found in localStorage");
+        return null;
+      }
+
+      const client = JSON.parse(clientData);
+
+      if (!client?.id) {
+        console.warn("Client ID not found in client data");
+        return null;
+      }
+
+      console.log("Raw client.id:", client.id, "Type:", typeof client.id);
+
+      // Case 1: Direct numeric ID
+      if (typeof client.id === "number") {
+        console.log("Using numeric id:", client.id);
+        return client.id;
+      }
+
+      // Case 2: Explicit numeric_id field
+      if (client.numeric_id &amp;&amp; typeof client.numeric_id === "number") {
+        console.log("Using numeric_id:", client.numeric_id);
+        return client.numeric_id;
+      }
+
+      // Case 3: Firebase UID detection (string length > 20)
+      if (typeof client.id === "string" &amp;&amp; client.id.length > 20) {
+        console.warn(
+          "Client ID appears to be Firebase UID, not numeric:",
+          client.id
+        );
+        
+        // Fallback to numeric_id if available
+        if (client.numeric_id) {
+          return client.numeric_id;
+        }
+      }
+
+      // Case 4: String-to-number conversion
+      if (typeof client.id === "string") {
+        const numeric = parseInt(client.id, 10);
+        if (!isNaN(numeric) &amp;&amp; numeric > 0) {
+          console.log("Parsed numeric id from string:", numeric);
+          return numeric;
+        }
+      }
+
+      console.warn("Could not extract valid numeric client ID");
+      return null;
+    } catch (error) {
+      console.error("Error in useClientId:", error);
+      return null;
+    }
+  }, []);
+};</code></pre>
+        </article>
+    </section>
+
+
+
+
+</div>
+
+<nav>
+    <h2><a href="index.html">Home</a></h2><h3>Modules</h3><ul><li><a href="module-apiHelper.html">apiHelper</a></li><li><a href="module-firebaseConfig.html">firebaseConfig</a></li></ul><h3>Global</h3><ul><li><a href="global.html#API_BASE_URL">API_BASE_URL</a></li><li><a href="global.html#DRAWER_WIDTH">DRAWER_WIDTH</a></li><li><a href="global.html#NAVBAR_HEIGHT">NAVBAR_HEIGHT</a></li><li><a href="global.html#StatCard">StatCard</a></li><li><a href="global.html#animationStyles">animationStyles</a></li><li><a href="global.html#getActiveFromPath">getActiveFromPath</a></li><li><a href="global.html#handleEditProject">handleEditProject</a></li><li><a href="global.html#handleFormClose">handleFormClose</a></li><li><a href="global.html#handleFormSave">handleFormSave</a></li><li><a href="global.html#handleLogout">handleLogout</a></li><li><a href="global.html#handleProjectCreated">handleProjectCreated</a></li><li><a href="global.html#handleSelectProject">handleSelectProject</a></li><li><a href="global.html#handleShowForm">handleShowForm</a></li><li><a href="global.html#handleSubmitPreferences">handleSubmitPreferences</a></li><li><a href="global.html#loadDeadline">loadDeadline</a></li><li><a href="global.html#loadGroupData">loadGroupData</a></li><li><a href="global.html#loadPreferences">loadPreferences</a></li><li><a href="global.html#loadProjects">loadProjects</a></li><li><a href="global.html#refetchProjects">refetchProjects</a></li><li><a href="global.html#setActive">setActive</a></li><li><a href="global.html#submitPreferences">submitPreferences</a></li><li><a href="global.html#useClientId">useClientId</a></li><li><a href="global.html#useProjects">useProjects</a></li><li><a href="global.html#useStudentId">useStudentId</a></li><li><a href="global.html#useStudentPreferences">useStudentPreferences</a></li><li><a href="global.html#useStudentProjects">useStudentProjects</a></li></ul>
+</nav>
+
+<br class="clear">
+
+<footer>
+    Documentation generated by <a href="https://github.com/jsdoc/jsdoc">JSDoc 4.0.5</a> on Mon Dec 22 2025 22:20:27 GMT-0500 (Eastern Standard Time)
+</footer>
+
+<script> prettyPrint(); </script>
+<script src="scripts/linenumber.js"> </script>
+</body>
+</html>

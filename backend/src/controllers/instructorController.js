@@ -1,8 +1,45 @@
+/**
+ * @fileoverview Instructor Controller
+ * Handles all instructor-related business logic including profile management,
+ * dashboard statistics, and project viewing for instructors
+ * 
+ * @requires ../../db
+ * @module controllers/instructorController
+ */
+
 import db from "../../db.js";
 
 // ==================== INSTRUCTOR AUTHENTICATION ====================
 
-// Get all instructors (for admin purposes)
+/**
+ * Get All Instructors
+ * Retrieves list of all instructors for admin purposes
+ * 
+ * @async
+ * @function getAllInstructors
+ * @param {Object} req - Express request object
+ * @param {Object} res - Express response object
+ * @returns {Promise<void>} JSON array of instructor objects
+ * 
+ * @description
+ * Queries the unified users table for all users with role='instructor'
+ * Joins with user_profiles to get additional information
+ * Excludes soft-deleted instructors (deleted_at IS NULL)
+ * Results are ordered by creation date (newest first)
+ * 
+ * @example
+ * // Response format
+ * [
+ *   {
+ *     "id": 1,
+ *     "first_name": "John",
+ *     "last_name": "Doe",
+ *     "email": "john.doe@university.edu",
+ *     "department": "Computer Science",
+ *     "created_at": "2025-01-15T10:30:00.000Z"
+ *   }
+ * ]
+ */
 export const getAllInstructors = async (req, res) => {
   try {
     // ✅ NEW SCHEMA: Query users + user_profiles where role='instructor'
@@ -32,7 +69,38 @@ export const getAllInstructors = async (req, res) => {
   }
 };
 
-// Get a single instructor by ID
+/**
+ * Get Instructor By ID
+ * Retrieves a single instructor's profile information
+ * 
+ * @async
+ * @function getInstructorById
+ * @param {Object} req - Express request object
+ * @param {Object} req.params - URL parameters
+ * @param {string} req.params.id - Instructor ID
+ * @param {Object} res - Express response object
+ * @returns {Promise<void>} JSON object with instructor details
+ * 
+ * @description
+ * Fetches instructor profile from users and user_profiles tables
+ * Validates ID format and checks if instructor exists
+ * Returns 404 if instructor not found
+ * 
+ * @example
+ * // Request
+ * GET /instructors/123
+ * 
+ * @example
+ * // Response
+ * {
+ *   "id": 123,
+ *   "first_name": "John",
+ *   "last_name": "Doe",
+ *   "email": "john.doe@university.edu",
+ *   "department": "Computer Science",
+ *   "created_at": "2025-01-15T10:30:00.000Z"
+ * }
+ */
 export const getInstructorById = async (req, res) => {
   try {
     const { id } = req.params;
@@ -71,7 +139,45 @@ export const getInstructorById = async (req, res) => {
   }
 };
 
-// Update instructor profile
+/**
+ * Update Instructor Profile
+ * Updates instructor profile information in the database
+ * 
+ * @async
+ * @function updateInstructor
+ * @param {Object} req - Express request object
+ * @param {Object} req.params - URL parameters
+ * @param {string} req.params.id - Instructor ID to update
+ * @param {Object} req.body - Request body
+ * @param {string} req.body.first_name - First name (required)
+ * @param {string} req.body.last_name - Last name (required)
+ * @param {string} req.body.email - Email address (required)
+ * @param {string} [req.body.department] - Department name
+ * @param {Object} res - Express response object
+ * @returns {Promise<void>} Success message
+ * 
+ * @description
+ * Updates both users and user_profiles tables in a transaction
+ * Validates required fields (first_name, last_name, email)
+ * Checks for email uniqueness (excluding current instructor)
+ * Generates full_name from first_name and last_name
+ * Uses database connection for transactional updates
+ * 
+ * @example
+ * // Request body
+ * {
+ *   "first_name": "John",
+ *   "last_name": "Doe",
+ *   "email": "john.doe@university.edu",
+ *   "department": "Computer Science"
+ * }
+ * 
+ * @example
+ * // Response
+ * {
+ *   "message": "Instructor profile updated successfully"
+ * }
+ */
 export const updateInstructor = async (req, res) => {
   try {
     const { id } = req.params;
@@ -131,7 +237,34 @@ export const updateInstructor = async (req, res) => {
   }
 };
 
-// Delete an instructor
+/**
+ * Delete Instructor
+ * Soft deletes an instructor account
+ * 
+ * @async
+ * @function deleteInstructor
+ * @param {Object} req - Express request object
+ * @param {Object} req.params - URL parameters
+ * @param {string} req.params.id - Instructor ID to delete
+ * @param {Object} res - Express response object
+ * @returns {Promise<void>} Success message
+ * 
+ * @description
+ * Performs a soft delete by setting deleted_at timestamp and status to inactive
+ * Does not cascade deletions to other tables
+ * Instructor data remains in database for audit purposes
+ * Returns 404 if instructor not found
+ * 
+ * @example
+ * // Request
+ * DELETE /instructors/123
+ * 
+ * @example
+ * // Response
+ * {
+ *   "message": "Instructor deleted successfully"
+ * }
+ */
 export const deleteInstructor = async (req, res) => {
   try {
     const { id } = req.params;
@@ -159,7 +292,55 @@ export const deleteInstructor = async (req, res) => {
 
 // ==================== INSTRUCTOR DASHBOARD ====================
 
-// Get instructor dashboard statistics
+/**
+ * Get Instructor Dashboard Statistics
+ * Retrieves comprehensive statistics for instructor dashboard
+ * 
+ * @async
+ * @function getInstructorStats
+ * @param {Object} req - Express request object
+ * @param {Object} req.params - URL parameters
+ * @param {string} req.params.instructor_id - Instructor ID
+ * @param {Object} res - Express response object
+ * @returns {Promise<void>} JSON object with statistics grouped by category
+ * 
+ * @description
+ * Aggregates platform-wide statistics across three main categories:
+ * 
+ * Students:
+ * - Total active student count
+ * 
+ * Projects:
+ * - Total project count
+ * - Count by status (open, approved, closed)
+ * 
+ * Groups:
+ * - Total groups created
+ * 
+ * Note: Statistics are platform-wide, not instructor-specific
+ * Only includes active (non-deleted) users
+ * 
+ * @example
+ * // Request
+ * GET /instructors/123/stats
+ * 
+ * @example
+ * // Response
+ * {
+ *   "students": {
+ *     "total_students": 150
+ *   },
+ *   "projects": {
+ *     "total_projects": 45,
+ *     "open_projects": 20,
+ *     "approved_projects": 15,
+ *     "closed_projects": 10
+ *   },
+ *   "groups": {
+ *     "total_groups": 30
+ *   }
+ * }
+ */
 export const getInstructorStats = async (req, res) => {
   try {
     const { instructor_id } = req.params;
@@ -208,7 +389,41 @@ export const getInstructorStats = async (req, res) => {
 
 // ==================== INSTRUCTOR PROJECT DETAILS ====================
 
-// Get a single project by ID (for instructor "View Details")
+/**
+ * Get Project By ID
+ * Retrieves detailed project information for instructor view
+ * 
+ * @async
+ * @function getProjectById
+ * @param {Object} req - Express request object
+ * @param {Object} req.params - URL parameters
+ * @param {string} req.params.id - Project ID
+ * @param {Object} res - Express response object
+ * @returns {Promise<void>} JSON object with project and client details
+ * 
+ * @description
+ * Fetches project information along with associated client details
+ * Joins projects table with users and user_profiles for client info
+ * Used by instructors to view detailed project information
+ * Returns 404 if project not found
+ * 
+ * @example
+ * // Request
+ * GET /instructors/projects/456
+ * 
+ * @example
+ * // Response
+ * {
+ *   "id": 456,
+ *   "title": "Mobile App Development",
+ *   "description": "Build iOS application",
+ *   "status": "open",
+ *   "created_at": "2025-01-15T10:00:00.000Z",
+ *   "client_first_name": "John",
+ *   "client_last_name": "Smith",
+ *   "client_email": "john@company.com"
+ * }
+ */
 export const getProjectById = async (req, res) => {
   try {
     const { id } = req.params;
@@ -257,6 +472,18 @@ export const getProjectById = async (req, res) => {
   }
 };
 
+/**
+ * Default Export
+ * Exports all instructor controller functions as a single object
+ * 
+ * @type {Object}
+ * @property {Function} getAllInstructors - Get all instructors
+ * @property {Function} getInstructorById - Get single instructor
+ * @property {Function} updateInstructor - Update instructor profile
+ * @property {Function} deleteInstructor - Delete instructor account
+ * @property {Function} getInstructorStats - Get dashboard statistics
+ * @property {Function} getProjectById - Get project details
+ */
 export default {
   getAllInstructors,
   getInstructorById,

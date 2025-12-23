@@ -1,0 +1,544 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>JSDoc: Source: controllers/instructorController.js</title>
+
+    <script src="scripts/prettify/prettify.js"> </script>
+    <script src="scripts/prettify/lang-css.js"> </script>
+    <!--[if lt IE 9]>
+      <script src="//html5shiv.googlecode.com/svn/trunk/html5.js"></script>
+    <![endif]-->
+    <link type="text/css" rel="stylesheet" href="styles/prettify-tomorrow.css">
+    <link type="text/css" rel="stylesheet" href="styles/jsdoc-default.css">
+</head>
+
+<body>
+
+<div id="main">
+
+    <h1 class="page-title">Source: controllers/instructorController.js</h1>
+
+    
+
+
+
+    
+    <section>
+        <article>
+            <pre class="prettyprint source linenums"><code>/**
+ * @fileoverview Instructor Controller
+ * Handles all instructor-related business logic including profile management,
+ * dashboard statistics, and project viewing for instructors
+ * 
+ * @requires ../../db
+ * @module controllers/instructorController
+ */
+
+import db from "../../db.js";
+
+// ==================== INSTRUCTOR AUTHENTICATION ====================
+
+/**
+ * Get All Instructors
+ * Retrieves list of all instructors for admin purposes
+ * 
+ * @async
+ * @function getAllInstructors
+ * @param {Object} req - Express request object
+ * @param {Object} res - Express response object
+ * @returns {Promise&lt;void>} JSON array of instructor objects
+ * 
+ * @description
+ * Queries the unified users table for all users with role='instructor'
+ * Joins with user_profiles to get additional information
+ * Excludes soft-deleted instructors (deleted_at IS NULL)
+ * Results are ordered by creation date (newest first)
+ * 
+ * @example
+ * // Response format
+ * [
+ *   {
+ *     "id": 1,
+ *     "first_name": "John",
+ *     "last_name": "Doe",
+ *     "email": "john.doe@university.edu",
+ *     "department": "Computer Science",
+ *     "created_at": "2025-01-15T10:30:00.000Z"
+ *   }
+ * ]
+ */
+export const getAllInstructors = async (req, res) => {
+  try {
+    // ✅ NEW SCHEMA: Query users + user_profiles where role='instructor'
+    const [instructors] = await db.query(
+      `SELECT u.id, u.email, u.created_at,
+              p.first_name, p.last_name, p.full_name, p.department
+       FROM users u
+       LEFT JOIN user_profiles p ON u.id = p.user_id
+       WHERE u.role = 'instructor' AND u.deleted_at IS NULL
+       ORDER BY u.created_at DESC`
+    );
+
+    // Format for backwards compatibility
+    const formattedInstructors = instructors.map(instructor => ({
+      id: instructor.id,
+      first_name: instructor.first_name,
+      last_name: instructor.last_name,
+      email: instructor.email,
+      department: instructor.department,
+      created_at: instructor.created_at,
+    }));
+
+    res.status(200).json(formattedInstructors);
+  } catch (err) {
+    console.error("Error fetching instructors:", err);
+    res.status(500).json({ error: "Server error" });
+  }
+};
+
+/**
+ * Get Instructor By ID
+ * Retrieves a single instructor's profile information
+ * 
+ * @async
+ * @function getInstructorById
+ * @param {Object} req - Express request object
+ * @param {Object} req.params - URL parameters
+ * @param {string} req.params.id - Instructor ID
+ * @param {Object} res - Express response object
+ * @returns {Promise&lt;void>} JSON object with instructor details
+ * 
+ * @description
+ * Fetches instructor profile from users and user_profiles tables
+ * Validates ID format and checks if instructor exists
+ * Returns 404 if instructor not found
+ * 
+ * @example
+ * // Request
+ * GET /instructors/123
+ * 
+ * @example
+ * // Response
+ * {
+ *   "id": 123,
+ *   "first_name": "John",
+ *   "last_name": "Doe",
+ *   "email": "john.doe@university.edu",
+ *   "department": "Computer Science",
+ *   "created_at": "2025-01-15T10:30:00.000Z"
+ * }
+ */
+export const getInstructorById = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    if (isNaN(id)) {
+      return res.status(400).json({ error: "Invalid instructor ID format" });
+    }
+
+    // ✅ NEW SCHEMA: Query users + user_profiles
+    const [instructors] = await db.query(
+      `SELECT u.id, u.email, u.created_at,
+              p.first_name, p.last_name, p.full_name, p.department
+       FROM users u
+       LEFT JOIN user_profiles p ON u.id = p.user_id
+       WHERE u.id = ? AND u.role = 'instructor' AND u.deleted_at IS NULL`,
+      [parseInt(id)]
+    );
+
+    if (instructors.length === 0) {
+      return res.status(404).json({ error: "Instructor not found" });
+    }
+
+    const instructor = instructors[0];
+
+    res.status(200).json({
+      id: instructor.id,
+      first_name: instructor.first_name,
+      last_name: instructor.last_name,
+      email: instructor.email,
+      department: instructor.department,
+      created_at: instructor.created_at,
+    });
+  } catch (err) {
+    console.error("Error fetching instructor:", err);
+    res.status(500).json({ error: "Server error" });
+  }
+};
+
+/**
+ * Update Instructor Profile
+ * Updates instructor profile information in the database
+ * 
+ * @async
+ * @function updateInstructor
+ * @param {Object} req - Express request object
+ * @param {Object} req.params - URL parameters
+ * @param {string} req.params.id - Instructor ID to update
+ * @param {Object} req.body - Request body
+ * @param {string} req.body.first_name - First name (required)
+ * @param {string} req.body.last_name - Last name (required)
+ * @param {string} req.body.email - Email address (required)
+ * @param {string} [req.body.department] - Department name
+ * @param {Object} res - Express response object
+ * @returns {Promise&lt;void>} Success message
+ * 
+ * @description
+ * Updates both users and user_profiles tables in a transaction
+ * Validates required fields (first_name, last_name, email)
+ * Checks for email uniqueness (excluding current instructor)
+ * Generates full_name from first_name and last_name
+ * Uses database connection for transactional updates
+ * 
+ * @example
+ * // Request body
+ * {
+ *   "first_name": "John",
+ *   "last_name": "Doe",
+ *   "email": "john.doe@university.edu",
+ *   "department": "Computer Science"
+ * }
+ * 
+ * @example
+ * // Response
+ * {
+ *   "message": "Instructor profile updated successfully"
+ * }
+ */
+export const updateInstructor = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { first_name, last_name, email, department } = req.body;
+
+    if (isNaN(id)) {
+      return res.status(400).json({ error: "Invalid instructor ID format" });
+    }
+
+    // Validate required fields
+    if (!first_name || !last_name || !email) {
+      return res.status(400).json({
+        error: "first_name, last_name, and email are required",
+      });
+    }
+
+    // Check if email already exists (excluding current instructor)
+    const [existingEmail] = await db.query(
+      "SELECT id FROM users WHERE email = ? AND id != ? AND deleted_at IS NULL",
+      [email, parseInt(id)]
+    );
+
+    if (existingEmail.length > 0) {
+      return res.status(400).json({ error: "Email already in use" });
+    }
+
+    const connection = await db.getConnection();
+
+    try {
+      // ✅ NEW SCHEMA: Update users table
+      await connection.query(
+        "UPDATE users SET email = ? WHERE id = ?",
+        [email, parseInt(id)]
+      );
+
+      // ✅ NEW SCHEMA: Update user_profiles table
+      const fullName = `${first_name} ${last_name}`.trim();
+      const [result] = await connection.query(
+        "UPDATE user_profiles SET first_name = ?, last_name = ?, full_name = ?, department = ? WHERE user_id = ?",
+        [first_name, last_name, fullName, department || null, parseInt(id)]
+      );
+
+      connection.release();
+
+      if (result.affectedRows === 0) {
+        return res.status(404).json({ error: "Instructor not found" });
+      }
+
+      res.status(200).json({ message: "Instructor profile updated successfully" });
+    } catch (err) {
+      connection.release();
+      throw err;
+    }
+  } catch (err) {
+    console.error("Error updating instructor:", err);
+    res.status(500).json({ error: "Server error" });
+  }
+};
+
+/**
+ * Delete Instructor
+ * Soft deletes an instructor account
+ * 
+ * @async
+ * @function deleteInstructor
+ * @param {Object} req - Express request object
+ * @param {Object} req.params - URL parameters
+ * @param {string} req.params.id - Instructor ID to delete
+ * @param {Object} res - Express response object
+ * @returns {Promise&lt;void>} Success message
+ * 
+ * @description
+ * Performs a soft delete by setting deleted_at timestamp and status to inactive
+ * Does not cascade deletions to other tables
+ * Instructor data remains in database for audit purposes
+ * Returns 404 if instructor not found
+ * 
+ * @example
+ * // Request
+ * DELETE /instructors/123
+ * 
+ * @example
+ * // Response
+ * {
+ *   "message": "Instructor deleted successfully"
+ * }
+ */
+export const deleteInstructor = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    if (isNaN(id)) {
+      return res.status(400).json({ error: "Invalid instructor ID format" });
+    }
+
+    // ✅ NEW SCHEMA: Soft delete instructor (mark as deleted)
+    const [result] = await db.query(
+      "UPDATE users SET deleted_at = NOW(), status = 'inactive' WHERE id = ? AND role = 'instructor'",
+      [parseInt(id)]
+    );
+
+    if (result.affectedRows === 0) {
+      return res.status(404).json({ error: "Instructor not found" });
+    }
+
+    res.status(200).json({ message: "Instructor deleted successfully" });
+  } catch (err) {
+    console.error("Error deleting instructor:", err);
+    res.status(500).json({ error: "Server error" });
+  }
+};
+
+// ==================== INSTRUCTOR DASHBOARD ====================
+
+/**
+ * Get Instructor Dashboard Statistics
+ * Retrieves comprehensive statistics for instructor dashboard
+ * 
+ * @async
+ * @function getInstructorStats
+ * @param {Object} req - Express request object
+ * @param {Object} req.params - URL parameters
+ * @param {string} req.params.instructor_id - Instructor ID
+ * @param {Object} res - Express response object
+ * @returns {Promise&lt;void>} JSON object with statistics grouped by category
+ * 
+ * @description
+ * Aggregates platform-wide statistics across three main categories:
+ * 
+ * Students:
+ * - Total active student count
+ * 
+ * Projects:
+ * - Total project count
+ * - Count by status (open, approved, closed)
+ * 
+ * Groups:
+ * - Total groups created
+ * 
+ * Note: Statistics are platform-wide, not instructor-specific
+ * Only includes active (non-deleted) users
+ * 
+ * @example
+ * // Request
+ * GET /instructors/123/stats
+ * 
+ * @example
+ * // Response
+ * {
+ *   "students": {
+ *     "total_students": 150
+ *   },
+ *   "projects": {
+ *     "total_projects": 45,
+ *     "open_projects": 20,
+ *     "approved_projects": 15,
+ *     "closed_projects": 10
+ *   },
+ *   "groups": {
+ *     "total_groups": 30
+ *   }
+ * }
+ */
+export const getInstructorStats = async (req, res) => {
+  try {
+    const { instructor_id } = req.params;
+
+    if (isNaN(instructor_id)) {
+      return res.status(400).json({ error: "Invalid instructor ID format" });
+    }
+
+    // ✅ NEW SCHEMA: Get student statistics (count users with role='student')
+    const [studentStats] = await db.query(
+      `SELECT COUNT(*) as total_students 
+       FROM users 
+       WHERE role = 'student' AND deleted_at IS NULL`
+    );
+
+    // Get project statistics
+    const [projectStats] = await db.query(
+      `SELECT 
+        COUNT(*) as total_projects,
+        SUM(CASE WHEN status = 'open' THEN 1 ELSE 0 END) as open_projects,
+        SUM(CASE WHEN status = 'approved' THEN 1 ELSE 0 END) as approved_projects,
+        SUM(CASE WHEN status = 'closed' THEN 1 ELSE 0 END) as closed_projects
+       FROM projects`
+    );
+
+    // Get group statistics
+    const [groupStats] = await db.query(
+      `SELECT COUNT(DISTINCT id) as total_groups FROM student_groups`
+    );
+
+    res.status(200).json({
+      students: studentStats[0] || { total_students: 0 },
+      projects: projectStats[0] || {
+        total_projects: 0,
+        open_projects: 0,
+        approved_projects: 0,
+        closed_projects: 0,
+      },
+      groups: groupStats[0] || { total_groups: 0 },
+    });
+  } catch (err) {
+    console.error("Error fetching instructor stats:", err);
+    res.status(500).json({ error: "Server error" });
+  }
+};
+
+// ==================== INSTRUCTOR PROJECT DETAILS ====================
+
+/**
+ * Get Project By ID
+ * Retrieves detailed project information for instructor view
+ * 
+ * @async
+ * @function getProjectById
+ * @param {Object} req - Express request object
+ * @param {Object} req.params - URL parameters
+ * @param {string} req.params.id - Project ID
+ * @param {Object} res - Express response object
+ * @returns {Promise&lt;void>} JSON object with project and client details
+ * 
+ * @description
+ * Fetches project information along with associated client details
+ * Joins projects table with users and user_profiles for client info
+ * Used by instructors to view detailed project information
+ * Returns 404 if project not found
+ * 
+ * @example
+ * // Request
+ * GET /instructors/projects/456
+ * 
+ * @example
+ * // Response
+ * {
+ *   "id": 456,
+ *   "title": "Mobile App Development",
+ *   "description": "Build iOS application",
+ *   "status": "open",
+ *   "created_at": "2025-01-15T10:00:00.000Z",
+ *   "client_first_name": "John",
+ *   "client_last_name": "Smith",
+ *   "client_email": "john@company.com"
+ * }
+ */
+export const getProjectById = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    if (!id) {
+      return res.status(400).json({ error: "Invalid project ID format" });
+    }
+
+    // ✅ NEW SCHEMA: Query projects with client info from users + user_profiles
+    const [projects] = await db.query(
+      `SELECT 
+         p.id,
+         p.title,
+         p.description,
+         p.status,
+         p.posted_date as created_at,
+         up.first_name AS client_first_name,
+         up.last_name AS client_last_name,
+         u.email AS client_email
+       FROM projects p
+       LEFT JOIN users u ON p.owner_id = u.id
+       LEFT JOIN user_profiles up ON u.id = up.user_id
+       WHERE p.id = ?`,
+      [id]
+    );
+
+    if (projects.length === 0) {
+      return res.status(404).json({ error: "Project not found" });
+    }
+
+    const project = projects[0];
+
+    res.status(200).json({
+      id: project.id,
+      title: project.title,
+      description: project.description,
+      status: project.status,
+      created_at: project.created_at,
+      client_first_name: project.client_first_name,
+      client_last_name: project.client_last_name,
+      client_email: project.client_email,
+    });
+  } catch (err) {
+    console.error("Error fetching project:", err);
+    res.status(500).json({ error: "Server error" });
+  }
+};
+
+/**
+ * Default Export
+ * Exports all instructor controller functions as a single object
+ * 
+ * @type {Object}
+ * @property {Function} getAllInstructors - Get all instructors
+ * @property {Function} getInstructorById - Get single instructor
+ * @property {Function} updateInstructor - Update instructor profile
+ * @property {Function} deleteInstructor - Delete instructor account
+ * @property {Function} getInstructorStats - Get dashboard statistics
+ * @property {Function} getProjectById - Get project details
+ */
+export default {
+  getAllInstructors,
+  getInstructorById,
+  updateInstructor,
+  deleteInstructor,
+  getInstructorStats,
+  getProjectById,
+};</code></pre>
+        </article>
+    </section>
+
+
+
+
+</div>
+
+<nav>
+    <h2><a href="index.html">Home</a></h2><h3>Modules</h3><ul><li><a href="module-controllers_clientController.html">controllers/clientController</a></li><li><a href="module-controllers_instructorController.html">controllers/instructorController</a></li><li><a href="module-controllers_studentController.html">controllers/studentController</a></li><li><a href="module-groupFormationAlgorithm.html">groupFormationAlgorithm</a></li><li><a href="module-middleware_authMiddleware.html">middleware/authMiddleware</a></li><li><a href="module-routes_clientRoutes.html">routes/clientRoutes</a></li><li><a href="module-routes_evaluationRoutes.html">routes/evaluationRoutes</a></li><li><a href="module-routes_instructorRoutes.html">routes/instructorRoutes</a></li><li><a href="module-routes_projectRoutes.html">routes/projectRoutes</a></li><li><a href="module-routes_studentRoutes.html">routes/studentRoutes</a></li><li><a href="module-utils_groupFormationAlgorithm.html">utils/groupFormationAlgorithm</a></li></ul><h3>Classes</h3><ul><li><a href="AppError.html">AppError</a></li></ul><h3>Global</h3><ul><li><a href="global.html#OPTIONAL_ENV_VARS">OPTIONAL_ENV_VARS</a></li><li><a href="global.html#REQUIRED_ENV_VARS">REQUIRED_ENV_VARS</a></li><li><a href="global.html#calculatePagination">calculatePagination</a></li><li><a href="global.html#errorHandler">errorHandler</a></li><li><a href="global.html#formatAuthError">formatAuthError</a></li><li><a href="global.html#formatConflict">formatConflict</a></li><li><a href="global.html#formatCreated">formatCreated</a></li><li><a href="global.html#formatDeleted">formatDeleted</a></li><li><a href="global.html#formatError">formatError</a></li><li><a href="global.html#formatForbidden">formatForbidden</a></li><li><a href="global.html#formatList">formatList</a></li><li><a href="global.html#formatNotFound">formatNotFound</a></li><li><a href="global.html#formatServerError">formatServerError</a></li><li><a href="global.html#formatSuccess">formatSuccess</a></li><li><a href="global.html#formatUpdated">formatUpdated</a></li><li><a href="global.html#formatValidationError">formatValidationError</a></li><li><a href="global.html#getEnv">getEnv</a></li><li><a href="global.html#isValidEmail">isValidEmail</a></li><li><a href="global.html#isValidUrl">isValidUrl</a></li><li><a href="global.html#mapFirebaseError">mapFirebaseError</a></li><li><a href="global.html#printEnvironmentSummary">printEnvironmentSummary</a></li><li><a href="global.html#printExampleEnvFile">printExampleEnvFile</a></li><li><a href="global.html#requestIdMiddleware">requestIdMiddleware</a></li><li><a href="global.html#requestLoggingMiddleware">requestLoggingMiddleware</a></li><li><a href="global.html#server">server</a></li><li><a href="global.html#validateClientLogin">validateClientLogin</a></li><li><a href="global.html#validateClientSignup">validateClientSignup</a></li><li><a href="global.html#validateDatabaseConfig">validateDatabaseConfig</a></li><li><a href="global.html#validateEnvironment">validateEnvironment</a></li><li><a href="global.html#validateFirebaseConfig">validateFirebaseConfig</a></li><li><a href="global.html#validateGroupAssignment">validateGroupAssignment</a></li><li><a href="global.html#validateInstructorLogin">validateInstructorLogin</a></li><li><a href="global.html#validateInstructorSignup">validateInstructorSignup</a></li><li><a href="global.html#validatePreferences">validatePreferences</a></li><li><a href="global.html#validateProject">validateProject</a></li><li><a href="global.html#validateStudentLogin">validateStudentLogin</a></li><li><a href="global.html#validateStudentSignup">validateStudentSignup</a></li></ul>
+</nav>
+
+<br class="clear">
+
+<footer>
+    Documentation generated by <a href="https://github.com/jsdoc/jsdoc">JSDoc 4.0.5</a> on Mon Dec 22 2025 22:20:27 GMT-0500 (Eastern Standard Time)
+</footer>
+
+<script> prettyPrint(); </script>
+<script src="scripts/linenumber.js"> </script>
+</body>
+</html>

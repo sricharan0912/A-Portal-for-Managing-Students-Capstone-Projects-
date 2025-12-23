@@ -1,0 +1,1062 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>JSDoc: Source: controllers/studentController.js</title>
+
+    <script src="scripts/prettify/prettify.js"> </script>
+    <script src="scripts/prettify/lang-css.js"> </script>
+    <!--[if lt IE 9]>
+      <script src="//html5shiv.googlecode.com/svn/trunk/html5.js"></script>
+    <![endif]-->
+    <link type="text/css" rel="stylesheet" href="styles/prettify-tomorrow.css">
+    <link type="text/css" rel="stylesheet" href="styles/jsdoc-default.css">
+</head>
+
+<body>
+
+<div id="main">
+
+    <h1 class="page-title">Source: controllers/studentController.js</h1>
+
+    
+
+
+
+    
+    <section>
+        <article>
+            <pre class="prettyprint source linenums"><code>/**
+ * @fileoverview Student Controller
+ * Handles all student-related business logic including profile management,
+ * project preferences, group assignments, and project browsing
+ * 
+ * @requires ../../db
+ * @module controllers/studentController
+ */
+
+import db from "../../db.js";
+
+// ==================== STUDENT AUTHENTICATION ====================
+
+/**
+ * Get All Students
+ * Retrieves list of all students for admin/instructor purposes
+ * 
+ * @async
+ * @function getAllStudents
+ * @param {Object} req - Express request object
+ * @param {Object} res - Express response object
+ * @returns {Promise&lt;void>} JSON array of student objects
+ * 
+ * @description
+ * Queries the unified users table for all users with role='student'
+ * Joins with user_profiles to get additional information
+ * Excludes soft-deleted students (deleted_at IS NULL)
+ * Results are ordered by creation date (newest first)
+ * 
+ * @example
+ * // Response format
+ * [
+ *   {
+ *     "id": 1,
+ *     "first_name": "Alice",
+ *     "last_name": "Johnson",
+ *     "email": "alice@university.edu",
+ *     "created_at": "2025-01-15T10:30:00.000Z"
+ *   }
+ * ]
+ */
+export const getAllStudents = async (req, res) => {
+  try {
+    // ✅ NEW SCHEMA: Query users + user_profiles where role='student'
+    const [students] = await db.query(
+      `SELECT u.id, u.email, u.created_at,
+              p.first_name, p.last_name, p.full_name
+       FROM users u
+       LEFT JOIN user_profiles p ON u.id = p.user_id
+       WHERE u.role = 'student' AND u.deleted_at IS NULL
+       ORDER BY u.created_at DESC`
+    );
+
+    // Format for backwards compatibility
+    const formattedStudents = students.map(student => ({
+      id: student.id,
+      first_name: student.first_name,
+      last_name: student.last_name,
+      email: student.email,
+      created_at: student.created_at,
+    }));
+
+    res.status(200).json(formattedStudents);
+  } catch (err) {
+    console.error("Error fetching students:", err);
+    res.status(500).json({ error: "Server error" });
+  }
+};
+
+/**
+ * Get Student By ID
+ * Retrieves a single student's profile information
+ * 
+ * @async
+ * @function getStudentById
+ * @param {Object} req - Express request object
+ * @param {Object} req.params - URL parameters
+ * @param {string} req.params.id - Student ID
+ * @param {Object} res - Express response object
+ * @returns {Promise&lt;void>} JSON object with student details
+ * 
+ * @description
+ * Fetches student profile from users and user_profiles tables
+ * Validates ID format and checks if student exists
+ * Returns 404 if student not found
+ * 
+ * @example
+ * // Request
+ * GET /students/123
+ * 
+ * @example
+ * // Response
+ * {
+ *   "id": 123,
+ *   "first_name": "Alice",
+ *   "last_name": "Johnson",
+ *   "email": "alice@university.edu"
+ * }
+ */
+export const getStudentById = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    if (isNaN(id)) {
+      return res.status(400).json({ error: "Invalid student ID format" });
+    }
+
+    // ✅ NEW SCHEMA: Query users + user_profiles
+    const [students] = await db.query(
+      `SELECT u.id, u.email, u.created_at,
+              p.first_name, p.last_name, p.full_name
+       FROM users u
+       LEFT JOIN user_profiles p ON u.id = p.user_id
+       WHERE u.id = ? AND u.role = 'student' AND u.deleted_at IS NULL`,
+      [parseInt(id)]
+    );
+
+    if (students.length === 0) {
+      return res.status(404).json({ error: "Student not found" });
+    }
+
+    const student = students[0];
+
+    res.status(200).json({
+      id: student.id,
+      first_name: student.first_name,
+      last_name: student.last_name,
+      email: student.email,
+    });
+  } catch (err) {
+    console.error("Error fetching student:", err);
+    res.status(500).json({ error: "Server error" });
+  }
+};
+
+/**
+ * Update Student Profile
+ * Updates student profile information in the database
+ * 
+ * @async
+ * @function updateStudent
+ * @param {Object} req - Express request object
+ * @param {Object} req.params - URL parameters
+ * @param {string} req.params.id - Student ID to update
+ * @param {Object} req.body - Request body
+ * @param {string} req.body.first_name - First name (required)
+ * @param {string} req.body.last_name - Last name (required)
+ * @param {string} req.body.email - Email address (required)
+ * @param {Object} res - Express response object
+ * @returns {Promise&lt;void>} Success message
+ * 
+ * @description
+ * Updates both users and user_profiles tables in a transaction
+ * Validates required fields (first_name, last_name, email)
+ * Checks for email uniqueness (excluding current student)
+ * Generates full_name from first_name and last_name
+ * Uses database connection for transactional updates
+ * 
+ * @example
+ * // Request body
+ * {
+ *   "first_name": "Alice",
+ *   "last_name": "Johnson",
+ *   "email": "alice.johnson@university.edu"
+ * }
+ * 
+ * @example
+ * // Response
+ * {
+ *   "message": "Student profile updated successfully"
+ * }
+ */
+export const updateStudent = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { first_name, last_name, email } = req.body;
+
+    if (isNaN(id)) {
+      return res.status(400).json({ error: "Invalid student ID format" });
+    }
+
+    // Validate required fields
+    if (!first_name || !last_name || !email) {
+      return res.status(400).json({
+        error: "first_name, last_name, and email are required",
+      });
+    }
+
+    // Check if email already exists (excluding current student)
+    const [existingEmail] = await db.query(
+      "SELECT id FROM users WHERE email = ? AND id != ? AND deleted_at IS NULL",
+      [email, parseInt(id)]
+    );
+
+    if (existingEmail.length > 0) {
+      return res.status(400).json({ error: "Email already in use" });
+    }
+
+    const connection = await db.getConnection();
+
+    try {
+      // ✅ NEW SCHEMA: Update users table
+      await connection.query(
+        "UPDATE users SET email = ? WHERE id = ?",
+        [email, parseInt(id)]
+      );
+
+      // ✅ NEW SCHEMA: Update user_profiles table
+      const fullName = `${first_name} ${last_name}`.trim();
+      const [result] = await connection.query(
+        "UPDATE user_profiles SET first_name = ?, last_name = ?, full_name = ? WHERE user_id = ?",
+        [first_name, last_name, fullName, parseInt(id)]
+      );
+
+      connection.release();
+
+      if (result.affectedRows === 0) {
+        return res.status(404).json({ error: "Student not found" });
+      }
+
+      res.status(200).json({ message: "Student profile updated successfully" });
+    } catch (err) {
+      connection.release();
+      throw err;
+    }
+  } catch (err) {
+    console.error("Error updating student:", err);
+    res.status(500).json({ error: "Server error" });
+  }
+};
+
+/**
+ * Delete Student
+ * Soft deletes a student account and removes related data
+ * 
+ * @async
+ * @function deleteStudent
+ * @param {Object} req - Express request object
+ * @param {Object} req.params - URL parameters
+ * @param {string} req.params.id - Student ID to delete
+ * @param {Object} res - Express response object
+ * @returns {Promise&lt;void>} Success message
+ * 
+ * @description
+ * Performs a soft delete by setting deleted_at timestamp and status to inactive
+ * Cascades deletion to:
+ * - Student preferences (hard delete)
+ * - Group memberships (hard delete)
+ * Uses database transaction via connection for data consistency
+ * Returns 404 if student not found
+ * 
+ * @example
+ * // Request
+ * DELETE /students/123
+ * 
+ * @example
+ * // Response
+ * {
+ *   "message": "Student deleted successfully"
+ * }
+ */
+export const deleteStudent = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    if (isNaN(id)) {
+      return res.status(400).json({ error: "Invalid student ID format" });
+    }
+
+    const connection = await db.getConnection();
+
+    try {
+      // Delete student preferences first (foreign key constraint)
+      await connection.query(
+        "DELETE FROM student_preferences WHERE student_id = ?",
+        [parseInt(id)]
+      );
+
+      // Delete student from groups
+      await connection.query(
+        "DELETE FROM group_members WHERE student_id = ?",
+        [parseInt(id)]
+      );
+
+      // ✅ NEW SCHEMA: Soft delete student (mark as deleted)
+      const [result] = await connection.query(
+        "UPDATE users SET deleted_at = NOW(), status = 'inactive' WHERE id = ? AND role = 'student'",
+        [parseInt(id)]
+      );
+
+      connection.release();
+
+      if (result.affectedRows === 0) {
+        return res.status(404).json({ error: "Student not found" });
+      }
+
+      res.status(200).json({ message: "Student deleted successfully" });
+    } catch (err) {
+      connection.release();
+      throw err;
+    }
+  } catch (err) {
+    console.error("Error deleting student:", err);
+    res.status(500).json({ error: "Server error" });
+  }
+};
+
+// ==================== STUDENT PREFERENCES ====================
+
+/**
+ * Get Student Preferences
+ * Retrieves a student's submitted project preferences
+ * 
+ * @async
+ * @function getStudentPreferences
+ * @param {Object} req - Express request object
+ * @param {Object} req.params - URL parameters
+ * @param {string} req.params.student_id - Student ID
+ * @param {Object} res - Express response object
+ * @returns {Promise&lt;void>} JSON array of project preferences with details
+ * 
+ * @description
+ * Fetches student's ranked project preferences with full project details
+ * Joins student_preferences with projects table
+ * Includes column aliases for backwards compatibility
+ * Results ordered by preference rank (highest priority first)
+ * 
+ * @example
+ * // Request
+ * GET /students/123/preferences
+ * 
+ * @example
+ * // Response
+ * [
+ *   {
+ *     "student_id": 123,
+ *     "project_id": 456,
+ *     "preference_rank": 1,
+ *     "title": "Mobile App Development",
+ *     "description": "Build iOS app",
+ *     "category": "Software",
+ *     "complexity_level": "Intermediate"
+ *   }
+ * ]
+ */
+export const getStudentPreferences = async (req, res) => {
+  try {
+    const { student_id } = req.params;
+
+    if (isNaN(student_id)) {
+      return res.status(400).json({ error: "Invalid student ID format" });
+    }
+
+    // ✅ NEW SCHEMA: Query with column aliases for backwards compatibility
+    const [preferences] = await db.query(
+      `SELECT 
+         sp.student_id, 
+         sp.project_id, 
+         sp.rank as preference_rank,
+         p.title, 
+         p.description, 
+         p.category, 
+         p.difficulty_level as complexity_level,
+         p.required_skills as skills_required,
+         p.max_team_size as team_size,
+         p.start_date, 
+         p.end_date,
+         p.location as project_location,
+         p.deliverables, 
+         p.industry_category as industry
+       FROM student_preferences sp
+       JOIN projects p ON sp.project_id = p.id
+       WHERE sp.student_id = ?
+       ORDER BY sp.rank ASC`,
+      [parseInt(student_id)]
+    );
+
+    res.status(200).json(preferences);
+  } catch (err) {
+    console.error("Error fetching preferences:", err);
+    res.status(500).json({ error: "Server error" });
+  }
+};
+
+/**
+ * Submit Student Preferences
+ * Creates or updates a student's project preferences
+ * 
+ * @async
+ * @function submitPreferences
+ * @param {Object} req - Express request object
+ * @param {Object} req.params - URL parameters
+ * @param {string} req.params.student_id - Student ID
+ * @param {Object} req.body - Request body
+ * @param {Array&lt;Object>} req.body.preferences - Array of preferences (max 3)
+ * @param {number} req.body.preferences[].project_id - Project ID
+ * @param {number} req.body.preferences[].preference_rank - Rank (1-3)
+ * @param {Object} res - Express response object
+ * @returns {Promise&lt;void>} Success message
+ * 
+ * @description
+ * Validates preferences array (non-empty, max 3 items)
+ * Validates each preference has project_id and preference_rank
+ * Verifies all referenced projects exist
+ * Deletes existing preferences before inserting new ones
+ * Uses rank column in database (maps from preference_rank in request)
+ * 
+ * @example
+ * // Request body
+ * {
+ *   "preferences": [
+ *     { "project_id": 456, "preference_rank": 1 },
+ *     { "project_id": 789, "preference_rank": 2 },
+ *     { "project_id": 101, "preference_rank": 3 }
+ *   ]
+ * }
+ * 
+ * @example
+ * // Response
+ * {
+ *   "message": "Preferences submitted successfully"
+ * }
+ */
+export const submitPreferences = async (req, res) => {
+  try {
+    const { student_id } = req.params;
+    const { preferences } = req.body;
+
+    if (isNaN(student_id)) {
+      return res.status(400).json({ error: "Invalid student ID format" });
+    }
+
+    // Validate preferences
+    if (!Array.isArray(preferences) || preferences.length === 0) {
+      return res.status(400).json({
+        error: "Preferences must be a non-empty array",
+      });
+    }
+
+    if (preferences.length > 3) {
+      return res.status(400).json({
+        error: "Maximum 3 preferences allowed",
+      });
+    }
+
+    // Validate all projects exist
+    for (const pref of preferences) {
+      if (!pref.project_id || !pref.preference_rank) {
+        return res.status(400).json({
+          error: "Each preference must have project_id and preference_rank",
+        });
+      }
+
+      const [project] = await db.query(
+        "SELECT id FROM projects WHERE id = ?",
+        [pref.project_id]
+      );
+
+      if (project.length === 0) {
+        return res.status(400).json({
+          error: `Project with ID ${pref.project_id} not found`,
+        });
+      }
+    }
+
+    // Delete existing preferences
+    await db.query(
+      "DELETE FROM student_preferences WHERE student_id = ?",
+      [parseInt(student_id)]
+    );
+
+    // ✅ NEW SCHEMA: Insert new preferences with 'rank' column
+    for (const pref of preferences) {
+      await db.query(
+        "INSERT INTO student_preferences (student_id, project_id, rank) VALUES (?, ?, ?)",
+        [parseInt(student_id), pref.project_id, pref.preference_rank]
+      );
+    }
+
+    res.status(200).json({ message: "Preferences submitted successfully" });
+  } catch (err) {
+    console.error("Error submitting preferences:", err);
+    res.status(500).json({ error: "Server error" });
+  }
+};
+
+/**
+ * Clear Student Preferences
+ * Deletes all preferences for a student
+ * 
+ * @async
+ * @function clearPreferences
+ * @param {Object} req - Express request object
+ * @param {Object} req.params - URL parameters
+ * @param {string} req.params.student_id - Student ID
+ * @param {Object} res - Express response object
+ * @returns {Promise&lt;void>} Success message with count of deleted preferences
+ * 
+ * @description
+ * Removes all preference records for the specified student
+ * Returns count of deleted records
+ * Useful for allowing students to restart preference selection
+ * 
+ * @example
+ * // Request
+ * DELETE /students/123/preferences
+ * 
+ * @example
+ * // Response
+ * {
+ *   "message": "Preferences cleared successfully",
+ *   "deletedCount": 3
+ * }
+ */
+export const clearPreferences = async (req, res) => {
+  try {
+    const { student_id } = req.params;
+
+    if (isNaN(student_id)) {
+      return res.status(400).json({ error: "Invalid student ID format" });
+    }
+
+    const [result] = await db.query(
+      "DELETE FROM student_preferences WHERE student_id = ?",
+      [parseInt(student_id)]
+    );
+
+    res.status(200).json({
+      message: "Preferences cleared successfully",
+      deletedCount: result.affectedRows,
+    });
+  } catch (err) {
+    console.error("Error clearing preferences:", err);
+    res.status(500).json({ error: "Server error" });
+  }
+};
+
+// ==================== STUDENT GROUP ====================
+
+/**
+ * Get Student Group
+ * Retrieves the student's assigned group and project information
+ * 
+ * @async
+ * @function getStudentGroup
+ * @param {Object} req - Express request object
+ * @param {Object} req.params - URL parameters
+ * @param {string} req.params.student_id - Student ID
+ * @param {Object} res - Express response object
+ * @returns {Promise&lt;void>} JSON object with group and project details
+ * 
+ * @description
+ * Fetches student's group assignment along with full project details
+ * Joins group_members, student_groups, and projects tables
+ * Includes column aliases for backwards compatibility
+ * Returns message if no group assigned yet
+ * 
+ * @example
+ * // Request
+ * GET /students/123/group
+ * 
+ * @example
+ * // Response (with assignment)
+ * {
+ *   "id": 10,
+ *   "group_number": 1,
+ *   "project_id": 456,
+ *   "title": "Mobile App Development",
+ *   "description": "Build iOS app",
+ *   "status": "approved",
+ *   "client_id": 789
+ * }
+ * 
+ * @example
+ * // Response (no assignment)
+ * {
+ *   "message": "No group assigned yet"
+ * }
+ */
+export const getStudentGroup = async (req, res) => {
+  try {
+    const { student_id } = req.params;
+
+    if (isNaN(student_id)) {
+      return res.status(400).json({ error: "Invalid student ID format" });
+    }
+
+    // ✅ NEW SCHEMA: Query with column aliases for backwards compatibility
+    const [groupData] = await db.query(
+      `SELECT 
+         sg.id, 
+         sg.group_number, 
+         sg.project_id,
+         p.id as project_id, 
+         p.title, 
+         p.description, 
+         p.category,
+         p.required_skills as skills_required,
+         p.difficulty_level as complexity_level,
+         p.max_team_size as team_size,
+         p.start_date, 
+         p.end_date, 
+         p.location as project_location,
+         p.deliverables, 
+         p.industry_category as industry,
+         p.status,
+         p.owner_id as client_id
+       FROM group_members gm
+       JOIN student_groups sg ON gm.group_id = sg.id
+       JOIN projects p ON sg.project_id = p.id
+       WHERE gm.student_id = ?`,
+      [parseInt(student_id)]
+    );
+
+    if (groupData.length === 0) {
+      return res.json({ message: "No group assigned yet" });
+    }
+
+    res.status(200).json(groupData[0]);
+  } catch (err) {
+    console.error("Error fetching group:", err);
+    res.status(500).json({ error: "Server error" });
+  }
+};
+
+/**
+ * Get Student Group Members
+ * Retrieves all members of a student's assigned group
+ * 
+ * @async
+ * @function getStudentGroupMembers
+ * @param {Object} req - Express request object
+ * @param {Object} req.params - URL parameters
+ * @param {string} req.params.student_id - Student ID
+ * @param {Object} res - Express response object
+ * @returns {Promise&lt;void>} JSON array of group member details
+ * 
+ * @description
+ * First finds the student's group_id
+ * Then fetches all members of that group with their profile information
+ * Joins group_members with users and user_profiles tables
+ * Results ordered by first name alphabetically
+ * Returns empty array if student not in a group
+ * 
+ * @example
+ * // Request
+ * GET /students/123/group/members
+ * 
+ * @example
+ * // Response (with group)
+ * [
+ *   {
+ *     "student_id": 123,
+ *     "first_name": "Alice",
+ *     "last_name": "Johnson",
+ *     "email": "alice@university.edu"
+ *   },
+ *   {
+ *     "student_id": 124,
+ *     "first_name": "Bob",
+ *     "last_name": "Smith",
+ *     "email": "bob@university.edu"
+ *   }
+ * ]
+ * 
+ * @example
+ * // Response (no group)
+ * {
+ *   "message": "Student not assigned to a group",
+ *   "members": []
+ * }
+ */
+export const getStudentGroupMembers = async (req, res) => {
+  try {
+    const { student_id } = req.params;
+
+    if (isNaN(student_id)) {
+      return res.status(400).json({ error: "Invalid student ID format" });
+    }
+
+    // First, find the student's group
+    const [groupData] = await db.query(
+      `SELECT gm.group_id FROM group_members gm WHERE gm.student_id = ?`,
+      [parseInt(student_id)]
+    );
+
+    if (groupData.length === 0) {
+      return res.json({ 
+        message: "Student not assigned to a group", 
+        members: [] 
+      });
+    }
+
+    const groupId = groupData[0].group_id;
+
+    // ✅ NEW SCHEMA: Get all members with user_profiles join
+    const [members] = await db.query(
+      `SELECT gm.student_id, p.first_name, p.last_name, u.email 
+       FROM group_members gm
+       JOIN users u ON gm.student_id = u.id
+       LEFT JOIN user_profiles p ON u.id = p.user_id
+       WHERE gm.group_id = ?
+       ORDER BY p.first_name ASC`,
+      [groupId]
+    );
+
+    res.status(200).json(members);
+  } catch (err) {
+    console.error("Error fetching group members:", err);
+    res.status(500).json({ error: "Server error" });
+  }
+};
+
+// ==================== STUDENT PROJECTS ====================
+
+/**
+ * Get Available Projects
+ * Retrieves all open projects available for student browsing
+ * 
+ * @async
+ * @function getAvailableProjects
+ * @param {Object} req - Express request object
+ * @param {Object} res - Express response object
+ * @returns {Promise&lt;void>} JSON array of available project objects
+ * 
+ * @description
+ * Fetches all projects with status='open'
+ * Includes column aliases for backwards compatibility
+ * Results ordered by posting date (newest first)
+ * Used for student project browsing interface
+ * 
+ * @example
+ * // Request
+ * GET /students/projects
+ * 
+ * @example
+ * // Response
+ * [
+ *   {
+ *     "id": 456,
+ *     "client_id": 789,
+ *     "title": "Mobile App Development",
+ *     "description": "Build iOS app",
+ *     "skills_required": "Swift, iOS",
+ *     "category": "Software",
+ *     "team_size": 4,
+ *     "complexity_level": "Intermediate",
+ *     "status": "open",
+ *     "created_at": "2025-01-15T10:00:00.000Z"
+ *   }
+ * ]
+ */
+export const getAvailableProjects = async (req, res) => {
+  try {
+    // ✅ NEW SCHEMA: Query with column aliases for backwards compatibility
+    const [projects] = await db.query(
+      `SELECT 
+         id, 
+         owner_id as client_id,
+         title, 
+         description, 
+         required_skills as skills_required, 
+         category, 
+         max_team_size as team_size, 
+         start_date, 
+         end_date, 
+         difficulty_level as complexity_level, 
+         deliverables, 
+         location as project_location, 
+         industry_category as industry, 
+         status, 
+         posted_date as created_at
+       FROM projects 
+       WHERE status = 'open' 
+       ORDER BY posted_date DESC`
+    );
+
+    res.status(200).json(projects);
+  } catch (err) {
+    console.error("Error fetching projects:", err);
+    res.status(500).json({ error: "Server error" });
+  }
+};
+
+/**
+ * Get Projects By Category
+ * Retrieves open projects filtered by specific category
+ * 
+ * @async
+ * @function getProjectsByCategory
+ * @param {Object} req - Express request object
+ * @param {Object} req.params - URL parameters
+ * @param {string} req.params.category - Project category
+ * @param {Object} res - Express response object
+ * @returns {Promise&lt;void>} JSON array of filtered project objects
+ * 
+ * @description
+ * Filters projects by category field
+ * Only returns projects with status='open'
+ * Includes all project details with backwards compatible column names
+ * Results ordered by posting date (newest first)
+ * 
+ * @example
+ * // Request
+ * GET /students/projects/category/Software
+ * 
+ * @example
+ * // Response
+ * [
+ *   {
+ *     "id": 456,
+ *     "title": "Mobile App",
+ *     "category": "Software",
+ *     "status": "open"
+ *   }
+ * ]
+ */
+export const getProjectsByCategory = async (req, res) => {
+  try {
+    const { category } = req.params;
+
+    if (!category) {
+      return res.status(400).json({ error: "Category is required" });
+    }
+
+    // ✅ NEW SCHEMA: Query with column aliases for backwards compatibility
+    const [projects] = await db.query(
+      `SELECT 
+         id, 
+         owner_id as client_id,
+         title, 
+         description, 
+         required_skills as skills_required, 
+         category, 
+         max_team_size as team_size, 
+         start_date, 
+         end_date, 
+         difficulty_level as complexity_level, 
+         deliverables, 
+         location as project_location, 
+         industry_category as industry, 
+         status, 
+         posted_date as created_at
+       FROM projects 
+       WHERE category = ? AND status = 'open'
+       ORDER BY posted_date DESC`,
+      [category]
+    );
+
+    res.status(200).json(projects);
+  } catch (err) {
+    console.error("Error fetching projects by category:", err);
+    res.status(500).json({ error: "Server error" });
+  }
+};
+
+/**
+ * Get Projects By Complexity
+ * Retrieves open projects filtered by difficulty level
+ * 
+ * @async
+ * @function getProjectsByComplexity
+ * @param {Object} req - Express request object
+ * @param {Object} req.params - URL parameters
+ * @param {string} req.params.complexity - Complexity level (Beginner, Intermediate, Advanced)
+ * @param {Object} res - Express response object
+ * @returns {Promise&lt;void>} JSON array of filtered project objects
+ * 
+ * @description
+ * Validates complexity parameter against allowed values
+ * Filters projects by difficulty_level field
+ * Only returns projects with status='open'
+ * Results ordered by posting date (newest first)
+ * 
+ * @example
+ * // Request
+ * GET /students/projects/complexity/Intermediate
+ * 
+ * @example
+ * // Response
+ * [
+ *   {
+ *     "id": 456,
+ *     "title": "Mobile App",
+ *     "complexity_level": "Intermediate",
+ *     "status": "open"
+ *   }
+ * ]
+ */
+export const getProjectsByComplexity = async (req, res) => {
+  try {
+    const { complexity } = req.params;
+
+    if (!complexity) {
+      return res.status(400).json({ error: "Complexity level is required" });
+    }
+
+    const validComplexity = ["Beginner", "Intermediate", "Advanced"];
+    if (!validComplexity.includes(complexity)) {
+      return res.status(400).json({ error: "Invalid complexity level" });
+    }
+
+    // ✅ NEW SCHEMA: Use difficulty_level instead of complexity_level
+    const [projects] = await db.query(
+      `SELECT 
+         id, 
+         owner_id as client_id,
+         title, 
+         description, 
+         required_skills as skills_required, 
+         category, 
+         max_team_size as team_size, 
+         start_date, 
+         end_date, 
+         difficulty_level as complexity_level, 
+         deliverables, 
+         location as project_location, 
+         industry_category as industry, 
+         status, 
+         posted_date as created_at
+       FROM projects 
+       WHERE difficulty_level = ? AND status = 'open'
+       ORDER BY posted_date DESC`,
+      [complexity]
+    );
+
+    res.status(200).json(projects);
+  } catch (err) {
+    console.error("Error fetching projects by complexity:", err);
+    res.status(500).json({ error: "Server error" });
+  }
+};
+
+/**
+ * Search Projects
+ * Searches for open projects by keyword in title, description, or skills
+ * 
+ * @async
+ * @function searchProjects
+ * @param {Object} req - Express request object
+ * @param {Object} req.query - Query parameters
+ * @param {string} req.query.keyword - Search keyword
+ * @param {Object} res - Express response object
+ * @returns {Promise&lt;void>} JSON array of matching project objects
+ * 
+ * @description
+ * Searches across multiple fields:
+ * - Project title
+ * - Project description
+ * - Required skills
+ * 
+ * Uses SQL LIKE with wildcards for flexible matching
+ * Only returns projects with status='open'
+ * Results ordered by posting date (newest first)
+ * 
+ * @example
+ * // Request
+ * GET /students/projects/search?keyword=mobile
+ * 
+ * @example
+ * // Response
+ * [
+ *   {
+ *     "id": 456,
+ *     "title": "Mobile App Development",
+ *     "description": "Build iOS mobile application",
+ *     "skills_required": "Swift, Mobile UI",
+ *     "status": "open"
+ *   }
+ * ]
+ */
+export const searchProjects = async (req, res) => {
+  try {
+    const { keyword } = req.query;
+
+    if (!keyword) {
+      return res.status(400).json({ error: "Search keyword is required" });
+    }
+
+    const searchTerm = `%${keyword}%`;
+
+    // ✅ NEW SCHEMA: Search in required_skills instead of skills_required
+    const [projects] = await db.query(
+      `SELECT 
+         id, 
+         owner_id as client_id,
+         title, 
+         description, 
+         required_skills as skills_required, 
+         category, 
+         max_team_size as team_size, 
+         start_date, 
+         end_date, 
+         difficulty_level as complexity_level, 
+         deliverables, 
+         location as project_location, 
+         industry_category as industry, 
+         status, 
+         posted_date as created_at
+       FROM projects 
+       WHERE (title LIKE ? OR description LIKE ? OR required_skills LIKE ?) 
+             AND status = 'open'
+       ORDER BY posted_date DESC`,
+      [searchTerm, searchTerm, searchTerm]
+    );
+
+    res.status(200).json(projects);
+  } catch (err) {
+    console.error("Error searching projects:", err);
+    res.status(500).json({ error: "Server error" });
+  }
+};</code></pre>
+        </article>
+    </section>
+
+
+
+
+</div>
+
+<nav>
+    <h2><a href="index.html">Home</a></h2><h3>Modules</h3><ul><li><a href="module-controllers_clientController.html">controllers/clientController</a></li><li><a href="module-controllers_instructorController.html">controllers/instructorController</a></li><li><a href="module-controllers_studentController.html">controllers/studentController</a></li><li><a href="module-groupFormationAlgorithm.html">groupFormationAlgorithm</a></li><li><a href="module-middleware_authMiddleware.html">middleware/authMiddleware</a></li><li><a href="module-routes_clientRoutes.html">routes/clientRoutes</a></li><li><a href="module-routes_evaluationRoutes.html">routes/evaluationRoutes</a></li><li><a href="module-routes_instructorRoutes.html">routes/instructorRoutes</a></li><li><a href="module-routes_projectRoutes.html">routes/projectRoutes</a></li><li><a href="module-routes_studentRoutes.html">routes/studentRoutes</a></li><li><a href="module-utils_groupFormationAlgorithm.html">utils/groupFormationAlgorithm</a></li></ul><h3>Classes</h3><ul><li><a href="AppError.html">AppError</a></li></ul><h3>Global</h3><ul><li><a href="global.html#OPTIONAL_ENV_VARS">OPTIONAL_ENV_VARS</a></li><li><a href="global.html#REQUIRED_ENV_VARS">REQUIRED_ENV_VARS</a></li><li><a href="global.html#calculatePagination">calculatePagination</a></li><li><a href="global.html#errorHandler">errorHandler</a></li><li><a href="global.html#formatAuthError">formatAuthError</a></li><li><a href="global.html#formatConflict">formatConflict</a></li><li><a href="global.html#formatCreated">formatCreated</a></li><li><a href="global.html#formatDeleted">formatDeleted</a></li><li><a href="global.html#formatError">formatError</a></li><li><a href="global.html#formatForbidden">formatForbidden</a></li><li><a href="global.html#formatList">formatList</a></li><li><a href="global.html#formatNotFound">formatNotFound</a></li><li><a href="global.html#formatServerError">formatServerError</a></li><li><a href="global.html#formatSuccess">formatSuccess</a></li><li><a href="global.html#formatUpdated">formatUpdated</a></li><li><a href="global.html#formatValidationError">formatValidationError</a></li><li><a href="global.html#getEnv">getEnv</a></li><li><a href="global.html#isValidEmail">isValidEmail</a></li><li><a href="global.html#isValidUrl">isValidUrl</a></li><li><a href="global.html#mapFirebaseError">mapFirebaseError</a></li><li><a href="global.html#printEnvironmentSummary">printEnvironmentSummary</a></li><li><a href="global.html#printExampleEnvFile">printExampleEnvFile</a></li><li><a href="global.html#requestIdMiddleware">requestIdMiddleware</a></li><li><a href="global.html#requestLoggingMiddleware">requestLoggingMiddleware</a></li><li><a href="global.html#server">server</a></li><li><a href="global.html#validateClientLogin">validateClientLogin</a></li><li><a href="global.html#validateClientSignup">validateClientSignup</a></li><li><a href="global.html#validateDatabaseConfig">validateDatabaseConfig</a></li><li><a href="global.html#validateEnvironment">validateEnvironment</a></li><li><a href="global.html#validateFirebaseConfig">validateFirebaseConfig</a></li><li><a href="global.html#validateGroupAssignment">validateGroupAssignment</a></li><li><a href="global.html#validateInstructorLogin">validateInstructorLogin</a></li><li><a href="global.html#validateInstructorSignup">validateInstructorSignup</a></li><li><a href="global.html#validatePreferences">validatePreferences</a></li><li><a href="global.html#validateProject">validateProject</a></li><li><a href="global.html#validateStudentLogin">validateStudentLogin</a></li><li><a href="global.html#validateStudentSignup">validateStudentSignup</a></li></ul>
+</nav>
+
+<br class="clear">
+
+<footer>
+    Documentation generated by <a href="https://github.com/jsdoc/jsdoc">JSDoc 4.0.5</a> on Mon Dec 22 2025 22:20:27 GMT-0500 (Eastern Standard Time)
+</footer>
+
+<script> prettyPrint(); </script>
+<script src="scripts/linenumber.js"> </script>
+</body>
+</html>
