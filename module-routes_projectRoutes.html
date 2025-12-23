@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="utf-8">
-    <title>JSDoc: Home</title>
+    <title>JSDoc: Module: routes/projectRoutes</title>
 
     <script src="scripts/prettify/prettify.js"> </script>
     <script src="scripts/prettify/lang-css.js"> </script>
@@ -17,75 +17,9 @@
 
 <div id="main">
 
-    <h1 class="page-title">Home</h1>
+    <h1 class="page-title">Module: routes/projectRoutes</h1>
 
     
-
-
-
-    
-
-
-    <h3> </h3>
-
-
-
-
-
-
-
-
-
-
-    
-
-
-
-
-    <section>
-        <article><h1>Capstone Hub Backend API</h1>
-<p>Student Capstone Project Management System - Backend API</p>
-<h2>Overview</h2>
-<p>This is the backend API for Capstone Hub, a comprehensive platform for managing student capstone projects in CS 682. The system serves three user roles:</p>
-<ul>
-<li><strong>Clients</strong>: Propose and manage project ideas</li>
-<li><strong>Students</strong>: Browse projects and submit preferences</li>
-<li><strong>Instructors</strong>: Approve projects and manage group formation</li>
-</ul>
-<h2>Tech Stack</h2>
-<ul>
-<li>Node.js + Express</li>
-<li>MySQL Database</li>
-<li>Firebase Authentication</li>
-<li>RESTful API Architecture</li>
-</ul>
-<h2>Project Structure</h2>
-<pre class="prettyprint source"><code>backend/
-├── src/
-│   ├── controllers/    # API endpoint handlers
-│   ├── middleware/     # Auth, validation, error handling
-│   ├── routes/         # API route definitions
-│   ├── utils/          # Helper functions
-│   └── config/         # Configuration files
-└── docs/              # Generated documentation
-</code></pre>
-<h2>API Documentation</h2>
-<p>For complete API documentation, run:</p>
-<pre class="prettyprint source lang-bash"><code>npm run docs:generate
-npm run docs:view
-</code></pre>
-<h2>Team</h2>
-<ul>
-<li>Sri Charan</li>
-<li>Lohith Mudipalli</li>
-<li>Bharath</li>
-</ul></article>
-    </section>
-
-
-
-
-
 
 
 
@@ -94,7 +28,8 @@ npm run docs:view
 
 <header>
     
-        <h2>index.js</h2>
+        
+            
         
     
 </header>
@@ -103,12 +38,35 @@ npm run docs:view
     <div class="container-overview">
     
         
-            <div class="description"><p>Main entry point for Capstone Hub Backend Server
-Sets up Express app with middleware, routes, and error handling
-Validates environment variables and establishes database connection</p></div>
+            <div class="description"><p>Project Routes Module</p>
+<p>Handles all project-related API endpoints including project CRUD operations,
+approval workflows, preference management, and project browsing.</p>
+<p>Routes are organized by functionality:</p>
+<ol>
+<li>Project Listing (public/authenticated browsing)</li>
+<li>Project Creation (client only)</li>
+<li>Project Update (client only)</li>
+<li>Project Delete (client only)</li>
+<li>Project Details &amp; Preferences (client only)</li>
+<li>Instructor Approval (instructor only)</li>
+</ol></div>
         
 
         
+            
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 <dl class="details">
@@ -140,7 +98,7 @@ Validates environment variables and establishes database connection</p></div>
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="index.js.html">index.js</a>, <a href="index.js.html#line1">line 1</a>
+        <a href="routes_projectRoutes.js.html">routes/projectRoutes.js</a>, <a href="routes_projectRoutes.js.html#line1">line 1</a>
     </li></ul></dd>
     
 
@@ -150,6 +108,24 @@ Validates environment variables and establishes database connection</p></div>
 
     
 </dl>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
         
@@ -164,25 +140,9 @@ Validates environment variables and establishes database connection</p></div>
         <ul>
             <li>module:express</li>
         
-            <li>module:cors</li>
+            <li>module:../../db</li>
         
-            <li>module:dotenv</li>
-        
-            <li>module:./config/validateEnv</li>
-        
-            <li>module:../db</li>
-        
-            <li>module:./middleware/errorHandler</li>
-        
-            <li>module:./routes/clientRoutes</li>
-        
-            <li>module:./routes/studentRoutes</li>
-        
-            <li>module:./routes/instructorRoutes</li>
-        
-            <li>module:./routes/projectRoutes</li>
-        
-            <li>module:./routes/evaluationRoutes</li>
+            <li>module:../middleware/authMiddleware</li>
         </ul>
     
 

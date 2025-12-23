@@ -1,0 +1,587 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>JSDoc: Source: routes/evaluationRoutes.js</title>
+
+    <script src="scripts/prettify/prettify.js"> </script>
+    <script src="scripts/prettify/lang-css.js"> </script>
+    <!--[if lt IE 9]>
+      <script src="//html5shiv.googlecode.com/svn/trunk/html5.js"></script>
+    <![endif]-->
+    <link type="text/css" rel="stylesheet" href="styles/prettify-tomorrow.css">
+    <link type="text/css" rel="stylesheet" href="styles/jsdoc-default.css">
+</head>
+
+<body>
+
+<div id="main">
+
+    <h1 class="page-title">Source: routes/evaluationRoutes.js</h1>
+
+    
+
+
+
+    
+    <section>
+        <article>
+            <pre class="prettyprint source linenums"><code>/**
+ * Evaluation Routes Module
+ * 
+ * Handles all evaluation-related API endpoints including scheduling evaluations,
+ * managing evaluation details, and retrieving evaluations based on user roles.
+ * 
+ * Evaluations can be:
+ * - Group-specific (assigned to a particular student group)
+ * - Project-specific (assigned to all groups working on a project)
+ * - Global (visible to all users)
+ * 
+ * Access control:
+ * - Instructors/Admins: Full access to all evaluations
+ * - Students: View evaluations for their assigned groups
+ * - Clients: View evaluations for their projects
+ * 
+ * @module routes/evaluationRoutes
+ * @requires express
+ * @requires ../../db
+ * @requires ../middleware/authMiddleware
+ */
+
+import express from "express";
+import db from "../../db.js";
+import { verifyToken } from "../middleware/authMiddleware.js";
+
+const router = express.Router();
+
+// ==================== GET ALL EVALUATIONS ====================
+
+/**
+ * Get All Evaluations
+ * 
+ * Retrieves evaluations filtered by user role and permissions.
+ * Different users see different subsets of evaluations:
+ * - Instructors/Admins: All evaluations with full details
+ * - Students: Evaluations for their groups OR global evaluations
+ * - Clients: Evaluations for their projects OR global evaluations
+ * 
+ * @route GET /evaluations
+ * @group Evaluations - Evaluation management operations
+ * @security JWT
+ * @param {string} authorization.header.required - Bearer token
+ * @returns {object} 200 - Success response with evaluations array
+ * @returns {object} 403 - Access denied
+ * @returns {object} 500 - Server error
+ * 
+ * @example
+ * GET /evaluations
+ * Authorization: Bearer &lt;token>
+ */
+router.get("/", verifyToken, async (req, res) => {
+  try {
+    const { role, instructorId, studentId, clientId } = req.user;
+    let query = "";
+    let params = [];
+
+    if (role === "instructor" || role === "admin") {
+      // Instructors see all evaluations
+      query = `
+        SELECT 
+          e.*,
+          sg.group_name,
+          p.title as project_title,
+          p.owner_id as client_id
+        FROM evaluations e
+        LEFT JOIN student_groups sg ON e.group_id = sg.id
+        LEFT JOIN projects p ON e.project_id = p.id
+        ORDER BY e.scheduled_date DESC, e.scheduled_time DESC
+      `;
+    } else if (role === "student") {
+      // Students see evaluations for their groups OR global evaluations (no group_id)
+      query = `
+        SELECT 
+          e.*,
+          sg.group_name,
+          p.title as project_title
+        FROM evaluations e
+        LEFT JOIN student_groups sg ON e.group_id = sg.id
+        LEFT JOIN projects p ON e.project_id = p.id
+        WHERE e.group_id IN (
+          SELECT group_id FROM group_members WHERE student_id = ? AND status = 'active'
+        )
+        OR e.group_id IS NULL
+        ORDER BY e.scheduled_date DESC, e.scheduled_time DESC
+      `;
+      params = [studentId];
+    } else if (role === "client") {
+      // Clients see evaluations for their projects OR global evaluations (no project_id)
+      query = `
+        SELECT 
+          e.*,
+          sg.group_name,
+          p.title as project_title
+        FROM evaluations e
+        LEFT JOIN student_groups sg ON e.group_id = sg.id
+        LEFT JOIN projects p ON e.project_id = p.id
+        WHERE p.owner_id = ?
+        OR e.project_id IS NULL
+        ORDER BY e.scheduled_date DESC, e.scheduled_time DESC
+      `;
+      params = [clientId];
+    } else {
+      return res.status(403).json({
+        success: false,
+        error: "Access denied",
+      });
+    }
+
+    const [evaluations] = await db.query(query, params);
+
+    res.json({
+      success: true,
+      data: evaluations,
+    });
+  } catch (err) {
+    console.error("Error fetching evaluations:", err);
+    res.status(500).json({
+      success: false,
+      error: "Failed to fetch evaluations",
+    });
+  }
+});
+
+// ==================== GET SINGLE EVALUATION ====================
+
+/**
+ * Get Single Evaluation by ID
+ * 
+ * Retrieves detailed information for a specific evaluation including
+ * associated group name, project title, and active group members.
+ * 
+ * @route GET /evaluations/:id
+ * @group Evaluations - Evaluation management operations
+ * @security JWT
+ * @param {number} id.path.required - Evaluation ID
+ * @param {string} authorization.header.required - Bearer token
+ * @returns {object} 200 - Success response with evaluation data and members
+ * @returns {object} 404 - Evaluation not found
+ * @returns {object} 500 - Server error
+ * 
+ * @example
+ * GET /evaluations/42
+ * Authorization: Bearer &lt;token>
+ */
+router.get("/:id", verifyToken, async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const [evaluations] = await db.query(`
+      SELECT 
+        e.*,
+        sg.group_name,
+        p.title as project_title,
+        p.owner_id as client_id
+      FROM evaluations e
+      LEFT JOIN student_groups sg ON e.group_id = sg.id
+      LEFT JOIN projects p ON e.project_id = p.id
+      WHERE e.id = ?
+    `, [id]);
+
+    if (evaluations.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: "Evaluation not found",
+      });
+    }
+
+    // Get group members if group_id exists
+    let members = [];
+    if (evaluations[0].group_id) {
+      const [memberRows] = await db.query(`
+        SELECT 
+          gm.student_id,
+          u.email,
+          up.full_name as name
+        FROM group_members gm
+        JOIN users u ON gm.student_id = u.id
+        LEFT JOIN user_profiles up ON u.id = up.user_id
+        WHERE gm.group_id = ? AND gm.status = 'active'
+      `, [evaluations[0].group_id]);
+      members = memberRows;
+    }
+
+    res.json({
+      success: true,
+      data: {
+        ...evaluations[0],
+        members,
+      },
+    });
+  } catch (err) {
+    console.error("Error fetching evaluation:", err);
+    res.status(500).json({
+      success: false,
+      error: "Failed to fetch evaluation",
+    });
+  }
+});
+
+// ==================== CREATE EVALUATION (Instructor Only) ====================
+
+/**
+ * Create New Evaluation
+ * 
+ * Schedules a new evaluation (sprint review, final presentation, etc.).
+ * Can be assigned to a specific group, project, or left global.
+ * Protected route - only instructors and admins can create evaluations.
+ * 
+ * @route POST /evaluations
+ * @group Evaluations - Evaluation management operations
+ * @security JWT
+ * @param {string} title.body.required - Evaluation title
+ * @param {string} description.body - Evaluation description
+ * @param {string} evaluation_type.body - Type of evaluation (default: 'sprint')
+ * @param {number} group_id.body - Specific group ID (null for all groups)
+ * @param {number} project_id.body - Specific project ID (null for all projects)
+ * @param {string} scheduled_date.body.required - Scheduled date (YYYY-MM-DD)
+ * @param {string} scheduled_time.body - Scheduled time (HH:MM:SS)
+ * @param {string} due_date.body - Due date for submissions
+ * @param {string} location.body - Physical location
+ * @param {string} meeting_link.body - Virtual meeting link
+ * @param {string} evaluator_name.body - Name of evaluator
+ * @param {string} notes.body - Additional notes
+ * @param {string} authorization.header.required - Bearer token
+ * @returns {object} 201 - Success response with evaluation ID
+ * @returns {object} 400 - Validation error (missing required fields)
+ * @returns {object} 403 - Only instructors can create evaluations
+ * @returns {object} 500 - Server error
+ * 
+ * @example
+ * POST /evaluations
+ * {
+ *   "title": "Sprint 2 Review",
+ *   "description": "Review of sprint 2 deliverables",
+ *   "evaluation_type": "sprint",
+ *   "group_id": 5,
+ *   "scheduled_date": "2025-01-15",
+ *   "scheduled_time": "14:00:00",
+ *   "location": "Room 301"
+ * }
+ */
+router.post("/", verifyToken, async (req, res) => {
+  try {
+    if (req.user.role !== "instructor" &amp;&amp; req.user.role !== "admin") {
+      return res.status(403).json({
+        success: false,
+        error: "Only instructors can create evaluations",
+      });
+    }
+
+    const {
+      title,
+      description,
+      evaluation_type,
+      group_id,
+      project_id,
+      scheduled_date,
+      scheduled_time,
+      due_date,
+      location,
+      meeting_link,
+      evaluator_name,
+      notes,
+    } = req.body;
+
+    if (!title || !scheduled_date) {
+      return res.status(400).json({
+        success: false,
+        error: "Title and scheduled date are required",
+      });
+    }
+
+    const [result] = await db.query(`
+      INSERT INTO evaluations (
+        title, description, evaluation_type, group_id, project_id,
+        scheduled_date, scheduled_time, due_date, location, meeting_link,
+        evaluator_name, notes, status, created_by, created_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'scheduled', ?, NOW())
+    `, [
+      title,
+      description || null,
+      evaluation_type || 'sprint',
+      group_id || null,
+      project_id || null,
+      scheduled_date,
+      scheduled_time || null,
+      due_date || null,
+      location || null,
+      meeting_link || null,
+      evaluator_name || null,
+      notes || null,
+      req.user.instructorId,
+    ]);
+
+    res.status(201).json({
+      success: true,
+      message: "Evaluation scheduled successfully",
+      data: { id: result.insertId },
+    });
+  } catch (err) {
+    console.error("Error creating evaluation:", err);
+    res.status(500).json({
+      success: false,
+      error: "Failed to create evaluation",
+    });
+  }
+});
+
+// ==================== UPDATE EVALUATION ====================
+
+/**
+ * Update Evaluation
+ * 
+ * Updates an existing evaluation with new information.
+ * Dynamically builds UPDATE query based on provided fields.
+ * Protected route - only instructors and admins can update evaluations.
+ * 
+ * @route PUT /evaluations/:id
+ * @group Evaluations - Evaluation management operations
+ * @security JWT
+ * @param {number} id.path.required - Evaluation ID
+ * @param {string} title.body - Updated title
+ * @param {string} description.body - Updated description
+ * @param {string} evaluation_type.body - Updated evaluation type
+ * @param {number} group_id.body - Updated group ID
+ * @param {number} project_id.body - Updated project ID
+ * @param {string} scheduled_date.body - Updated scheduled date
+ * @param {string} scheduled_time.body - Updated scheduled time
+ * @param {string} due_date.body - Updated due date
+ * @param {string} location.body - Updated location
+ * @param {string} meeting_link.body - Updated meeting link
+ * @param {string} evaluator_name.body - Updated evaluator name
+ * @param {string} status.body - Updated status (scheduled, in_progress, completed, cancelled)
+ * @param {string} notes.body - Updated notes
+ * @param {string} authorization.header.required - Bearer token
+ * @returns {object} 200 - Success response
+ * @returns {object} 400 - No fields to update
+ * @returns {object} 403 - Only instructors can update evaluations
+ * @returns {object} 500 - Server error
+ * 
+ * @example
+ * PUT /evaluations/42
+ * {
+ *   "status": "completed",
+ *   "notes": "All groups presented successfully"
+ * }
+ */
+router.put("/:id", verifyToken, async (req, res) => {
+  try {
+    if (req.user.role !== "instructor" &amp;&amp; req.user.role !== "admin") {
+      return res.status(403).json({
+        success: false,
+        error: "Only instructors can update evaluations",
+      });
+    }
+
+    const { id } = req.params;
+    const {
+      title,
+      description,
+      evaluation_type,
+      group_id,
+      project_id,
+      scheduled_date,
+      scheduled_time,
+      due_date,
+      location,
+      meeting_link,
+      evaluator_name,
+      status,
+      notes,
+    } = req.body;
+
+    const updates = [];
+    const values = [];
+
+    if (title !== undefined) { updates.push("title = ?"); values.push(title); }
+    if (description !== undefined) { updates.push("description = ?"); values.push(description); }
+    if (evaluation_type !== undefined) { updates.push("evaluation_type = ?"); values.push(evaluation_type); }
+    if (group_id !== undefined) { updates.push("group_id = ?"); values.push(group_id); }
+    if (project_id !== undefined) { updates.push("project_id = ?"); values.push(project_id); }
+    if (scheduled_date !== undefined) { updates.push("scheduled_date = ?"); values.push(scheduled_date); }
+    if (scheduled_time !== undefined) { updates.push("scheduled_time = ?"); values.push(scheduled_time); }
+    if (due_date !== undefined) { updates.push("due_date = ?"); values.push(due_date); }
+    if (location !== undefined) { updates.push("location = ?"); values.push(location); }
+    if (meeting_link !== undefined) { updates.push("meeting_link = ?"); values.push(meeting_link); }
+    if (evaluator_name !== undefined) { updates.push("evaluator_name = ?"); values.push(evaluator_name); }
+    if (status !== undefined) { updates.push("status = ?"); values.push(status); }
+    if (notes !== undefined) { updates.push("notes = ?"); values.push(notes); }
+
+    if (updates.length === 0) {
+      return res.status(400).json({
+        success: false,
+        error: "No fields to update",
+      });
+    }
+
+    values.push(id);
+
+    await db.query(
+      `UPDATE evaluations SET ${updates.join(", ")}, updated_at = NOW() WHERE id = ?`,
+      values
+    );
+
+    res.json({
+      success: true,
+      message: "Evaluation updated successfully",
+    });
+  } catch (err) {
+    console.error("Error updating evaluation:", err);
+    res.status(500).json({
+      success: false,
+      error: "Failed to update evaluation",
+    });
+  }
+});
+
+// ==================== DELETE EVALUATION ====================
+
+/**
+ * Delete Evaluation
+ * 
+ * Permanently deletes an evaluation from the system.
+ * Protected route - only instructors and admins can delete evaluations.
+ * 
+ * @route DELETE /evaluations/:id
+ * @group Evaluations - Evaluation management operations
+ * @security JWT
+ * @param {number} id.path.required - Evaluation ID
+ * @param {string} authorization.header.required - Bearer token
+ * @returns {object} 200 - Success response
+ * @returns {object} 403 - Only instructors can delete evaluations
+ * @returns {object} 500 - Server error
+ * 
+ * @example
+ * DELETE /evaluations/42
+ * Authorization: Bearer &lt;token>
+ */
+router.delete("/:id", verifyToken, async (req, res) => {
+  try {
+    if (req.user.role !== "instructor" &amp;&amp; req.user.role !== "admin") {
+      return res.status(403).json({
+        success: false,
+        error: "Only instructors can delete evaluations",
+      });
+    }
+
+    const { id } = req.params;
+
+    await db.query("DELETE FROM evaluations WHERE id = ?", [id]);
+
+    res.json({
+      success: true,
+      message: "Evaluation deleted successfully",
+    });
+  } catch (err) {
+    console.error("Error deleting evaluation:", err);
+    res.status(500).json({
+      success: false,
+      error: "Failed to delete evaluation",
+    });
+  }
+});
+
+// ==================== GET UPCOMING EVALUATIONS ====================
+
+/**
+ * Get Upcoming Evaluations
+ * 
+ * Retrieves upcoming evaluations (scheduled for today or later) filtered by user role.
+ * Returns up to 10 evaluations ordered by scheduled date and time.
+ * Only includes evaluations with status 'scheduled' or 'in_progress'.
+ * 
+ * @route GET /evaluations/upcoming/list
+ * @group Evaluations - Evaluation management operations
+ * @security JWT
+ * @param {string} authorization.header.required - Bearer token
+ * @returns {object} 200 - Success response with upcoming evaluations (max 10)
+ * @returns {object} 500 - Server error
+ * 
+ * @example
+ * GET /evaluations/upcoming/list
+ * Authorization: Bearer &lt;token>
+ */
+router.get("/upcoming/list", verifyToken, async (req, res) => {
+  try {
+    const { role, studentId, clientId } = req.user;
+    let query = "";
+    let params = [];
+
+    const baseQuery = `
+      SELECT 
+        e.*,
+        sg.group_name,
+        p.title as project_title
+      FROM evaluations e
+      LEFT JOIN student_groups sg ON e.group_id = sg.id
+      LEFT JOIN projects p ON e.project_id = p.id
+      WHERE e.scheduled_date >= CURDATE()
+        AND e.status IN ('scheduled', 'in_progress')
+    `;
+
+    if (role === "instructor" || role === "admin") {
+      query = baseQuery + ` ORDER BY e.scheduled_date ASC, e.scheduled_time ASC LIMIT 10`;
+    } else if (role === "student") {
+      query = baseQuery + `
+        AND e.group_id IN (
+          SELECT group_id FROM group_members WHERE student_id = ? AND status = 'active'
+        )
+        ORDER BY e.scheduled_date ASC, e.scheduled_time ASC LIMIT 10
+      `;
+      params = [studentId];
+    } else if (role === "client") {
+      query = baseQuery + `
+        AND p.owner_id = ?
+        ORDER BY e.scheduled_date ASC, e.scheduled_time ASC LIMIT 10
+      `;
+      params = [clientId];
+    }
+
+    const [evaluations] = await db.query(query, params);
+
+    res.json({
+      success: true,
+      data: evaluations,
+    });
+  } catch (err) {
+    console.error("Error fetching upcoming evaluations:", err);
+    res.status(500).json({
+      success: false,
+      error: "Failed to fetch upcoming evaluations",
+    });
+  }
+});
+
+export default router;</code></pre>
+        </article>
+    </section>
+
+
+
+
+</div>
+
+<nav>
+    <h2><a href="index.html">Home</a></h2><h3>Modules</h3><ul><li><a href="module-controllers_clientController.html">controllers/clientController</a></li><li><a href="module-controllers_instructorController.html">controllers/instructorController</a></li><li><a href="module-controllers_studentController.html">controllers/studentController</a></li><li><a href="module-groupFormationAlgorithm.html">groupFormationAlgorithm</a></li><li><a href="module-middleware_authMiddleware.html">middleware/authMiddleware</a></li><li><a href="module-routes_clientRoutes.html">routes/clientRoutes</a></li><li><a href="module-routes_evaluationRoutes.html">routes/evaluationRoutes</a></li><li><a href="module-routes_instructorRoutes.html">routes/instructorRoutes</a></li><li><a href="module-routes_projectRoutes.html">routes/projectRoutes</a></li><li><a href="module-routes_studentRoutes.html">routes/studentRoutes</a></li><li><a href="module-utils_groupFormationAlgorithm.html">utils/groupFormationAlgorithm</a></li></ul><h3>Classes</h3><ul><li><a href="AppError.html">AppError</a></li></ul><h3>Global</h3><ul><li><a href="global.html#OPTIONAL_ENV_VARS">OPTIONAL_ENV_VARS</a></li><li><a href="global.html#REQUIRED_ENV_VARS">REQUIRED_ENV_VARS</a></li><li><a href="global.html#calculatePagination">calculatePagination</a></li><li><a href="global.html#errorHandler">errorHandler</a></li><li><a href="global.html#formatAuthError">formatAuthError</a></li><li><a href="global.html#formatConflict">formatConflict</a></li><li><a href="global.html#formatCreated">formatCreated</a></li><li><a href="global.html#formatDeleted">formatDeleted</a></li><li><a href="global.html#formatError">formatError</a></li><li><a href="global.html#formatForbidden">formatForbidden</a></li><li><a href="global.html#formatList">formatList</a></li><li><a href="global.html#formatNotFound">formatNotFound</a></li><li><a href="global.html#formatServerError">formatServerError</a></li><li><a href="global.html#formatSuccess">formatSuccess</a></li><li><a href="global.html#formatUpdated">formatUpdated</a></li><li><a href="global.html#formatValidationError">formatValidationError</a></li><li><a href="global.html#getEnv">getEnv</a></li><li><a href="global.html#isValidEmail">isValidEmail</a></li><li><a href="global.html#isValidUrl">isValidUrl</a></li><li><a href="global.html#mapFirebaseError">mapFirebaseError</a></li><li><a href="global.html#printEnvironmentSummary">printEnvironmentSummary</a></li><li><a href="global.html#printExampleEnvFile">printExampleEnvFile</a></li><li><a href="global.html#requestIdMiddleware">requestIdMiddleware</a></li><li><a href="global.html#requestLoggingMiddleware">requestLoggingMiddleware</a></li><li><a href="global.html#server">server</a></li><li><a href="global.html#validateClientLogin">validateClientLogin</a></li><li><a href="global.html#validateClientSignup">validateClientSignup</a></li><li><a href="global.html#validateDatabaseConfig">validateDatabaseConfig</a></li><li><a href="global.html#validateEnvironment">validateEnvironment</a></li><li><a href="global.html#validateFirebaseConfig">validateFirebaseConfig</a></li><li><a href="global.html#validateGroupAssignment">validateGroupAssignment</a></li><li><a href="global.html#validateInstructorLogin">validateInstructorLogin</a></li><li><a href="global.html#validateInstructorSignup">validateInstructorSignup</a></li><li><a href="global.html#validatePreferences">validatePreferences</a></li><li><a href="global.html#validateProject">validateProject</a></li><li><a href="global.html#validateStudentLogin">validateStudentLogin</a></li><li><a href="global.html#validateStudentSignup">validateStudentSignup</a></li></ul>
+</nav>
+
+<br class="clear">
+
+<footer>
+    Documentation generated by <a href="https://github.com/jsdoc/jsdoc">JSDoc 4.0.5</a> on Mon Dec 22 2025 21:57:37 GMT-0500 (Eastern Standard Time)
+</footer>
+
+<script> prettyPrint(); </script>
+<script src="scripts/linenumber.js"> </script>
+</body>
+</html>

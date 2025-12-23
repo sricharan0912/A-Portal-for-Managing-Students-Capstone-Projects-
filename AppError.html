@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="utf-8">
-    <title>JSDoc: Home</title>
+    <title>JSDoc: Class: AppError</title>
 
     <script src="scripts/prettify/prettify.js"> </script>
     <script src="scripts/prettify/lang-css.js"> </script>
@@ -17,75 +17,9 @@
 
 <div id="main">
 
-    <h1 class="page-title">Home</h1>
+    <h1 class="page-title">Class: AppError</h1>
 
     
-
-
-
-    
-
-
-    <h3> </h3>
-
-
-
-
-
-
-
-
-
-
-    
-
-
-
-
-    <section>
-        <article><h1>Capstone Hub Backend API</h1>
-<p>Student Capstone Project Management System - Backend API</p>
-<h2>Overview</h2>
-<p>This is the backend API for Capstone Hub, a comprehensive platform for managing student capstone projects in CS 682. The system serves three user roles:</p>
-<ul>
-<li><strong>Clients</strong>: Propose and manage project ideas</li>
-<li><strong>Students</strong>: Browse projects and submit preferences</li>
-<li><strong>Instructors</strong>: Approve projects and manage group formation</li>
-</ul>
-<h2>Tech Stack</h2>
-<ul>
-<li>Node.js + Express</li>
-<li>MySQL Database</li>
-<li>Firebase Authentication</li>
-<li>RESTful API Architecture</li>
-</ul>
-<h2>Project Structure</h2>
-<pre class="prettyprint source"><code>backend/
-├── src/
-│   ├── controllers/    # API endpoint handlers
-│   ├── middleware/     # Auth, validation, error handling
-│   ├── routes/         # API route definitions
-│   ├── utils/          # Helper functions
-│   └── config/         # Configuration files
-└── docs/              # Generated documentation
-</code></pre>
-<h2>API Documentation</h2>
-<p>For complete API documentation, run:</p>
-<pre class="prettyprint source lang-bash"><code>npm run docs:generate
-npm run docs:view
-</code></pre>
-<h2>Team</h2>
-<ul>
-<li>Sri Charan</li>
-<li>Lohith Mudipalli</li>
-<li>Bharath</li>
-</ul></article>
-    </section>
-
-
-
-
-
 
 
 
@@ -94,7 +28,12 @@ npm run docs:view
 
 <header>
     
-        <h2>index.js</h2>
+        <h2><span class="attribs"><span class="type-signature"></span></span>AppError<span class="signature">()</span><span class="type-signature"></span></h2>
+        
+            <div class="class-description"><p>Custom Application Error Class
+Use this to throw errors from your route handlers</p>
+<p>Usage in routes:
+throw new AppError(&quot;Email already exists&quot;, 409, &quot;DUPLICATE_EMAIL&quot;);</p></div>
         
     
 </header>
@@ -103,12 +42,29 @@ npm run docs:view
     <div class="container-overview">
     
         
-            <div class="description"><p>Main entry point for Capstone Hub Backend Server
-Sets up Express app with middleware, routes, and error handling
-Validates environment variables and establishes database connection</p></div>
-        
 
-        
+    
+    <h2>Constructor</h2>
+    
+
+    
+    <h4 class="name" id="AppError"><span class="type-signature"></span>new AppError<span class="signature">()</span><span class="type-signature"></span></h4>
+    
+
+    
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 <dl class="details">
@@ -140,7 +96,7 @@ Validates environment variables and establishes database connection</p></div>
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="index.js.html">index.js</a>, <a href="index.js.html#line1">line 1</a>
+        <a href="middleware_errorHandler.js.html">middleware/errorHandler.js</a>, <a href="middleware_errorHandler.js.html#line241">line 241</a>
     </li></ul></dd>
     
 
@@ -152,40 +108,38 @@ Validates environment variables and establishes database connection</p></div>
 </dl>
 
 
-        
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
     
     </div>
 
     
 
     
-        <h3 class="subsection-title">Requires</h3>
 
-        <ul>
-            <li>module:express</li>
-        
-            <li>module:cors</li>
-        
-            <li>module:dotenv</li>
-        
-            <li>module:./config/validateEnv</li>
-        
-            <li>module:../db</li>
-        
-            <li>module:./middleware/errorHandler</li>
-        
-            <li>module:./routes/clientRoutes</li>
-        
-            <li>module:./routes/studentRoutes</li>
-        
-            <li>module:./routes/instructorRoutes</li>
-        
-            <li>module:./routes/projectRoutes</li>
-        
-            <li>module:./routes/evaluationRoutes</li>
-        </ul>
     
+        <h3 class="subsection-title">Classes</h3>
 
+        <dl>
+            <dt><a href="AppError.html">AppError</a></dt>
+            <dd></dd>
+        </dl>
     
 
     

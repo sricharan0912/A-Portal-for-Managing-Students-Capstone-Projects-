@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="utf-8">
-    <title>JSDoc: Home</title>
+    <title>JSDoc: Module: routes/clientRoutes</title>
 
     <script src="scripts/prettify/prettify.js"> </script>
     <script src="scripts/prettify/lang-css.js"> </script>
@@ -17,75 +17,9 @@
 
 <div id="main">
 
-    <h1 class="page-title">Home</h1>
+    <h1 class="page-title">Module: routes/clientRoutes</h1>
 
     
-
-
-
-    
-
-
-    <h3> </h3>
-
-
-
-
-
-
-
-
-
-
-    
-
-
-
-
-    <section>
-        <article><h1>Capstone Hub Backend API</h1>
-<p>Student Capstone Project Management System - Backend API</p>
-<h2>Overview</h2>
-<p>This is the backend API for Capstone Hub, a comprehensive platform for managing student capstone projects in CS 682. The system serves three user roles:</p>
-<ul>
-<li><strong>Clients</strong>: Propose and manage project ideas</li>
-<li><strong>Students</strong>: Browse projects and submit preferences</li>
-<li><strong>Instructors</strong>: Approve projects and manage group formation</li>
-</ul>
-<h2>Tech Stack</h2>
-<ul>
-<li>Node.js + Express</li>
-<li>MySQL Database</li>
-<li>Firebase Authentication</li>
-<li>RESTful API Architecture</li>
-</ul>
-<h2>Project Structure</h2>
-<pre class="prettyprint source"><code>backend/
-├── src/
-│   ├── controllers/    # API endpoint handlers
-│   ├── middleware/     # Auth, validation, error handling
-│   ├── routes/         # API route definitions
-│   ├── utils/          # Helper functions
-│   └── config/         # Configuration files
-└── docs/              # Generated documentation
-</code></pre>
-<h2>API Documentation</h2>
-<p>For complete API documentation, run:</p>
-<pre class="prettyprint source lang-bash"><code>npm run docs:generate
-npm run docs:view
-</code></pre>
-<h2>Team</h2>
-<ul>
-<li>Sri Charan</li>
-<li>Lohith Mudipalli</li>
-<li>Bharath</li>
-</ul></article>
-    </section>
-
-
-
-
-
 
 
 
@@ -94,7 +28,8 @@ npm run docs:view
 
 <header>
     
-        <h2>index.js</h2>
+        
+            
         
     
 </header>
@@ -103,12 +38,33 @@ npm run docs:view
     <div class="container-overview">
     
         
-            <div class="description"><p>Main entry point for Capstone Hub Backend Server
-Sets up Express app with middleware, routes, and error handling
-Validates environment variables and establishes database connection</p></div>
+            <div class="description"><p>Client Routes Module</p>
+<p>Handles all client-related API endpoints including authentication, profile management,
+project management, and team/group assignments.</p>
+<p>Routes are organized by functionality:</p>
+<ol>
+<li>Authentication (signup, login)</li>
+<li>Client Profile (CRUD operations)</li>
+<li>Client Projects (list, statistics)</li>
+<li>Teams/Groups (assigned to client's projects)</li>
+</ol></div>
         
 
         
+            
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 <dl class="details">
@@ -140,7 +96,7 @@ Validates environment variables and establishes database connection</p></div>
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="index.js.html">index.js</a>, <a href="index.js.html#line1">line 1</a>
+        <a href="routes_clientRoutes.js.html">routes/clientRoutes.js</a>, <a href="routes_clientRoutes.js.html#line1">line 1</a>
     </li></ul></dd>
     
 
@@ -150,6 +106,24 @@ Validates environment variables and establishes database connection</p></div>
 
     
 </dl>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
         
@@ -164,25 +138,15 @@ Validates environment variables and establishes database connection</p></div>
         <ul>
             <li>module:express</li>
         
-            <li>module:cors</li>
+            <li>module:jsonwebtoken</li>
         
-            <li>module:dotenv</li>
+            <li>module:../../db</li>
         
-            <li>module:./config/validateEnv</li>
+            <li>module:../../firebaseAdmin</li>
         
-            <li>module:../db</li>
+            <li>module:../middleware/authMiddleware</li>
         
-            <li>module:./middleware/errorHandler</li>
-        
-            <li>module:./routes/clientRoutes</li>
-        
-            <li>module:./routes/studentRoutes</li>
-        
-            <li>module:./routes/instructorRoutes</li>
-        
-            <li>module:./routes/projectRoutes</li>
-        
-            <li>module:./routes/evaluationRoutes</li>
+            <li>module:../middleware/validateRequest</li>
         </ul>
     
 
@@ -196,6 +160,245 @@ Validates environment variables and establishes database connection</p></div>
 
     
 
+    
+        <h3 class="subsection-title">Methods</h3>
+
+        
+            
+
+    
+
+    
+    <h4 class="name" id="~generateJWT"><span class="type-signature">(inner) </span>generateJWT<span class="signature">(uid, email, role, clientId)</span><span class="type-signature"> &rarr; {string}</span></h4>
+    
+
+    
+
+
+
+<div class="description">
+    <p>Generate JWT Token for Client</p>
+<p>Creates a signed JWT token containing client authentication data.
+Token expires in 7 days.</p>
+</div>
+
+
+
+
+
+
+
+
+
+    <h5>Parameters:</h5>
+    
+
+<table class="params">
+    <thead>
+    <tr>
+        
+        <th>Name</th>
+        
+
+        <th>Type</th>
+
+        
+
+        
+
+        <th class="last">Description</th>
+    </tr>
+    </thead>
+
+    <tbody>
+    
+
+        <tr>
+            
+                <td class="name"><code>uid</code></td>
+            
+
+            <td class="type">
+            
+                
+<span class="param-type">string</span>
+
+
+            
+            </td>
+
+            
+
+            
+
+            <td class="description last"><p>Firebase user ID</p></td>
+        </tr>
+
+    
+
+        <tr>
+            
+                <td class="name"><code>email</code></td>
+            
+
+            <td class="type">
+            
+                
+<span class="param-type">string</span>
+
+
+            
+            </td>
+
+            
+
+            
+
+            <td class="description last"><p>Client email address</p></td>
+        </tr>
+
+    
+
+        <tr>
+            
+                <td class="name"><code>role</code></td>
+            
+
+            <td class="type">
+            
+                
+<span class="param-type">string</span>
+
+
+            
+            </td>
+
+            
+
+            
+
+            <td class="description last"><p>User role (should be 'client')</p></td>
+        </tr>
+
+    
+
+        <tr>
+            
+                <td class="name"><code>clientId</code></td>
+            
+
+            <td class="type">
+            
+                
+<span class="param-type">number</span>
+
+
+            
+            </td>
+
+            
+
+            
+
+            <td class="description last"><p>Numeric database client ID</p></td>
+        </tr>
+
+    
+    </tbody>
+</table>
+
+
+
+
+
+
+<dl class="details">
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+    <dt class="tag-source">Source:</dt>
+    <dd class="tag-source"><ul class="dummy"><li>
+        <a href="routes_clientRoutes.js.html">routes/clientRoutes.js</a>, <a href="routes_clientRoutes.js.html#line31">line 31</a>
+    </li></ul></dd>
+    
+
+    
+
+    
+
+    
+</dl>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<h5>Returns:</h5>
+
+        
+<div class="param-desc">
+    <p>Signed JWT token</p>
+</div>
+
+
+
+<dl>
+    <dt>
+        Type
+    </dt>
+    <dd>
+        
+<span class="param-type">string</span>
+
+
+    </dd>
+</dl>
+
+    
+
+
+
+
+    <h5>Example</h5>
+    
+    <pre class="prettyprint"><code>const token = generateJWT('firebase-uid-123', 'client@example.com', 'client', 42);</code></pre>
+
+
+
+        
     
 
     
