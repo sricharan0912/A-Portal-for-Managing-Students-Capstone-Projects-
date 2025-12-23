@@ -1,226 +1,67 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="utf-8">
-    <title>JSDoc: Home</title>
-
-    <script src="scripts/prettify/prettify.js"> </script>
-    <script src="scripts/prettify/lang-css.js"> </script>
-    <!--[if lt IE 9]>
-      <script src="//html5shiv.googlecode.com/svn/trunk/html5.js"></script>
-    <![endif]-->
-    <link type="text/css" rel="stylesheet" href="styles/prettify-tomorrow.css">
-    <link type="text/css" rel="stylesheet" href="styles/jsdoc-default.css">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Capstone Hub Documentation</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 900px;
+            margin: 50px auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        h1 {
+            color: #333;
+            text-align: center;
+            margin-bottom: 40px;
+        }
+        .doc-card {
+            background: white;
+            padding: 30px;
+            margin: 20px 0;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .doc-card h2 {
+            color: #667eea;
+            margin-bottom: 10px;
+        }
+        .doc-card p {
+            color: #666;
+            margin-bottom: 15px;
+        }
+        .doc-card a {
+            display: inline-block;
+            background: #667eea;
+            color: white;
+            padding: 10px 20px;
+            text-decoration: none;
+            border-radius: 5px;
+        }
+        .doc-card a:hover {
+            background: #5568d3;
+        }
+    </style>
 </head>
-
 <body>
-
-<div id="main">
-
-    <h1 class="page-title">Home</h1>
-
+    <h1>🎓 Capstone Hub Documentation</h1>
     
-
-
-
-    
-
-
-    <h3> </h3>
-
-
-
-
-
-
-
-
-
-
-    
-
-
-
-
-    <section>
-        <article><h1>Capstone Hub Backend API</h1>
-<p>Student Capstone Project Management System - Backend API</p>
-<h2>Overview</h2>
-<p>This is the backend API for Capstone Hub, a comprehensive platform for managing student capstone projects in CS 682. The system serves three user roles:</p>
-<ul>
-<li><strong>Clients</strong>: Propose and manage project ideas</li>
-<li><strong>Students</strong>: Browse projects and submit preferences</li>
-<li><strong>Instructors</strong>: Approve projects and manage group formation</li>
-</ul>
-<h2>Tech Stack</h2>
-<ul>
-<li>Node.js + Express</li>
-<li>MySQL Database</li>
-<li>Firebase Authentication</li>
-<li>RESTful API Architecture</li>
-</ul>
-<h2>Project Structure</h2>
-<pre class="prettyprint source"><code>backend/
-├── src/
-│   ├── controllers/    # API endpoint handlers
-│   ├── middleware/     # Auth, validation, error handling
-│   ├── routes/         # API route definitions
-│   ├── utils/          # Helper functions
-│   └── config/         # Configuration files
-└── docs/              # Generated documentation
-</code></pre>
-<h2>API Documentation</h2>
-<p>For complete API documentation, run:</p>
-<pre class="prettyprint source lang-bash"><code>npm run docs:generate
-npm run docs:view
-</code></pre>
-<h2>Team</h2>
-<ul>
-<li>Sri Charan</li>
-<li>Lohith Mudipalli</li>
-<li>Bharath</li>
-</ul></article>
-    </section>
-
-
-
-
-
-
-
-
-
-<section>
-
-<header>
-    
-        <h2>index.js</h2>
-        
-    
-</header>
-
-<article>
-    <div class="container-overview">
-    
-        
-            <div class="description"><p>Main entry point for Capstone Hub Backend Server
-Sets up Express app with middleware, routes, and error handling
-Validates environment variables and establishes database connection</p></div>
-        
-
-        
-
-
-<dl class="details">
-
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-    <dt class="tag-source">Source:</dt>
-    <dd class="tag-source"><ul class="dummy"><li>
-        <a href="index.js.html">index.js</a>, <a href="index.js.html#line1">line 1</a>
-    </li></ul></dd>
-    
-
-    
-
-    
-
-    
-</dl>
-
-
-        
-    
+    <div class="doc-card">
+        <h2>⚙️ Backend API Documentation</h2>
+        <p>Complete REST API documentation including endpoints, controllers, middleware, and database operations.</p>
+        <a href="./backend/index.html">View Backend Docs →</a>
     </div>
-
     
-
+    <div class="doc-card">
+        <h2>🎨 Frontend Components Documentation</h2>
+        <p>React component library, custom hooks, utilities, and UI implementation details.</p>
+        <a href="./frontend/index.html">View Frontend Docs →</a>
+    </div>
     
-        <h3 class="subsection-title">Requires</h3>
-
-        <ul>
-            <li>module:express</li>
-        
-            <li>module:cors</li>
-        
-            <li>module:dotenv</li>
-        
-            <li>module:./config/validateEnv</li>
-        
-            <li>module:../db</li>
-        
-            <li>module:./middleware/errorHandler</li>
-        
-            <li>module:./routes/clientRoutes</li>
-        
-            <li>module:./routes/studentRoutes</li>
-        
-            <li>module:./routes/instructorRoutes</li>
-        
-            <li>module:./routes/projectRoutes</li>
-        
-            <li>module:./routes/evaluationRoutes</li>
-        </ul>
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-</article>
-
-</section>
-
-
-
-
-</div>
-
-<nav>
-    <h2><a href="index.html">Home</a></h2><h3>Modules</h3><ul><li><a href="module-controllers_clientController.html">controllers/clientController</a></li><li><a href="module-controllers_instructorController.html">controllers/instructorController</a></li><li><a href="module-controllers_studentController.html">controllers/studentController</a></li><li><a href="module-groupFormationAlgorithm.html">groupFormationAlgorithm</a></li><li><a href="module-middleware_authMiddleware.html">middleware/authMiddleware</a></li><li><a href="module-routes_clientRoutes.html">routes/clientRoutes</a></li><li><a href="module-routes_evaluationRoutes.html">routes/evaluationRoutes</a></li><li><a href="module-routes_instructorRoutes.html">routes/instructorRoutes</a></li><li><a href="module-routes_projectRoutes.html">routes/projectRoutes</a></li><li><a href="module-routes_studentRoutes.html">routes/studentRoutes</a></li><li><a href="module-utils_groupFormationAlgorithm.html">utils/groupFormationAlgorithm</a></li></ul><h3>Classes</h3><ul><li><a href="AppError.html">AppError</a></li></ul><h3>Global</h3><ul><li><a href="global.html#OPTIONAL_ENV_VARS">OPTIONAL_ENV_VARS</a></li><li><a href="global.html#REQUIRED_ENV_VARS">REQUIRED_ENV_VARS</a></li><li><a href="global.html#calculatePagination">calculatePagination</a></li><li><a href="global.html#errorHandler">errorHandler</a></li><li><a href="global.html#formatAuthError">formatAuthError</a></li><li><a href="global.html#formatConflict">formatConflict</a></li><li><a href="global.html#formatCreated">formatCreated</a></li><li><a href="global.html#formatDeleted">formatDeleted</a></li><li><a href="global.html#formatError">formatError</a></li><li><a href="global.html#formatForbidden">formatForbidden</a></li><li><a href="global.html#formatList">formatList</a></li><li><a href="global.html#formatNotFound">formatNotFound</a></li><li><a href="global.html#formatServerError">formatServerError</a></li><li><a href="global.html#formatSuccess">formatSuccess</a></li><li><a href="global.html#formatUpdated">formatUpdated</a></li><li><a href="global.html#formatValidationError">formatValidationError</a></li><li><a href="global.html#getEnv">getEnv</a></li><li><a href="global.html#isValidEmail">isValidEmail</a></li><li><a href="global.html#isValidUrl">isValidUrl</a></li><li><a href="global.html#mapFirebaseError">mapFirebaseError</a></li><li><a href="global.html#printEnvironmentSummary">printEnvironmentSummary</a></li><li><a href="global.html#printExampleEnvFile">printExampleEnvFile</a></li><li><a href="global.html#requestIdMiddleware">requestIdMiddleware</a></li><li><a href="global.html#requestLoggingMiddleware">requestLoggingMiddleware</a></li><li><a href="global.html#server">server</a></li><li><a href="global.html#validateClientLogin">validateClientLogin</a></li><li><a href="global.html#validateClientSignup">validateClientSignup</a></li><li><a href="global.html#validateDatabaseConfig">validateDatabaseConfig</a></li><li><a href="global.html#validateEnvironment">validateEnvironment</a></li><li><a href="global.html#validateFirebaseConfig">validateFirebaseConfig</a></li><li><a href="global.html#validateGroupAssignment">validateGroupAssignment</a></li><li><a href="global.html#validateInstructorLogin">validateInstructorLogin</a></li><li><a href="global.html#validateInstructorSignup">validateInstructorSignup</a></li><li><a href="global.html#validatePreferences">validatePreferences</a></li><li><a href="global.html#validateProject">validateProject</a></li><li><a href="global.html#validateStudentLogin">validateStudentLogin</a></li><li><a href="global.html#validateStudentSignup">validateStudentSignup</a></li></ul>
-</nav>
-
-<br class="clear">
-
-<footer>
-    Documentation generated by <a href="https://github.com/jsdoc/jsdoc">JSDoc 4.0.5</a> on Mon Dec 22 2025 21:57:37 GMT-0500 (Eastern Standard Time)
-</footer>
-
-<script> prettyPrint(); </script>
-<script src="scripts/linenumber.js"> </script>
+    <footer style="text-align: center; margin-top: 50px; color: #666;">
+        <p>Created by Sri Charan Tadiparthi, Lohith Mudipalli, Bharath Karumanchi</p>
+    </footer>
 </body>
 </html>
